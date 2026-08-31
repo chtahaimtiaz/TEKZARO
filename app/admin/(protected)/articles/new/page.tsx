@@ -20,6 +20,7 @@ export default async function NewArticlePage() {
     <ArticleEditor
       mode="create"
       initialBlocks={[]}
+      initialFeaturedMedia={null}
       initial={{
         title: "",
         slug: "",
@@ -33,6 +34,7 @@ export default async function NewArticlePage() {
         featuredImageAlt: "",
         featuredImageCaption: "",
         featuredImageCredit: "",
+        featuredMediaId: "",
         seoTitle: "",
         metaDescription: "",
         canonicalUrl: "",

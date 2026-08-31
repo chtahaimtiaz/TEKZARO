@@ -152,6 +152,20 @@ enum NewsletterSubscriberStatus {
   UNSUBSCRIBED
 }
 
+// Public accessibility is never interpreted as reuse permission. UNKNOWN is
+// the default for every automatically acquired image — an absent grant is
+// non-publishable, not neutral. Only ALLOWED/LICENSED/OWNED/GENERATED may
+// ever reach Article.featuredImageUrl (see lib/publication-checks.ts).
+enum ImageReuseStatus {
+  UNKNOWN
+  ALLOWED
+  LICENSED
+  OWNED
+  GENERATED
+  REQUIRES_REVIEW
+  REJECTED
+}
+
 model User {
   id                  String    @id @default(cuid())
   name                String
@@ -280,6 +294,15 @@ model Article {
   featuredImageCaption String?
   featuredImageCredit  String?
 
+  // Purely an optional provenance cross-reference for the CMS — the fields
+  // above remain the actual rendering source of truth and are unaffected.
+  // Null whenever the image came from a hand-typed URL (no provenance to
+  // show) or there is no featured image at all. Kept in lockstep with
+  // featuredImageUrl by lib/article-actions.ts on every edit — see the
+  // Non-negotiable invariant in the image-acquisition plan.
+  featuredMediaId String?
+  featuredMedia   Media?  @relation(fields: [featuredMediaId], references: [id], onDelete: SetNull)
+
   seoTitle        String?
   metaDescription String?
   canonicalUrl    String?
@@ -385,6 +408,7 @@ model SourceItem {
 
   claimSources ClaimSource[]
   digestItems  DigestItem[]
+  acquiredMedia Media[]
 
   @@unique([sourceId, sourceUrl])
   @@index([publishedAt])
@@ -549,6 +573,36 @@ model Media {
   uploadedById String
   uploadedBy   User     @relation(fields: [uploadedById], references: [id])
   createdAt    DateTime @default(now())
+
+  // Provenance for automatically acquired images (lib/images/acquire.ts).
+  // All null for a plain editor upload via /api/media/upload.
+  sourceItemId     String?
+  sourceItem       SourceItem? @relation(fields: [sourceItemId], references: [id], onDelete: SetNull)
+  sourceUrl        String? // the original remote image URL it was downloaded from
+  sourceArticleUrl String? // the article page it was found on
+  sourceDomain     String? // that page's hostname, for publication attribution
+  // SHA-256 of the downloaded bytes. Nullable-unique: Postgres allows many
+  // nulls (editor uploads don't compute one) but enforces uniqueness among
+  // non-null values, which is what powers acquisition-time dedup.
+  contentHash      String?     @unique
+
+  // The safety-critical field — see the Non-negotiable invariant. Defaults
+  // to UNKNOWN (non-publishable); the manual-upload route explicitly sets
+  // ALLOWED (a human already chose to upload it). Acquisition never sets
+  // anything better than LICENSED on an explicit, machine-readable grant —
+  // everything else it finds lands in REQUIRES_REVIEW.
+  reuseStatus ImageReuseStatus @default(UNKNOWN)
+  reuseNotes  String?
+
+  // The winning candidate's ranking outcome, same {score, reasons} shape as
+  // lib/discovery's deterministic scoring — why this image was selected.
+  selectionScore   Float?
+  selectionReasons Json?
+
+  featuredOnArticles Article[]
+
+  @@index([sourceItemId])
+  @@index([reuseStatus])
 }
 
 model NewsletterSubscriber {

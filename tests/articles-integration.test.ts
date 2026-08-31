@@ -24,6 +24,7 @@ function baseInput(title: string): ArticleFormInput {
     featuredImageAlt: "",
     featuredImageCaption: "",
     featuredImageCredit: "",
+    featuredMediaId: "",
     seoTitle: "",
     metaDescription: "",
     canonicalUrl: "",

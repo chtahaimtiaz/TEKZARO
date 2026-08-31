@@ -17,8 +17,18 @@ import {
   transitionArticleAction,
   type ArticleFormInput,
 } from "@/lib/article-actions";
-import type { ArticleStatus } from "@prisma/client";
+import { isPublishableReuseStatus } from "@/lib/publication-checks";
+import type { ArticleStatus, ImageReuseStatus } from "@prisma/client";
 import type { ContentBlock } from "@/lib/content-blocks";
+
+export interface FeaturedMediaInfo {
+  id: string;
+  reuseStatus: ImageReuseStatus;
+  sourceDomain: string | null;
+  sourceArticleUrl: string | null;
+  createdAt: string;
+  selectionReasons: string[] | null;
+}
 
 interface ArticleEditorProps {
   mode: "create" | "edit";
@@ -26,6 +36,10 @@ interface ArticleEditorProps {
   status?: ArticleStatus;
   initialBlocks: ContentBlock[];
   initial: Omit<ArticleFormInput, "blocks" | "pakistanImpact">;
+  /** Provenance of the currently-linked Media row (initial.featuredMediaId),
+   * or null when there is none — a fresh upload / hand-typed URL flow keeps
+   * this in lockstep client-side, see the featuredMedia state below. */
+  initialFeaturedMedia: FeaturedMediaInfo | null;
   categories: { id: string; name: string }[];
   authors: { id: string; name: string }[];
   legalTransitions: TransitionName[];
@@ -38,6 +52,7 @@ export function ArticleEditor({
   status,
   initialBlocks,
   initial,
+  initialFeaturedMedia,
   categories,
   authors,
   legalTransitions,
@@ -58,6 +73,7 @@ export function ArticleEditor({
   const [blocks, setBlocks] = useState<ContentBlock[]>(initialSplitBlocks);
   const [pakistanImpact, setPakistanImpact] = useState(initialImpact);
   const [tagsText, setTagsText] = useState(initial.tagNames.join(", "));
+  const [featuredMedia, setFeaturedMedia] = useState<FeaturedMediaInfo | null>(initialFeaturedMedia);
 
   function patch(next: Partial<Omit<ArticleFormInput, "blocks" | "pakistanImpact">>) {
     setForm((f) => ({ ...f, ...next }));
@@ -90,10 +106,11 @@ export function ArticleEditor({
         featuredImageAlt: fullInput.featuredImageAlt || null,
         metaDescription: fullInput.metaDescription || null,
         excerpt: fullInput.excerpt || null,
+        featuredMediaReuseStatus: featuredMedia?.reuseStatus ?? null,
       }),
     // slugAvailable omitted deliberately — verified server-side on save/publish
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [fullInput.title, fullInput.slug, fullInput.categoryId, fullInput.authorId, blocks, fullInput.featuredImageUrl, fullInput.featuredImageAlt, fullInput.metaDescription, fullInput.excerpt],
+    [fullInput.title, fullInput.slug, fullInput.categoryId, fullInput.authorId, blocks, fullInput.featuredImageUrl, fullInput.featuredImageAlt, fullInput.metaDescription, fullInput.excerpt, featuredMedia],
   );
 
   function save() {
@@ -308,11 +325,81 @@ export function ArticleEditor({
           <div className="rounded-xl border border-border bg-paper-raised p-4">
             <p className="mb-3 text-sm font-bold">Featured image</p>
             <div className="flex flex-col gap-3 text-sm">
-              <MediaUploadButton kind="article" available={mediaUploadAvailable} onUploaded={(url) => patch({ featuredImageUrl: url })} />
-              <input value={form.featuredImageUrl} onChange={(e) => patch({ featuredImageUrl: e.target.value })} placeholder="Image URL" className="rounded-md border border-border-strong p-2" />
+              <MediaUploadButton
+                kind="article"
+                available={mediaUploadAvailable}
+                onUploaded={(result) => {
+                  // A fresh upload is real, human-vouched-for permission —
+                  // the upload route sets reuseStatus:"ALLOWED" server-side;
+                  // mirrored here so the checklist updates immediately
+                  // without a round trip. See invariant rule 4.
+                  patch({ featuredImageUrl: result.url, featuredMediaId: result.id });
+                  setFeaturedMedia({
+                    id: result.id,
+                    reuseStatus: "ALLOWED",
+                    sourceDomain: null,
+                    sourceArticleUrl: null,
+                    createdAt: new Date().toISOString(),
+                    selectionReasons: null,
+                  });
+                }}
+              />
+              <input
+                value={form.featuredImageUrl}
+                onChange={(e) => {
+                  // A hand-typed URL has no provenance record by
+                  // definition — clear the link rather than let it
+                  // silently keep pointing at whatever was there before.
+                  // See invariant rule 4.
+                  patch({ featuredImageUrl: e.target.value, featuredMediaId: "" });
+                  setFeaturedMedia(null);
+                }}
+                placeholder="Image URL"
+                className="rounded-md border border-border-strong p-2"
+              />
               <input value={form.featuredImageAlt} onChange={(e) => patch({ featuredImageAlt: e.target.value })} placeholder="Alt text" className="rounded-md border border-border-strong p-2" />
               <input value={form.featuredImageCaption} onChange={(e) => patch({ featuredImageCaption: e.target.value })} placeholder="Caption" className="rounded-md border border-border-strong p-2" />
               <input value={form.featuredImageCredit} onChange={(e) => patch({ featuredImageCredit: e.target.value })} placeholder="Credit / license" className="rounded-md border border-border-strong p-2" />
+
+              {featuredMedia && !isPublishableReuseStatus(featuredMedia.reuseStatus) && (
+                <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs font-semibold text-amber-800">
+                  Needs image-rights review — this image was automatically found and hasn&apos;t been cleared
+                  for publication. Approve it on the Media page, upload a different image, or paste a
+                  different URL.
+                </p>
+              )}
+
+              {featuredMedia && (
+                <details className="rounded-md border border-border-strong p-2 text-xs text-ink-muted">
+                  <summary className="cursor-pointer font-semibold text-ink-soft">Image provenance</summary>
+                  <dl className="mt-2 flex flex-col gap-1">
+                    <p>
+                      <span className="font-medium text-ink-soft">Reuse status: </span>
+                      {featuredMedia.reuseStatus.replace(/_/g, " ")}
+                    </p>
+                    {featuredMedia.sourceDomain && (
+                      <p>
+                        <span className="font-medium text-ink-soft">Source: </span>
+                        {featuredMedia.sourceDomain}
+                      </p>
+                    )}
+                    <p>
+                      <span className="font-medium text-ink-soft">Found: </span>
+                      {new Date(featuredMedia.createdAt).toLocaleDateString()}
+                    </p>
+                    {featuredMedia.selectionReasons && featuredMedia.selectionReasons.length > 0 && (
+                      <div>
+                        <span className="font-medium text-ink-soft">Why selected:</span>
+                        <ul className="list-disc pl-4">
+                          {featuredMedia.selectionReasons.map((reason, i) => (
+                            <li key={i}>{reason}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </dl>
+                </details>
+              )}
             </div>
           </div>
 

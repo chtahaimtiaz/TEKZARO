@@ -8,7 +8,7 @@ interface MediaUploadButtonProps {
    * and passed down — never re-derived client-side, since the guard depends
    * on server-only env vars (VERCEL, STORAGE_PROVIDER). */
   available: boolean;
-  onUploaded: (url: string) => void;
+  onUploaded: (result: { id: string; url: string }) => void;
 }
 
 export function MediaUploadButton({ kind, available, onUploaded }: MediaUploadButtonProps) {
@@ -39,7 +39,7 @@ export function MediaUploadButton({ kind, available, onUploaded }: MediaUploadBu
       if (!res.ok) {
         setError(data.error || "Upload failed.");
       } else {
-        onUploaded(data.url);
+        onUploaded({ id: data.id, url: data.url });
       }
     } catch {
       setError("Upload failed — check your connection.");

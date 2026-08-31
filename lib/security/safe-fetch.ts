@@ -96,7 +96,12 @@ async function assertResolvesToPublicAddress(hostname: string): Promise<void> {
 }
 
 async function readCapped(response: Response): Promise<string> {
-  if (!response.body) return "";
+  const buffer = await readCappedBinary(response);
+  return buffer.toString("utf-8");
+}
+
+async function readCappedBinary(response: Response): Promise<Buffer> {
+  if (!response.body) return Buffer.alloc(0);
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -113,5 +118,50 @@ async function readCapped(response: Response): Promise<string> {
     chunks.push(value);
   }
 
-  return Buffer.concat(chunks.map((c) => Buffer.from(c))).toString("utf-8");
+  return Buffer.concat(chunks.map((c) => Buffer.from(c)));
+}
+
+export interface SafeFetchBinaryResult {
+  status: number;
+  headers: Headers;
+  bytes: Buffer;
+  finalUrl: string;
+}
+
+/**
+ * Binary-safe sibling of `safeFetch` — same SSRF hardening (reuses
+ * `parseAndValidate`/`assertResolvesToPublicAddress` verbatim, not a copy),
+ * same protocol allowlist, same manually-revalidated redirects, same 10s
+ * timeout, same 5MB cap — but returns the raw downloaded bytes instead of
+ * decoding them as UTF-8 text, which would corrupt binary content (images).
+ * Added for lib/images/acquire.ts; `safeFetch` itself is untouched.
+ */
+export async function safeFetchBinary(inputUrl: string, redirectsLeft = MAX_REDIRECTS): Promise<SafeFetchBinaryResult> {
+  const url = parseAndValidate(inputUrl);
+  await assertResolvesToPublicAddress(url.hostname);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(url.toString(), {
+      redirect: "manual",
+      signal: controller.signal,
+      headers: { "User-Agent": "TEKZAROBot/1.0 (+https://tekzaro.example/about)" },
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (response.status >= 300 && response.status < 400) {
+    const location = response.headers.get("location");
+    if (!location) throw new UnsafeUrlError("Redirect with no Location header.");
+    if (redirectsLeft <= 0) throw new UnsafeUrlError("Too many redirects.");
+    const nextUrl = new URL(location, url).toString();
+    return safeFetchBinary(nextUrl, redirectsLeft - 1);
+  }
+
+  const bytes = await readCappedBinary(response);
+  return { status: response.status, headers: response.headers, bytes, finalUrl: url.toString() };
 }

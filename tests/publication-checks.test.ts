@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { evaluatePublicationChecks, allChecksPassed } from "../lib/publication-checks";
+import { evaluatePublicationChecks, allChecksPassed, isPublishableReuseStatus } from "../lib/publication-checks";
+import type { ImageReuseStatus } from "@prisma/client";
 
 const baseInput = {
   title: "A properly long headline for testing",
@@ -11,6 +12,7 @@ const baseInput = {
   featuredImageAlt: null,
   metaDescription: "A meta description.",
   excerpt: null,
+  featuredMediaReuseStatus: null,
   slugAvailable: true,
 };
 
@@ -18,7 +20,7 @@ describe("evaluatePublicationChecks", () => {
   it("passes every check for a well-formed article", () => {
     const checks = evaluatePublicationChecks(baseInput);
     expect(allChecksPassed(checks)).toBe(true);
-    expect(checks).toHaveLength(7);
+    expect(checks).toHaveLength(8);
   });
 
   it("fails the title check when too short", () => {
@@ -66,5 +68,53 @@ describe("evaluatePublicationChecks", () => {
   it("fails the SEO check when both metaDescription and excerpt are empty", () => {
     const checks = evaluatePublicationChecks({ ...baseInput, metaDescription: null, excerpt: null });
     expect(checks.find((c) => c.id === "seo")!.passed).toBe(false);
+  });
+
+  // The Non-negotiable invariant, exercised directly: public accessibility
+  // is never interpreted as reuse permission. UNKNOWN/REQUIRES_REVIEW/
+  // REJECTED must block publication; only ALLOWED/LICENSED/OWNED/GENERATED
+  // may pass — and no linked media at all must keep passing exactly like
+  // today's pre-acquisition behavior (a hand-typed URL has no Media link).
+  describe("image-rights check (Non-negotiable invariant)", () => {
+    it("passes with no linked media, regardless of featuredImageUrl", () => {
+      const noLink = evaluatePublicationChecks({ ...baseInput, featuredImageUrl: "https://example.com/x.jpg", featuredImageAlt: "Alt", featuredMediaReuseStatus: null });
+      expect(noLink.find((c) => c.id === "image-rights")!.passed).toBe(true);
+    });
+
+    const nonPublishable: ImageReuseStatus[] = ["UNKNOWN", "REQUIRES_REVIEW", "REJECTED"];
+    for (const status of nonPublishable) {
+      it(`fails when linked media reuseStatus is ${status}`, () => {
+        const checks = evaluatePublicationChecks({ ...baseInput, featuredMediaReuseStatus: status });
+        const check = checks.find((c) => c.id === "image-rights")!;
+        expect(check.passed).toBe(false);
+        expect(check.reason).toBeTruthy();
+      });
+    }
+
+    const publishable: ImageReuseStatus[] = ["ALLOWED", "LICENSED", "OWNED", "GENERATED"];
+    for (const status of publishable) {
+      it(`passes when linked media reuseStatus is ${status}`, () => {
+        const checks = evaluatePublicationChecks({ ...baseInput, featuredMediaReuseStatus: status });
+        expect(checks.find((c) => c.id === "image-rights")!.passed).toBe(true);
+      });
+    }
+
+    it("a non-publishable image is the only failing check on an otherwise-perfect article", () => {
+      const checks = evaluatePublicationChecks({ ...baseInput, featuredMediaReuseStatus: "REQUIRES_REVIEW" });
+      expect(allChecksPassed(checks)).toBe(false);
+      expect(checks.filter((c) => !c.passed).map((c) => c.id)).toEqual(["image-rights"]);
+    });
+  });
+});
+
+describe("isPublishableReuseStatus", () => {
+  it("is true only for ALLOWED/LICENSED/OWNED/GENERATED", () => {
+    expect(isPublishableReuseStatus("ALLOWED")).toBe(true);
+    expect(isPublishableReuseStatus("LICENSED")).toBe(true);
+    expect(isPublishableReuseStatus("OWNED")).toBe(true);
+    expect(isPublishableReuseStatus("GENERATED")).toBe(true);
+    expect(isPublishableReuseStatus("UNKNOWN")).toBe(false);
+    expect(isPublishableReuseStatus("REQUIRES_REVIEW")).toBe(false);
+    expect(isPublishableReuseStatus("REJECTED")).toBe(false);
   });
 });

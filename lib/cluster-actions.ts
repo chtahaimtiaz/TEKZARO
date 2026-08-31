@@ -5,6 +5,7 @@ import { prisma } from "./prisma";
 import { getSessionUser, requireRole } from "./auth";
 import { CAN_RESEARCH, CAN_CREATE_DRAFT_FROM_DISCOVERY } from "./permissions";
 import { logAction } from "./audit";
+import { featuredImageFieldsFor } from "./images/featured-image";
 import type { ClaimType, ClaimStance, Prisma } from "@prisma/client";
 
 export interface ActionResult {
@@ -188,6 +189,7 @@ export async function createDraftFromClusterAction(clusterId: string): Promise<A
       createdById: user.id,
       metaDescription: lead.excerpt,
       pakistanRelevance: lead.pakistanRelevance,
+      ...(await featuredImageFieldsFor(lead.id)),
     },
   });
 

@@ -1,4 +1,20 @@
 import type { ContentBlock } from "./content-blocks";
+import type { ImageReuseStatus } from "@prisma/client";
+
+// Public accessibility is never interpreted as reuse permission — see the
+// Non-negotiable invariant in the image-acquisition plan. Only these four
+// statuses may ever back a published featured image; UNKNOWN/
+// REQUIRES_REVIEW/REJECTED must not, regardless of how the image was found.
+const PUBLISHABLE_REUSE_STATUSES: ReadonlySet<ImageReuseStatus> = new Set([
+  "ALLOWED",
+  "LICENSED",
+  "OWNED",
+  "GENERATED",
+]);
+
+export function isPublishableReuseStatus(status: ImageReuseStatus): boolean {
+  return PUBLISHABLE_REUSE_STATUSES.has(status);
+}
 
 export interface PublicationCheckInput {
   title: string;
@@ -10,6 +26,10 @@ export interface PublicationCheckInput {
   featuredImageAlt: string | null;
   metaDescription: string | null;
   excerpt: string | null;
+  /** reuseStatus of the linked Media row (Article.featuredMediaId), or null
+   * when no media is linked (no image, or a hand-typed URL with no
+   * provenance record — see invariant rule 4). */
+  featuredMediaReuseStatus: ImageReuseStatus | null;
   /** Omit while evaluating client-side (no DB access) — publish/schedule
    * server actions always pass this in after a real uniqueness query. */
   slugAvailable?: boolean;
@@ -102,6 +122,20 @@ export function evaluatePublicationChecks(input: PublicationCheckInput): Publica
     label: "SEO description present",
     passed: seoOk,
     reason: seoOk ? undefined : "Add an SEO description or an excerpt.",
+  });
+
+  // Passes trivially with no linked media (no image, or a hand-typed URL —
+  // unchanged, pre-existing behavior). Only blocks when a Media row IS
+  // linked and its reuseStatus isn't one of the publishable statuses.
+  const imageRightsOk =
+    input.featuredMediaReuseStatus === null || isPublishableReuseStatus(input.featuredMediaReuseStatus);
+  results.push({
+    id: "image-rights",
+    label: "Featured image is cleared for use",
+    passed: imageRightsOk,
+    reason: imageRightsOk
+      ? undefined
+      : "This image was automatically found and hasn't been cleared for publication yet — review it on the Media page, or replace it with an uploaded or manually-sourced image.",
   });
 
   return results;

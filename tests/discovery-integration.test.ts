@@ -11,6 +11,7 @@ import {
   createDraftFromClusterAction,
 } from "../lib/cluster-actions";
 import { createTestUser, loginAs, clearSession, trackUser, cleanupTestData } from "./helpers";
+import { getSystemUserId } from "../lib/system-actor";
 
 let categoryId: string;
 let authorId: string;
@@ -108,6 +109,71 @@ describe("claim contradiction blocking", () => {
     expect(draftAfterResolution.ok).toBe(true);
     if (draftAfterResolution.articleId) createdArticleIds.push(draftAfterResolution.articleId);
 
+    clearSession();
+  });
+});
+
+describe("createDraftFromItemAction — Non-negotiable invariant on the acquired image", () => {
+  it("leaves featuredImageUrl null (but still links featuredMediaId) when the acquired image isn't cleared for use", async () => {
+    const researcher = await createTestUser("RESEARCHER", "draft-image-review");
+    trackUser(researcher.id);
+    await loginAs(researcher.id);
+
+    const { itemA } = await makeSourceAndCluster();
+    const media = await prisma.media.create({
+      data: {
+        url: "https://blob.example/unreviewed.jpg",
+        altText: "Unreviewed",
+        filename: "unreviewed.jpg",
+        mimeType: "image/jpeg",
+        sizeBytes: 1024,
+        uploadedById: await getSystemUserId(),
+        sourceItemId: itemA.id,
+        reuseStatus: "REQUIRES_REVIEW",
+      },
+    });
+
+    const draft = await createDraftFromItemAction(itemA.id);
+    expect(draft.ok).toBe(true);
+    if (draft.articleId) createdArticleIds.push(draft.articleId);
+
+    const article = await prisma.article.findUniqueOrThrow({ where: { id: draft.articleId! } });
+    expect(article.featuredMediaId).toBe(media.id);
+    expect(article.featuredImageUrl).toBeNull();
+
+    await prisma.media.delete({ where: { id: media.id } });
+    clearSession();
+  });
+
+  it("populates featuredImageUrl when the acquired image is cleared for use", async () => {
+    const researcher = await createTestUser("RESEARCHER", "draft-image-allowed");
+    trackUser(researcher.id);
+    await loginAs(researcher.id);
+
+    const { itemA } = await makeSourceAndCluster();
+    const media = await prisma.media.create({
+      data: {
+        url: "https://blob.example/cleared.jpg",
+        altText: "Cleared for use",
+        filename: "cleared.jpg",
+        mimeType: "image/jpeg",
+        sizeBytes: 1024,
+        uploadedById: await getSystemUserId(),
+        sourceItemId: itemA.id,
+        reuseStatus: "ALLOWED",
+      },
+    });
+
+    const draft = await createDraftFromItemAction(itemA.id);
+    expect(draft.ok).toBe(true);
+    if (draft.articleId) createdArticleIds.push(draft.articleId);
+
+    const article = await prisma.article.findUniqueOrThrow({ where: { id: draft.articleId! } });
+    expect(article.featuredMediaId).toBe(media.id);
+    expect(article.featuredImageUrl).toBe(media.url);
+    expect(article.featuredImageAlt).toBe(media.altText);
+
+    await prisma.media.delete({ where: { id: media.id } });
     clearSession();
   });
 });

@@ -55,6 +55,10 @@ const articleInputSchema = z.object({
   featuredImageAlt: z.string().trim(),
   featuredImageCaption: z.string().trim(),
   featuredImageCredit: z.string().trim(),
+  // Provenance cross-reference kept in lockstep with featuredImageUrl by the
+  // client (ArticleEditor.tsx) — see invariant rule 4 in the
+  // image-acquisition plan. Empty string means "no linked Media row."
+  featuredMediaId: z.string().trim(),
   seoTitle: z.string().trim(),
   metaDescription: z.string().trim(),
   canonicalUrl: z.string().trim(),
@@ -125,6 +129,7 @@ function buildSnapshot(input: ArticleFormInput, blocks: ContentBlock[]): Prisma.
     featuredImageAlt: nullable(input.featuredImageAlt),
     featuredImageCaption: nullable(input.featuredImageCaption),
     featuredImageCredit: nullable(input.featuredImageCredit),
+    featuredMediaId: nullable(input.featuredMediaId),
     seoTitle: nullable(input.seoTitle),
     metaDescription: nullable(input.metaDescription),
     canonicalUrl: nullable(input.canonicalUrl),
@@ -171,6 +176,7 @@ export async function createArticleAction(raw: ArticleFormInput): Promise<Action
       featuredImageAlt: nullable(input.featuredImageAlt),
       featuredImageCaption: nullable(input.featuredImageCaption),
       featuredImageCredit: nullable(input.featuredImageCredit),
+      featuredMediaId: nullable(input.featuredMediaId),
       seoTitle: nullable(input.seoTitle),
       metaDescription: nullable(input.metaDescription),
       canonicalUrl: nullable(input.canonicalUrl),
@@ -232,6 +238,7 @@ export async function updateArticleAction(articleId: string, raw: ArticleFormInp
       featuredImageAlt: nullable(input.featuredImageAlt),
       featuredImageCaption: nullable(input.featuredImageCaption),
       featuredImageCredit: nullable(input.featuredImageCredit),
+      featuredMediaId: nullable(input.featuredMediaId),
       seoTitle: nullable(input.seoTitle),
       metaDescription: nullable(input.metaDescription),
       canonicalUrl: nullable(input.canonicalUrl),
@@ -260,7 +267,7 @@ export async function transitionArticleAction(articleId: string, name: Transitio
 
   const article = await prisma.article.findUnique({
     where: { id: articleId },
-    include: { tags: { include: { tag: true } } },
+    include: { tags: { include: { tag: true } }, featuredMedia: { select: { reuseStatus: true } } },
   });
   if (!article) return { ok: false, error: "Article not found." };
 
@@ -288,6 +295,7 @@ export async function transitionArticleAction(articleId: string, name: Transitio
       featuredImageAlt: article.featuredImageAlt,
       metaDescription: article.metaDescription,
       excerpt: article.excerpt,
+      featuredMediaReuseStatus: article.featuredMedia?.reuseStatus ?? null,
       slugAvailable,
     });
     const failed = checks.find((c) => !c.passed);
@@ -422,6 +430,7 @@ export async function restoreVersionAction(articleId: string, versionId: string)
     featuredImageAlt: string | null;
     featuredImageCaption: string | null;
     featuredImageCredit: string | null;
+    featuredMediaId?: string | null;
     seoTitle: string | null;
     metaDescription: string | null;
     canonicalUrl: string | null;
@@ -442,6 +451,11 @@ export async function restoreVersionAction(articleId: string, versionId: string)
       featuredImageAlt: snap.featuredImageAlt,
       featuredImageCaption: snap.featuredImageCaption,
       featuredImageCredit: snap.featuredImageCredit,
+      // Explicit null fallback (not just omitting the field) for snapshots
+      // captured before this field existed — restoring must never leave a
+      // stale featuredMediaId pointing at a different image than the
+      // featuredImageUrl this same restore just wrote. See invariant rule 4.
+      featuredMediaId: snap.featuredMediaId ?? null,
       seoTitle: snap.seoTitle,
       metaDescription: snap.metaDescription,
       canonicalUrl: snap.canonicalUrl,

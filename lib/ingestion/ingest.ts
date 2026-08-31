@@ -8,6 +8,8 @@ import { findBestDuplicateMatch, AUTO_MERGE_THRESHOLD, type DuplicateCandidate }
 import { classifyPakistanRelevance, relevanceScoreToPercent } from "../discovery/pakistan-relevance";
 import { computePriorityScore } from "../discovery/priority";
 import { logAction } from "../audit";
+import { logSystemEvent } from "../monitoring";
+import { acquireImageForSourceItem } from "../images/acquire";
 import type { Prisma } from "@prisma/client";
 
 const RECENT_CANDIDATE_WINDOW_DAYS = 14;
@@ -126,7 +128,7 @@ export async function ingestSource(sourceId: string, requestedById: string): Pro
         matchedPriorityKeywords,
       });
 
-      await prisma.sourceItem.create({
+      const createdItem = await prisma.sourceItem.create({
         data: {
           sourceId,
           externalId: item.externalId,
@@ -149,6 +151,34 @@ export async function ingestSource(sourceId: string, requestedById: string): Pro
           status: isExactDuplicate ? "DUPLICATE" : isPossibleDuplicate ? "POSSIBLE_DUPLICATE" : "NEW",
         },
       });
+
+      // Isolated on purpose: an image problem (bad HTML, unreachable host,
+      // no usable candidate, storage failure) must never abort ingestion of
+      // this item or the batch — acquireImageForSourceItem itself already
+      // never throws, this try/catch is defense-in-depth on top of that.
+      try {
+        const acquisition = await acquireImageForSourceItem({
+          id: createdItem.id,
+          sourceUrl: createdItem.sourceUrl,
+          headline: createdItem.headline,
+        });
+        if (!acquisition.ok) {
+          await logSystemEvent({
+            level: "INFO",
+            source: "images.acquire",
+            message: `No image acquired for source item ${createdItem.id}: ${acquisition.reason}`,
+            context: { sourceItemId: createdItem.id, sourceUrl: createdItem.sourceUrl },
+          });
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        await logSystemEvent({
+          level: "WARN",
+          source: "images.acquire",
+          message: `Image acquisition threw unexpectedly for source item ${createdItem.id}: ${message}`,
+          context: { sourceItemId: createdItem.id, sourceUrl: createdItem.sourceUrl },
+        });
+      }
 
       const clusterBefore = await prisma.storyCluster.findUniqueOrThrow({
         where: { id: clusterId },

@@ -56,6 +56,11 @@ export async function POST(request: Request): Promise<NextResponse> {
         width: saved.width,
         height: saved.height,
         uploadedById: user.id,
+        // A human just deliberately chose to upload this file — that's real,
+        // earned permission, unlike a scraped third-party image. See the
+        // Non-negotiable invariant in the image-acquisition plan.
+        reuseStatus: "ALLOWED",
+        reuseNotes: "Manually uploaded by staff",
       },
     });
 

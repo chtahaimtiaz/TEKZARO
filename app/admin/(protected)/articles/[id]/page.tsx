@@ -16,7 +16,12 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
   const [article, categories, authors] = await Promise.all([
     prisma.article.findUnique({
       where: { id },
-      include: { tags: { include: { tag: true } } },
+      include: {
+        tags: { include: { tag: true } },
+        featuredMedia: {
+          select: { id: true, reuseStatus: true, sourceDomain: true, sourceArticleUrl: true, createdAt: true, selectionReasons: true },
+        },
+      },
     }),
     prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.author.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
@@ -47,6 +52,18 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
       articleId={article.id}
       status={article.status}
       initialBlocks={content.blocks}
+      initialFeaturedMedia={
+        article.featuredMedia
+          ? {
+              id: article.featuredMedia.id,
+              reuseStatus: article.featuredMedia.reuseStatus,
+              sourceDomain: article.featuredMedia.sourceDomain,
+              sourceArticleUrl: article.featuredMedia.sourceArticleUrl,
+              createdAt: article.featuredMedia.createdAt.toISOString(),
+              selectionReasons: (article.featuredMedia.selectionReasons as string[] | null) ?? null,
+            }
+          : null
+      }
       initial={{
         title: article.title,
         slug: article.slug,
@@ -60,6 +77,7 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
         featuredImageAlt: article.featuredImageAlt ?? "",
         featuredImageCaption: article.featuredImageCaption ?? "",
         featuredImageCredit: article.featuredImageCredit ?? "",
+        featuredMediaId: article.featuredMediaId ?? "",
         seoTitle: article.seoTitle ?? "",
         metaDescription: article.metaDescription ?? "",
         canonicalUrl: article.canonicalUrl ?? "",
