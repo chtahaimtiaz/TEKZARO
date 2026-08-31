@@ -1,0 +1,13 @@
+# Vercel CLI does NOT respect .gitignore for `vercel deploy` uploads --
+# it needs its own ignore file. .env.local/.env.*.local are excluded by
+# Vercel's own built-in defaults, but plain .env is NOT, and was uploaded
+# as build source on the first two production deploys before this file
+# existed. Never let that happen again.
+.env
+.env.*
+!.env.example
+
+.git
+.vercel
+node_modules
+.next
