@@ -29,8 +29,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   // Defense in depth beyond the bearer-token check, in case CRON_SECRET
-  // ever leaks — generous enough not to interfere with a legitimate ~5min
-  // cadence from Vercel Cron or another scheduler.
+  // ever leaks — generous enough not to interfere with a legitimate cadence
+  // from Vercel Cron (currently once daily — the Hobby plan disallows a
+  // more frequent native cron) or a more frequent external scheduler.
   const ip = await getClientIp();
   const allowed = await checkRateLimit(`cron-publish:${ip}`, { max: 20, windowMs: 10 * 60 * 1000 });
   if (!allowed) {

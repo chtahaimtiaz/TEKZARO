@@ -24,9 +24,13 @@ Thumbs.db
 *.tsbuildinfo
 next-env.d.ts
 
-# claude code local settings (machine-specific, not shared)
+# claude code local settings/session state (machine-specific, not shared)
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
 
 # local-disk media uploads (STORAGE_PROVIDER=local, dev/self-hosted only) —
 # runtime-generated content, not source; see lib/media/storage.ts
 /public/uploads
+
+.vercel
+.env*
