@@ -115,7 +115,7 @@ async function syncTags(articleId: string, tagNames: string[]): Promise<void> {
   }
 }
 
-function buildSnapshot(input: ArticleFormInput, blocks: ContentBlock[]): Prisma.InputJsonValue {
+function buildSnapshot(input: ArticleFormInput, blocks: ContentBlock[], verifiedFeaturedMediaId: string | null): Prisma.InputJsonValue {
   return {
     title: input.title,
     subheadline: nullable(input.subheadline),
@@ -129,12 +129,26 @@ function buildSnapshot(input: ArticleFormInput, blocks: ContentBlock[]): Prisma.
     featuredImageAlt: nullable(input.featuredImageAlt),
     featuredImageCaption: nullable(input.featuredImageCaption),
     featuredImageCredit: nullable(input.featuredImageCredit),
-    featuredMediaId: nullable(input.featuredMediaId),
+    featuredMediaId: verifiedFeaturedMediaId,
     seoTitle: nullable(input.seoTitle),
     metaDescription: nullable(input.metaDescription),
     canonicalUrl: nullable(input.canonicalUrl),
     ogImage: nullable(input.ogImage),
   } as unknown as Prisma.InputJsonValue;
+}
+
+/** Server-side trust boundary for invariant rule 4: a client-submitted
+ * featuredMediaId is only honored when it actually resolves to a Media row
+ * whose stored url matches the submitted featuredImageUrl. Without this, a
+ * crafted request (bypassing the UI's lockstep patching) could pair an
+ * approved Media id with an unrelated featuredImageUrl and sail through the
+ * publication check, which only inspects whatever featuredMediaId resolves
+ * to. A mismatch falls back to null — the same "no linked media" state an
+ * ordinary hand-typed URL already has today, not an error. */
+async function verifiedFeaturedMediaId(featuredMediaId: string, featuredImageUrl: string): Promise<string | null> {
+  if (!featuredMediaId) return null;
+  const media = await prisma.media.findUnique({ where: { id: featuredMediaId }, select: { url: true } });
+  return media && media.url === featuredImageUrl ? featuredMediaId : null;
 }
 
 // buildSnapshotFromArticleRow/snapshotVersion moved to lib/article-snapshot.ts
@@ -152,6 +166,7 @@ export async function createArticleAction(raw: ArticleFormInput): Promise<Action
 
   const slug = await ensureUniqueSlug(input.slug || input.title);
   const blocks = joinPakistanImpact(input.blocks, input.pakistanImpact);
+  const featuredMediaId = await verifiedFeaturedMediaId(input.featuredMediaId, input.featuredImageUrl);
 
   const article = await prisma.article.create({
     data: {
@@ -176,7 +191,7 @@ export async function createArticleAction(raw: ArticleFormInput): Promise<Action
       featuredImageAlt: nullable(input.featuredImageAlt),
       featuredImageCaption: nullable(input.featuredImageCaption),
       featuredImageCredit: nullable(input.featuredImageCredit),
-      featuredMediaId: nullable(input.featuredMediaId),
+      featuredMediaId,
       seoTitle: nullable(input.seoTitle),
       metaDescription: nullable(input.metaDescription),
       canonicalUrl: nullable(input.canonicalUrl),
@@ -191,7 +206,7 @@ export async function createArticleAction(raw: ArticleFormInput): Promise<Action
     editorId: user.id,
     status: article.status,
     title: article.title,
-    snapshot: buildSnapshot(input, blocks),
+    snapshot: buildSnapshot(input, blocks, featuredMediaId),
     changeSummary: "Created",
   });
   await logAction({ userId: user.id, action: "article_created", entityType: "Article", entityId: article.id });
@@ -216,6 +231,7 @@ export async function updateArticleAction(articleId: string, raw: ArticleFormInp
   const slug =
     slugify(input.slug) === existing.slug ? existing.slug : await ensureUniqueSlug(input.slug, articleId);
   const blocks = joinPakistanImpact(input.blocks, input.pakistanImpact);
+  const featuredMediaId = await verifiedFeaturedMediaId(input.featuredMediaId, input.featuredImageUrl);
 
   const article = await prisma.article.update({
     where: { id: articleId },
@@ -238,7 +254,7 @@ export async function updateArticleAction(articleId: string, raw: ArticleFormInp
       featuredImageAlt: nullable(input.featuredImageAlt),
       featuredImageCaption: nullable(input.featuredImageCaption),
       featuredImageCredit: nullable(input.featuredImageCredit),
-      featuredMediaId: nullable(input.featuredMediaId),
+      featuredMediaId,
       seoTitle: nullable(input.seoTitle),
       metaDescription: nullable(input.metaDescription),
       canonicalUrl: nullable(input.canonicalUrl),
@@ -253,7 +269,7 @@ export async function updateArticleAction(articleId: string, raw: ArticleFormInp
     editorId: user.id,
     status: article.status,
     title: article.title,
-    snapshot: buildSnapshot(input, blocks),
+    snapshot: buildSnapshot(input, blocks, featuredMediaId),
     changeSummary: "Edited",
   });
   await logAction({ userId: user.id, action: "article_edited", entityType: "Article", entityId: article.id });

@@ -4,6 +4,7 @@ import { createArticleAction, updateArticleAction, transitionArticleAction, type
 import { ForbiddenError } from "../lib/auth";
 import { createTestUser, loginAs, clearSession, trackArticle, trackUser, cleanupTestData } from "./helpers";
 import { slugify } from "../lib/slugify";
+import { getSystemUserId } from "../lib/system-actor";
 
 let categoryId: string;
 let authorId: string;
@@ -149,6 +150,91 @@ describe("full review -> publish workflow", () => {
 
     const article = await prisma.article.findUniqueOrThrow({ where: { id: articleId } });
     expect(article.status).toBe("APPROVED"); // unchanged — publish was rejected
+
+    clearSession();
+  });
+});
+
+describe("featuredMediaId is verified server-side, not trusted from the client", () => {
+  it("keeps featuredMediaId when it genuinely matches the submitted featuredImageUrl", async () => {
+    const editor = await createTestUser("EDITOR", "media-verify-match");
+    trackUser(editor.id);
+    await loginAs(editor.id);
+
+    const media = await prisma.media.create({
+      data: {
+        url: "https://blob.example/verify-match.jpg",
+        altText: "Verified match",
+        filename: "verify-match.jpg",
+        mimeType: "image/jpeg",
+        sizeBytes: 1024,
+        uploadedById: await getSystemUserId(),
+        reuseStatus: "ALLOWED",
+      },
+    });
+
+    const input = baseInput(`Media Verify Match ${Date.now()}`);
+    input.featuredImageUrl = media.url;
+    input.featuredMediaId = media.id;
+    const created = await createArticleAction(input);
+    expect(created.ok).toBe(true);
+    trackArticle(created.data!.id);
+
+    const article = await prisma.article.findUniqueOrThrow({ where: { id: created.data!.id } });
+    expect(article.featuredMediaId).toBe(media.id);
+
+    await prisma.media.delete({ where: { id: media.id } });
+    clearSession();
+  });
+
+  it("drops featuredMediaId when it doesn't match the submitted featuredImageUrl — never trusts a crafted pairing", async () => {
+    const editor = await createTestUser("EDITOR", "media-verify-mismatch");
+    trackUser(editor.id);
+    await loginAs(editor.id);
+
+    const media = await prisma.media.create({
+      data: {
+        url: "https://blob.example/real-approved-image.jpg",
+        altText: "Approved",
+        filename: "approved.jpg",
+        mimeType: "image/jpeg",
+        sizeBytes: 1024,
+        uploadedById: await getSystemUserId(),
+        reuseStatus: "ALLOWED",
+      },
+    });
+
+    const input = baseInput(`Media Verify Mismatch ${Date.now()}`);
+    // A crafted/stale request: claims provenance from the approved Media
+    // row, but the actual image URL is something else entirely.
+    input.featuredImageUrl = "https://attacker.example/unrelated-image.jpg";
+    input.featuredMediaId = media.id;
+    const created = await createArticleAction(input);
+    expect(created.ok).toBe(true);
+    trackArticle(created.data!.id);
+
+    const article = await prisma.article.findUniqueOrThrow({ where: { id: created.data!.id } });
+    expect(article.featuredMediaId).toBeNull();
+    expect(article.featuredImageUrl).toBe("https://attacker.example/unrelated-image.jpg");
+
+    await prisma.media.delete({ where: { id: media.id } });
+    clearSession();
+  });
+
+  it("drops featuredMediaId when it references a Media row that doesn't exist", async () => {
+    const editor = await createTestUser("EDITOR", "media-verify-missing");
+    trackUser(editor.id);
+    await loginAs(editor.id);
+
+    const input = baseInput(`Media Verify Missing ${Date.now()}`);
+    input.featuredImageUrl = "https://example.com/whatever.jpg";
+    input.featuredMediaId = "cnonexistent00000000000000";
+    const created = await createArticleAction(input);
+    expect(created.ok).toBe(true);
+    trackArticle(created.data!.id);
+
+    const article = await prisma.article.findUniqueOrThrow({ where: { id: created.data!.id } });
+    expect(article.featuredMediaId).toBeNull();
 
     clearSession();
   });
