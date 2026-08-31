@@ -1,20 +1,19 @@
 import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaNeon } from "@prisma/adapter-neon";
 
 declare global {
   // eslint-disable-next-line no-var
   var __tekzaroPrisma: PrismaClient | undefined;
 }
 
+// Neon's HTTPS-based serverless driver rather than raw TCP (@prisma/adapter-pg
+// + node-postgres, used previously): production deploys on Vercel could not
+// reach the database at all over TCP (consistent P1001/DatabaseNotReachable
+// on every query, unaffected by connection-string or SSL-config changes) —
+// most likely a network-level restriction on the TCP path that plain HTTPS
+// isn't subject to. Bundles its own transport; no separate `pg`/`ws` needed.
 function createClient() {
-  // Explicit ssl option rather than relying on ?sslmode=require in the
-  // connection string: Prisma 7's pg-based driver adapter (unlike the old
-  // Rust query engine) hands the string straight to node-postgres, whose
-  // own sslmode parsing has been unreliable across environments. true
-  // still validates the server certificate against Node's trusted CA
-  // store (Neon's cert is properly signed) -- this isn't a security
-  // downgrade, just making the TLS requirement unambiguous.
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL, ssl: true });
+  const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL });
   return new PrismaClient({ adapter });
 }
 

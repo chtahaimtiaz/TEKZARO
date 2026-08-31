@@ -15,7 +15,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/adapter-neon": "7.10.0",
     "@prisma/client": "7.10.0",
     "@vercel/blob": "^2.8.0",
     "bcryptjs": "latest",
@@ -23,7 +23,6 @@
     "fast-xml-parser": "latest",
     "next": "latest",
     "nodemailer": "^9.1.0",
-    "pg": "latest",
     "react": "latest",
     "react-dom": "latest",
     "server-only": "latest",
@@ -33,7 +32,6 @@
     "@tailwindcss/postcss": "latest",
     "@types/node": "latest",
     "@types/nodemailer": "^8.0.1",
-    "@types/pg": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "prisma": "7.10.0",
