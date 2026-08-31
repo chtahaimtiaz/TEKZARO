@@ -4,6 +4,13 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // Plan called for a `directUrl` (Neon's unpooled connection string) here
+  // for more reliable `migrate deploy` runs. Verified against this project's
+  // actual Prisma 7 version: @prisma/config's Datasource type only supports
+  // `url`/`shadowDatabaseUrl` — directUrl has no equivalent in config-file
+  // mode (schema-level `directUrl` is explicitly rejected: P1012, "no longer
+  // supported in schema files"). Not added — flagged as unsupported in the
+  // final report rather than forced in against what the tool actually allows.
 }
 
 enum Role {
@@ -11,6 +18,12 @@ enum Role {
   EDITOR
   REPORTER
   RESEARCHER
+  // Zero capabilities — not included in any CAN_* list in lib/permissions.ts.
+  // Exists solely so automated actions (cron, etc.) have a valid,
+  // non-nullable AuditLog.userId. Seeded once, active:false, unusable
+  // passwordHash — see lib/system-actor.ts. Never selectable/assignable via
+  // any admin UI or action (enforced server-side, not just hidden client-side).
+  SYSTEM
 }
 
 enum ArticleStatus {
@@ -109,6 +122,30 @@ enum DigestStatus {
   READY
 }
 
+enum PasswordResetPurpose {
+  INVITE
+  RESET
+}
+
+enum EmailStatus {
+  SENT
+  FAILED
+  NOT_CONFIGURED
+}
+
+enum NewsletterCampaignStatus {
+  DRAFT
+  SENDING
+  SENT
+  FAILED
+}
+
+enum SystemEventLevel {
+  INFO
+  WARN
+  ERROR
+}
+
 model User {
   id                  String    @id @default(cuid())
   name                String
@@ -121,20 +158,27 @@ model User {
   // True right after bootstrap/creation — forces a password change before
   // any other admin page is usable. Cleared by changePasswordAction.
   mustChangePassword  Boolean   @default(false)
+  // Set on every successful login (lib/auth-actions.ts). Display-only —
+  // never used for any access decision.
+  lastLoginAt         DateTime?
   authorId            String?
   author              Author?   @relation(fields: [authorId], references: [id])
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  auditLogs          AuditLog[]
-  versions           ArticleVersion[]
-  sessions           Session[]
-  createdArticles    Article[]        @relation("ArticleCreatedBy")
-  reviewedItems      SourceItem[]     @relation("SourceItemReviewedBy")
-  claims             Claim[]
-  aiGenerations      AIGeneration[]
-  digests            Digest[]
-  digestItemsAdded   DigestItem[]
+  auditLogs           AuditLog[]
+  versions            ArticleVersion[]
+  sessions            Session[]
+  createdArticles     Article[]           @relation("ArticleCreatedBy")
+  reviewedItems       SourceItem[]        @relation("SourceItemReviewedBy")
+  claims              Claim[]
+  aiGenerations       AIGeneration[]
+  digests             Digest[]
+  digestItemsAdded    DigestItem[]
+  passwordResetTokens PasswordResetToken[]
+  notifications       Notification[]
+  uploadedMedia       Media[]
+  newsletterCampaigns NewsletterCampaign[]
 }
 
 model Session {
@@ -250,6 +294,7 @@ model Article {
   relatedTo        Relation[]       @relation("to")
   convertedFrom    SourceItem[]     @relation("SourceItemConvertedArticle")
   digestItems      DigestItem[]
+  pageViews        PageView[]
 
   @@index([status, publishedAt])
   @@index([categoryId, publishedAt])
@@ -484,20 +529,120 @@ model Relation {
 }
 
 model Media {
-  id        String   @id @default(cuid())
-  url       String
-  altText   String
-  caption   String?
-  credit    String?
-  license   String?
-  createdAt DateTime @default(now())
+  id           String   @id @default(cuid())
+  url          String
+  altText      String
+  caption      String?
+  credit       String?
+  license      String?
+  filename     String
+  mimeType     String
+  sizeBytes    Int
+  width        Int?
+  height       Int?
+  uploadedById String
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
 }
 
 model NewsletterSubscriber {
+  id               String   @id @default(cuid())
+  email            String   @unique
+  active           Boolean  @default(true)
+  // One-click unsubscribe, no login required — generated at signup, included
+  // in every campaign/welcome email.
+  unsubscribeToken String   @unique
+  createdAt        DateTime @default(now())
+}
+
+model PasswordResetToken {
+  id        String               @id @default(cuid())
+  userId    String
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Only the HMAC hash is stored — same pattern as Session.tokenHash — so a
+  // leaked DB row never yields a usable token.
+  tokenHash String               @unique
+  purpose   PasswordResetPurpose
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime             @default(now())
+
+  @@index([userId])
+}
+
+model Notification {
   id        String   @id @default(cuid())
-  email     String   @unique
-  active    Boolean  @default(true)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  body      String
+  link      String?
+  read      Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  @@index([userId, read])
+}
+
+model EmailLog {
+  id          String      @id @default(cuid())
+  to          String
+  subject     String
+  status      EmailStatus
+  error       String?
+  relatedType String?
+  relatedId   String?
+  createdAt   DateTime    @default(now())
+
+  @@index([createdAt])
+}
+
+model NewsletterCampaign {
+  id             String                   @id @default(cuid())
+  subject        String
+  bodyHtml       String
+  status         NewsletterCampaignStatus @default(DRAFT)
+  createdById    String
+  createdBy      User                     @relation(fields: [createdById], references: [id])
+  sentAt         DateTime?
+  recipientCount Int?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+}
+
+model SystemEvent {
+  id        String            @id @default(cuid())
+  level     SystemEventLevel
+  source    String
+  message   String
+  context   Json?
+  createdAt DateTime          @default(now())
+
+  @@index([createdAt])
+  @@index([level, createdAt])
+}
+
+model PageView {
+  id        String   @id @default(cuid())
+  articleId String?
+  article   Article? @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  // Raw view-event log — not deduplicated for bots/crawlers/refreshes, not a
+  // unique-visitor count. Every UI surface must label it "page views," never
+  // "readers"/"users". No IP/UA stored, by design (privacy-neutral by default).
+  path      String
+  referrer  String?
+  createdAt DateTime @default(now())
+
+  @@index([articleId, createdAt])
+  @@index([createdAt])
+}
+
+model RateLimitHit {
+  id        String   @id @default(cuid())
+  key       String
+  createdAt DateTime @default(now())
+
+  @@index([key, createdAt])
 }
 
 model AuditLog {

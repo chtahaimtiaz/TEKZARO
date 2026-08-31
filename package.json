@@ -20,6 +20,7 @@
     "dotenv": "latest",
     "fast-xml-parser": "latest",
     "next": "latest",
+    "nodemailer": "^9.1.0",
     "pg": "latest",
     "react": "latest",
     "react-dom": "latest",
@@ -29,6 +30,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "latest",
     "@types/node": "latest",
+    "@types/nodemailer": "^8.0.1",
     "@types/pg": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",

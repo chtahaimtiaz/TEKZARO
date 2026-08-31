@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { CAN_WRITE } from "@/lib/permissions";
 import { ArticleEditor } from "@/components/admin/ArticleEditor";
+import { isMediaUploadAvailable } from "@/lib/media/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,7 @@ export default async function NewArticlePage() {
       categories={categories}
       authors={authors}
       legalTransitions={[]}
+      mediaUploadAvailable={isMediaUploadAvailable()}
     />
   );
 }

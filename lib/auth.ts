@@ -1,12 +1,12 @@
 import "server-only";
-import { createHmac, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "./prisma";
-import { hashPassword, verifyPassword } from "./password";
+import { hashPassword, verifyPassword, hashOpaqueToken } from "./password";
 import type { Role, User } from "@prisma/client";
 
-export { hashPassword, verifyPassword };
+export { hashPassword, verifyPassword, hashOpaqueToken };
 
 export const SESSION_COOKIE = "tekzaro_session";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -22,18 +22,10 @@ export class ForbiddenError extends Error {
   }
 }
 
-function authSecret(): string {
-  const secret = process.env.AUTH_SECRET;
-  if (!secret || secret.length < 16) {
-    throw new Error("AUTH_SECRET is not configured with a sufficiently long value.");
-  }
-  return secret;
-}
-
 /** Only the HMAC of the session token is ever stored — the raw token lives
  * solely in the httpOnly cookie, so a DB leak alone can't yield a session. */
 function hashToken(token: string): string {
-  return createHmac("sha256", authSecret()).update(token).digest("hex");
+  return hashOpaqueToken(token);
 }
 
 function stripPassword(user: User): SafeUser {

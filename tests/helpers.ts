@@ -1,8 +1,15 @@
 import { randomBytes, createHmac } from "node:crypto";
 import { prisma } from "../lib/prisma";
 import { hashPassword } from "../lib/auth";
-import { mockCookieStore } from "./setup";
+import { mockCookieStore, mockHeadersStore } from "./setup";
 import type { Role } from "@prisma/client";
+
+export function setMockHeader(name: string, value: string): void {
+  mockHeadersStore.set(name.toLowerCase(), value);
+}
+export function clearMockHeaders(): void {
+  mockHeadersStore.clear();
+}
 
 const SESSION_COOKIE = "tekzaro_session";
 
@@ -44,6 +51,10 @@ export function trackUser(id: string) {
   createdUserIds.add(id);
 }
 
+export async function cleanupRateLimitKey(key: string): Promise<void> {
+  await prisma.rateLimitHit.deleteMany({ where: { key } });
+}
+
 export async function cleanupTestData(): Promise<void> {
   if (createdArticleIds.size) {
     // ArticleVersion/ArticleTag/ArticleSource/Relation rows cascade with the article.
@@ -59,6 +70,13 @@ export async function cleanupTestData(): Promise<void> {
     await prisma.session.deleteMany({ where: { userId: { in: userIds } } });
     await prisma.aIGeneration.deleteMany({ where: { requestedById: { in: userIds } } });
     await prisma.claim.deleteMany({ where: { createdById: { in: userIds } } });
+    // Phase 5 additions with a non-cascading FK to User.
+    await prisma.passwordResetToken.deleteMany({ where: { userId: { in: userIds } } });
+    await prisma.notification.deleteMany({ where: { userId: { in: userIds } } });
+    await prisma.media.deleteMany({ where: { uploadedById: { in: userIds } } });
+    await prisma.newsletterCampaign.deleteMany({ where: { createdById: { in: userIds } } });
+    await prisma.digest.deleteMany({ where: { createdById: { in: userIds } } });
+    await prisma.digestItem.deleteMany({ where: { addedById: { in: userIds } } });
     await prisma.user.deleteMany({ where: { id: { in: userIds } } });
     createdUserIds.clear();
   }

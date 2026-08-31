@@ -13,6 +13,12 @@ vi.mock("server-only", () => ({}));
 // `mockCookieStore` (see tests/helpers.ts).
 export const mockCookieStore = new Map<string, string>();
 
+// Same idea as mockCookieStore, for code (lib/rate-limit.ts's getClientIp)
+// that reads request headers via next/headers's headers() — real headers()
+// only works inside a Next.js request too. Cleared between tests that use
+// it via tests/helpers.ts's setMockHeader/clearMockHeaders.
+export const mockHeadersStore = new Map<string, string>();
+
 vi.mock("next/headers", () => ({
   cookies: async () => ({
     get: (name: string) => (mockCookieStore.has(name) ? { name, value: mockCookieStore.get(name)! } : undefined),
@@ -22,6 +28,9 @@ vi.mock("next/headers", () => ({
     delete: (name: string) => {
       mockCookieStore.delete(name);
     },
+  }),
+  headers: async () => ({
+    get: (name: string) => mockHeadersStore.get(name.toLowerCase()) ?? null,
   }),
 }));
 

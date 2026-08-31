@@ -8,6 +8,7 @@ import { asArticleContent } from "@/lib/content-blocks";
 import { PlaceholderArt } from "@/components/ui/PlaceholderArt";
 import { DemoBadge } from "@/components/ui/DemoBadge";
 import { AuthorByline } from "@/components/content/AuthorByline";
+import { isOptimizableImageSrc } from "@/lib/image-src";
 import { PublishedUpdatedMeta } from "@/components/article/PublishedUpdatedMeta";
 import { ArticleBody } from "@/components/article/ArticleBody";
 import { TagList } from "@/components/content/TagList";
@@ -55,7 +56,7 @@ export default async function ArticlePreviewPage({ params }: { params: Promise<{
 
       <figure className="mt-6 overflow-hidden rounded-xl">
         {article.featuredImageUrl ? (
-          <Image src={article.featuredImageUrl} alt={article.featuredImageAlt ?? article.title} width={1400} height={875} className="w-full object-cover" />
+          <Image src={article.featuredImageUrl} alt={article.featuredImageAlt ?? article.title} width={1400} height={875} unoptimized={!isOptimizableImageSrc(article.featuredImageUrl)} className="w-full object-cover" />
         ) : (
           <PlaceholderArt seed={article.slug || article.id} label={article.category.name} className="aspect-[16/10] w-full" />
         )}

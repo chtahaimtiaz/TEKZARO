@@ -27,6 +27,21 @@ export const CAN_CREATE_DRAFT_FROM_DISCOVERY: Role[] = ["ADMIN", "EDITOR", "RESE
 export const CAN_MANAGE_KEYWORDS: Role[] = ["ADMIN", "EDITOR"];
 /** Roles allowed to build the Pakistan Tech Daily digest. */
 export const CAN_BUILD_DIGEST: Role[] = ["ADMIN", "EDITOR"];
+/** Roles allowed to upload/manage the media library. */
+export const CAN_MANAGE_MEDIA: Role[] = ["ADMIN", "EDITOR"];
+/** Roles allowed to compose and send newsletter campaigns. */
+export const CAN_SEND_NEWSLETTER: Role[] = ["ADMIN", "EDITOR"];
+/** Roles allowed to view operational monitoring (system events, health). */
+export const CAN_VIEW_MONITORING: Role[] = ["ADMIN"];
+/** Roles allowed to view real analytics (page views, top articles). */
+export const CAN_VIEW_ANALYTICS: Role[] = ["ADMIN", "EDITOR"];
+/** Roles allowed to run the editorial data export. */
+export const CAN_MANAGE_BACKUPS: Role[] = ["ADMIN"];
+
+/** SYSTEM is a real Role value but is never assignable through any admin
+ * action, never shown in the user list, and can never be deactivated —
+ * see lib/system-actor.ts. Every user-admin mutation must reject it. */
+export const ASSIGNABLE_ROLES: Role[] = ["ADMIN", "EDITOR", "REPORTER", "RESEARCHER"];
 
 /** REPORTER/RESEARCHER may edit only their own article, and only while it's
  * still in an editor-owned state — once submitted for review it becomes

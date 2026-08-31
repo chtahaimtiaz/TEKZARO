@@ -5,6 +5,8 @@ import { requireUser } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 async function getOverviewData() {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
   const [
     statusCounts,
     demoCount,
@@ -15,6 +17,7 @@ async function getOverviewData() {
     discoveryTotal,
     sourcesWithErrors,
     lastIngestedSource,
+    pageViews7d,
   ] = await Promise.all([
     prisma.article.groupBy({ by: ["status"], _count: true }),
     prisma.article.count({ where: { isDemo: true } }),
@@ -29,6 +32,7 @@ async function getOverviewData() {
     prisma.sourceItem.count(),
     prisma.source.count({ where: { lastError: { not: null } } }),
     prisma.source.findFirst({ orderBy: { lastChecked: "desc" }, select: { lastChecked: true } }),
+    prisma.pageView.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
   ]);
 
   const byStatus = Object.fromEntries(statusCounts.map((s) => [s.status, s._count]));
@@ -53,6 +57,7 @@ async function getOverviewData() {
       feedFailures: sourcesWithErrors,
       lastIngestion: lastIngestedSource?.lastChecked ?? null,
     },
+    pageViews7d,
   };
 }
 
@@ -103,9 +108,10 @@ export default async function AdminOverviewPage({
             <p className="mt-1 font-serif text-3xl font-bold">{value}</p>
           </div>
         ))}
-        <div className="rounded-xl border border-dashed border-border-strong bg-paper-raised p-5">
-          <p className="text-sm text-ink-muted">Article page views (analytics)</p>
-          <p className="mt-1 font-serif text-xl font-bold text-ink-muted">Not configured</p>
+        <div className="rounded-xl border border-border bg-paper-raised p-5">
+          <p className="text-sm text-ink-muted">Page views (7 days)</p>
+          <p className="mt-1 font-serif text-3xl font-bold">{data.pageViews7d}</p>
+          <p className="mt-1 text-xs text-ink-muted">Raw view events, not unique visitors. See Analytics for detail.</p>
         </div>
       </div>
 
@@ -158,9 +164,13 @@ export default async function AdminOverviewPage({
       <section className="mt-6 rounded-xl border border-border bg-paper-raised p-5">
         <h2 className="text-lg font-bold">System state</h2>
         <p className="mt-1 text-sm text-ink-muted">
-          Scheduled/automatic ingestion (cron), AI-assisted drafting and real analytics wiring
-          remain Phase 5 work — feeds are fetched on demand from Sources, and AI assistance
-          requires <code>AI_API_KEY</code> to be configured in <code>.env</code>.
+          Scheduled article publishing runs via <code>/api/cron/publish-scheduled</code> (wired to
+          Vercel Cron in <code>vercel.json</code>); feeds are still fetched on demand from Sources,
+          not on a schedule. AI assistance requires <code>AI_API_KEY</code>. Email (invites, resets,
+          notifications, newsletter) requires <code>SMTP_HOST</code>/<code>PORT</code>/<code>USER</code>
+          /<code>PASS</code>. Media uploads use local disk in development; on Vercel they stay
+          disabled until a durable object-storage adapter (<code>STORAGE_PROVIDER</code>) is
+          configured — see Media.
         </p>
       </section>
     </div>

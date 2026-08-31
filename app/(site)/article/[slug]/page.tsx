@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { after } from "next/server";
+import { headers } from "next/headers";
 import { PlaceholderArt } from "@/components/ui/PlaceholderArt";
 import { DemoBadge } from "@/components/ui/DemoBadge";
 import { AuthorByline } from "@/components/content/AuthorByline";
@@ -17,6 +18,7 @@ import { getArticleBySlug, getRelatedArticles, getAdjacentArticles, incrementArt
 import { asArticleContent } from "@/lib/content-blocks";
 import { buildArticleMetadata, absoluteUrl } from "@/lib/seo";
 import { categoryHref } from "@/lib/constants";
+import { isOptimizableImageSrc } from "@/lib/image-src";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +39,8 @@ export default async function ArticlePage({ params }: Props) {
 
   if (!article || article.status !== "PUBLISHED") notFound();
 
-  after(() => incrementArticleViews(article.id));
+  const referrer = (await headers()).get("referer");
+  after(() => incrementArticleViews(article.id, `/article/${slug}`, referrer));
 
   const [related, { previous, next }] = await Promise.all([
     getRelatedArticles(article),
@@ -81,6 +84,7 @@ export default async function ArticlePage({ params }: Props) {
             width={1400}
             height={875}
             priority
+            unoptimized={!isOptimizableImageSrc(article.featuredImageUrl)}
             className="w-full object-cover"
           />
         ) : (

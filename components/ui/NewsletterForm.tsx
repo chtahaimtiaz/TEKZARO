@@ -9,6 +9,7 @@ const STATUS_MESSAGES: Record<string, { text: string; tone: "ok" | "error" }> = 
   success: { text: "You're subscribed. Welcome to TEKZARO.", tone: "ok" },
   exists: { text: "That email is already subscribed.", tone: "ok" },
   invalid: { text: "Enter a valid email address.", tone: "error" },
+  ratelimited: { text: "Too many attempts — try again in a bit.", tone: "error" },
 };
 
 export function NewsletterForm({ redirectTo, status }: NewsletterFormProps) {

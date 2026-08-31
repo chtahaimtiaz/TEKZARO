@@ -16,6 +16,8 @@ import {
   invalidateOtherSessions,
 } from "./auth";
 import { logAction } from "./audit";
+import { checkRateLimit, getClientIp } from "./rate-limit";
+import { consumePasswordResetToken } from "./password-reset";
 
 const loginSchema = z.object({
   email: z.string().trim().email(),
@@ -25,6 +27,12 @@ const loginSchema = z.object({
 export async function loginAction(formData: FormData): Promise<void> {
   const nextPath = String(formData.get("next") || "/admin");
   const safeNext = nextPath.startsWith("/admin") ? nextPath : "/admin";
+
+  const ip = await getClientIp();
+  const allowed = await checkRateLimit(`login:${ip}`, { max: 10, windowMs: 10 * 60 * 1000 });
+  if (!allowed) {
+    redirect(`/admin/login?error=${encodeURIComponent("Too many attempts. Try again in a few minutes.")}&next=${encodeURIComponent(safeNext)}`);
+  }
 
   const parsed = loginSchema.safeParse({
     email: formData.get("email"),
@@ -36,7 +44,7 @@ export async function loginAction(formData: FormData): Promise<void> {
 
   const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
 
-  if (!user || !user.active) {
+  if (!user || !user.active || user.role === "SYSTEM") {
     redirect(`/admin/login?error=invalid&next=${encodeURIComponent(safeNext)}`);
   }
 
@@ -52,9 +60,52 @@ export async function loginAction(formData: FormData): Promise<void> {
 
   await resetFailedLogins(user.id);
   await createSession(user.id);
+  await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
   await logAction({ userId: user.id, action: "login", entityType: "User", entityId: user.id });
 
   redirect(safeNext);
+}
+
+const setPasswordWithTokenSchema = z
+  .object({
+    token: z.string().min(1),
+    newPassword: z.string().min(12, "Password must be at least 12 characters."),
+    confirmPassword: z.string(),
+  })
+  .refine((v) => v.newPassword === v.confirmPassword, {
+    message: "Password and confirmation don't match.",
+    path: ["confirmPassword"],
+  });
+
+/** The invite/reset counterpart to changePasswordAction — no current
+ * session or current password required, just a valid single-use token
+ * (see lib/password-reset.ts). Logs the user straight in afterwards. */
+export async function setPasswordWithTokenAction(formData: FormData): Promise<void> {
+  const parsed = setPasswordWithTokenSchema.safeParse({
+    token: formData.get("token"),
+    newPassword: formData.get("newPassword"),
+    confirmPassword: formData.get("confirmPassword"),
+  });
+  if (!parsed.success) {
+    redirect(`/admin/set-password?token=${encodeURIComponent(String(formData.get("token") || ""))}&error=${encodeURIComponent(parsed.error.issues[0]?.message ?? "Invalid input.")}`);
+  }
+
+  const claim = await consumePasswordResetToken(parsed.data.token);
+  if (!claim) {
+    redirect("/admin/set-password?error=" + encodeURIComponent("This link is invalid or has expired."));
+  }
+
+  const passwordHash = await hashPassword(parsed.data.newPassword);
+  await prisma.user.update({
+    where: { id: claim.userId },
+    data: { passwordHash, mustChangePassword: false },
+  });
+  await logAction({ userId: claim.userId, action: "password_set_via_token", entityType: "User", entityId: claim.userId, metadata: { purpose: claim.purpose } });
+
+  await createSession(claim.userId);
+  await prisma.user.update({ where: { id: claim.userId }, data: { lastLoginAt: new Date() } });
+
+  redirect("/admin?notice=" + encodeURIComponent("Password set. Welcome to TEKZARO."));
 }
 
 export async function logoutAction(): Promise<void> {

@@ -1,6 +1,7 @@
 import Image from "next/image";
 import type { ContentBlock } from "@/lib/content-blocks";
 import { PakistanImpactCallout } from "./PakistanImpactCallout";
+import { isOptimizableImageSrc } from "@/lib/image-src";
 
 interface ArticleBodyProps {
   blocks: ContentBlock[];
@@ -41,7 +42,7 @@ export function ArticleBody({ blocks }: ArticleBodyProps) {
           case "image":
             return (
               <figure key={i} className="my-6">
-                <Image src={block.url} alt={block.alt} width={900} height={560} className="w-full rounded-lg object-cover" />
+                <Image src={block.url} alt={block.alt} width={900} height={560} unoptimized={!isOptimizableImageSrc(block.url)} className="w-full rounded-lg object-cover" />
                 {(block.caption || block.credit) && (
                   <figcaption className="mt-2 text-sm text-ink-muted">
                     {block.caption} {block.credit && <span className="italic">({block.credit})</span>}

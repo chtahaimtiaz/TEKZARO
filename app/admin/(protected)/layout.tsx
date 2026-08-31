@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { logoutAction } from "@/lib/auth-actions";
+import { prisma } from "@/lib/prisma";
 import {
   CAN_MANAGE_USERS,
   CAN_VIEW_AUDIT_LOG,
@@ -9,6 +10,11 @@ import {
   CAN_MANAGE_SOURCES,
   CAN_MANAGE_KEYWORDS,
   CAN_BUILD_DIGEST,
+  CAN_MANAGE_MEDIA,
+  CAN_SEND_NEWSLETTER,
+  CAN_VIEW_ANALYTICS,
+  CAN_VIEW_MONITORING,
+  CAN_MANAGE_BACKUPS,
 } from "@/lib/permissions";
 
 const CORE_NAV = [
@@ -16,7 +22,7 @@ const CORE_NAV = [
   { label: "Articles", href: "/admin/articles" },
 ];
 
-const COMING_SOON_NAV = ["Categories", "Tags", "Authors", "Media", "Newsletter", "SEO", "Settings"];
+const COMING_SOON_NAV = ["Categories", "Tags", "Authors", "SEO", "Settings"];
 
 export default async function ProtectedAdminLayout({ children }: { children: React.ReactNode }) {
   // Defense in depth — proxy.ts already redirects anonymous requests, but
@@ -26,6 +32,8 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
   // A one-time bootstrap (or freshly-reset) password must be changed before
   // anything else in the CMS is usable.
   if (user.mustChangePassword) redirect("/admin/change-password");
+
+  const unreadNotifications = await prisma.notification.count({ where: { userId: user.id, read: false } });
 
   return (
     <div className="grid min-h-screen grid-cols-1 bg-paper text-ink lg:grid-cols-[240px_1fr]">
@@ -37,6 +45,12 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
               {item.label}
             </Link>
           ))}
+          <Link href="/admin/notifications" className="flex items-center justify-between rounded-md px-2 py-1.5 text-white/80 hover:bg-white/10 hover:text-white">
+            Notifications
+            {unreadNotifications > 0 && (
+              <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white">{unreadNotifications}</span>
+            )}
+          </Link>
           {CAN_VIEW_DISCOVERY.includes(user.role) && (
             <Link href="/admin/discovery" className="rounded-md px-2 py-1.5 text-white/80 hover:bg-white/10 hover:text-white">
               News Discovery
@@ -57,9 +71,34 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
               Pakistan Tech Daily
             </Link>
           )}
+          {CAN_MANAGE_MEDIA.includes(user.role) && (
+            <Link href="/admin/media" className="rounded-md px-2 py-1.5 text-white/80 hover:bg-white/10 hover:text-white">
+              Media
+            </Link>
+          )}
+          {CAN_SEND_NEWSLETTER.includes(user.role) && (
+            <Link href="/admin/newsletter" className="rounded-md px-2 py-1.5 text-white/80 hover:bg-white/10 hover:text-white">
+              Newsletter
+            </Link>
+          )}
+          {CAN_VIEW_ANALYTICS.includes(user.role) && (
+            <Link href="/admin/analytics" className="rounded-md px-2 py-1.5 text-white/80 hover:bg-white/10 hover:text-white">
+              Analytics
+            </Link>
+          )}
           {CAN_VIEW_AUDIT_LOG.includes(user.role) && (
             <Link href="/admin/audit-log" className="rounded-md px-2 py-1.5 text-white/80 hover:bg-white/10 hover:text-white">
               Audit Log
+            </Link>
+          )}
+          {CAN_VIEW_MONITORING.includes(user.role) && (
+            <Link href="/admin/monitoring" className="rounded-md px-2 py-1.5 text-white/80 hover:bg-white/10 hover:text-white">
+              Monitoring
+            </Link>
+          )}
+          {CAN_MANAGE_BACKUPS.includes(user.role) && (
+            <Link href="/admin/backups" className="rounded-md px-2 py-1.5 text-white/80 hover:bg-white/10 hover:text-white">
+              Editorial Data Export
             </Link>
           )}
           {CAN_MANAGE_USERS.includes(user.role) && (

@@ -4,6 +4,7 @@ import { PlaceholderArt } from "@/components/ui/PlaceholderArt";
 import { DemoBadge } from "@/components/ui/DemoBadge";
 import { AuthorByline } from "./AuthorByline";
 import { categoryHref } from "@/lib/constants";
+import { isOptimizableImageSrc } from "@/lib/image-src";
 import type { ArticleWithRelations } from "@/lib/types";
 
 interface HeroSectionProps {
@@ -25,6 +26,7 @@ export function HeroSection({ main, secondary }: HeroSectionProps) {
               width={1200}
               height={750}
               priority
+              unoptimized={!isOptimizableImageSrc(main.featuredImageUrl)}
               className="h-full w-full object-cover opacity-90 transition-transform duration-300 group-hover:scale-105"
             />
           ) : (
@@ -63,7 +65,7 @@ export function HeroSection({ main, secondary }: HeroSectionProps) {
             <article key={article.id} className="flex gap-3 p-4">
               <Link href={`/article/${article.slug}`} className="shrink-0 overflow-hidden rounded-md" style={{ width: 96, height: 68 }}>
                 {article.featuredImageUrl ? (
-                  <Image src={article.featuredImageUrl} alt={article.featuredImageAlt ?? article.title} width={96} height={68} className="h-full w-full object-cover" />
+                  <Image src={article.featuredImageUrl} alt={article.featuredImageAlt ?? article.title} width={96} height={68} unoptimized={!isOptimizableImageSrc(article.featuredImageUrl)} className="h-full w-full object-cover" />
                 ) : (
                   <PlaceholderArt seed={article.slug} label={article.category.name} className="h-full w-full" />
                 )}

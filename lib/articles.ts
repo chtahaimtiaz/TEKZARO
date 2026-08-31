@@ -193,8 +193,17 @@ export async function getAdjacentArticles(article: ArticleWithRelations) {
   return { previous, next };
 }
 
-export async function incrementArticleViews(id: string): Promise<void> {
+/**
+ * Increments the cheap running counter (Article.views, unchanged since
+ * Phase 1) AND records a PageView event row for real time-series analytics
+ * (Phase 5). PageView is a raw view-event log — not deduplicated for
+ * bots/crawlers/refreshes, not a unique-visitor count. Every surface that
+ * displays it must say "page views," never "readers"/"users". No IP/UA is
+ * stored, by design.
+ */
+export async function incrementArticleViews(id: string, path: string, referrer: string | null): Promise<void> {
   await prisma.article.update({ where: { id }, data: { views: { increment: 1 } } });
+  await prisma.pageView.create({ data: { articleId: id, path, referrer: referrer ?? undefined } });
 }
 
 export async function getAllAuthors() {

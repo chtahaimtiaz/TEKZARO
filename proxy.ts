@@ -8,7 +8,11 @@ import { getSessionUser } from "@/lib/auth";
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname === "/admin/login") {
+  // Both are reachable by a signed-out visitor by design: login obviously,
+  // and set-password because it establishes identity via a single-use
+  // emailed token (lib/password-reset.ts), not a session cookie — a user
+  // who has never logged in before (a fresh invite) has no session yet.
+  if (pathname === "/admin/login" || pathname === "/admin/set-password") {
     return NextResponse.next();
   }
 

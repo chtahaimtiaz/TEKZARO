@@ -6,6 +6,7 @@ import Link from "next/link";
 import { BlockEditor } from "./BlockEditor";
 import { PublicationChecklist } from "./PublicationChecklist";
 import { SuggestionsPanel } from "./SuggestionsPanel";
+import { MediaUploadButton } from "./MediaUploadButton";
 import { evaluatePublicationChecks, allChecksPassed } from "@/lib/publication-checks";
 import { slugify } from "@/lib/slugify";
 import { splitPakistanImpact } from "@/lib/content-blocks";
@@ -28,6 +29,7 @@ interface ArticleEditorProps {
   categories: { id: string; name: string }[];
   authors: { id: string; name: string }[];
   legalTransitions: TransitionName[];
+  mediaUploadAvailable: boolean;
 }
 
 export function ArticleEditor({
@@ -39,6 +41,7 @@ export function ArticleEditor({
   categories,
   authors,
   legalTransitions,
+  mediaUploadAvailable,
 }: ArticleEditorProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -305,6 +308,7 @@ export function ArticleEditor({
           <div className="rounded-xl border border-border bg-paper-raised p-4">
             <p className="mb-3 text-sm font-bold">Featured image</p>
             <div className="flex flex-col gap-3 text-sm">
+              <MediaUploadButton kind="article" available={mediaUploadAvailable} onUploaded={(url) => patch({ featuredImageUrl: url })} />
               <input value={form.featuredImageUrl} onChange={(e) => patch({ featuredImageUrl: e.target.value })} placeholder="Image URL" className="rounded-md border border-border-strong p-2" />
               <input value={form.featuredImageAlt} onChange={(e) => patch({ featuredImageAlt: e.target.value })} placeholder="Alt text" className="rounded-md border border-border-strong p-2" />
               <input value={form.featuredImageCaption} onChange={(e) => patch({ featuredImageCaption: e.target.value })} placeholder="Caption" className="rounded-md border border-border-strong p-2" />

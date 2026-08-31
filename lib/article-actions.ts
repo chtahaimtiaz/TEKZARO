@@ -11,6 +11,8 @@ import { ensureUniqueSlug, slugify } from "./slug";
 import { joinPakistanImpact, splitPakistanImpact, type ContentBlock } from "./content-blocks";
 import { estimateReadingTime } from "./reading-time";
 import { logAction } from "./audit";
+import { notify } from "./notifications";
+import { buildSnapshotFromArticleRow, snapshotVersion } from "./article-snapshot";
 import type { Prisma } from "@prisma/client";
 
 // Every route under /admin reads the session cookie (via requireUser/
@@ -130,61 +132,10 @@ function buildSnapshot(input: ArticleFormInput, blocks: ContentBlock[]): Prisma.
   } as unknown as Prisma.InputJsonValue;
 }
 
-/** Snapshot straight from a DB row (used by workflow transitions, which
- * change status/publishedAt but not the editable content itself). */
-function buildSnapshotFromArticleRow(
-  article: Prisma.ArticleGetPayload<{ include: { tags: { include: { tag: true } } } }>,
-): Prisma.InputJsonValue {
-  return {
-    title: article.title,
-    subheadline: article.subheadline,
-    excerpt: article.excerpt,
-    blocks: (article.content as unknown as { blocks?: ContentBlock[] }).blocks ?? [],
-    categoryId: article.categoryId,
-    authorId: article.authorId,
-    tagNames: article.tags.map((t) => t.tag.name),
-    locationName: article.locationName,
-    featuredImageUrl: article.featuredImageUrl,
-    featuredImageAlt: article.featuredImageAlt,
-    featuredImageCaption: article.featuredImageCaption,
-    featuredImageCredit: article.featuredImageCredit,
-    seoTitle: article.seoTitle,
-    metaDescription: article.metaDescription,
-    canonicalUrl: article.canonicalUrl,
-    ogImage: article.ogImage,
-  } as unknown as Prisma.InputJsonValue;
-}
-
-async function nextVersionNumber(articleId: string): Promise<number> {
-  const last = await prisma.articleVersion.findFirst({
-    where: { articleId },
-    orderBy: { versionNumber: "desc" },
-    select: { versionNumber: true },
-  });
-  return (last?.versionNumber ?? 0) + 1;
-}
-
-async function snapshotVersion(params: {
-  articleId: string;
-  editorId: string;
-  status: Prisma.ArticleGetPayload<object>["status"];
-  title: string;
-  snapshot: Prisma.InputJsonValue;
-  changeSummary?: string;
-}): Promise<void> {
-  const versionNumber = await nextVersionNumber(params.articleId);
-  await prisma.articleVersion.create({
-    data: {
-      articleId: params.articleId,
-      editorId: params.editorId,
-      versionNumber,
-      status: params.status,
-      title: params.title,
-      snapshot: params.snapshot,
-      changeSummary: params.changeSummary,
-    },
-  });
-}
+// buildSnapshotFromArticleRow/snapshotVersion moved to lib/article-snapshot.ts
+// — a "use server" file's exports must all be async functions, and
+// buildSnapshotFromArticleRow is a plain sync helper. Shared with
+// app/api/cron/publish-scheduled/route.ts from that non-"use server" module.
 
 export async function createArticleAction(raw: ArticleFormInput): Promise<ActionResult<{ id: string; slug: string }>> {
   const sessionUser = await getSessionUser();
@@ -373,7 +324,74 @@ export async function transitionArticleAction(articleId: string, name: Transitio
     metadata: { from: article.status, to: newStatus },
   });
 
+  await notifyForTransition(name, article, articleId);
+
   return { ok: true };
+}
+
+/** High-value transitions get a notification (in-app + email if configured)
+ * — most transitions are in-app-only or unnotified; this is deliberately a
+ * small allowlist, not a notification for every workflow event. Never
+ * throws: a notification failure must never block the transition it's
+ * describing (already enforced by notify() itself, but the EDITOR/ADMIN
+ * broadcast loop below stays defensive too). */
+async function notifyForTransition(
+  name: TransitionName,
+  article: { createdById: string | null; title: string },
+  articleId: string,
+): Promise<void> {
+  const link = `/admin/articles/${articleId}`;
+
+  if (name === "submit") {
+    const editors = await prisma.user.findMany({
+      where: { role: { in: ["ADMIN", "EDITOR"] }, active: true },
+      select: { id: true },
+    });
+    await Promise.all(
+      editors.map((e) =>
+        notify({
+          userId: e.id,
+          type: "article_submitted",
+          title: "Article submitted for review",
+          body: `"${article.title}" is ready for review.`,
+          link,
+          email: true,
+        }),
+      ),
+    );
+    return;
+  }
+
+  if (!article.createdById) return; // demo articles have no owning user to notify
+
+  if (name === "requestChanges") {
+    await notify({
+      userId: article.createdById,
+      type: "article_changes_requested",
+      title: "Changes requested on your article",
+      body: `An editor requested changes to "${article.title}".`,
+      link,
+      email: true,
+    });
+  } else if (name === "approve") {
+    await notify({
+      userId: article.createdById,
+      type: "article_approved",
+      title: "Your article was approved",
+      body: `"${article.title}" was approved.`,
+      link,
+      email: true,
+    });
+  } else if (name === "publish") {
+    await notify({
+      userId: article.createdById,
+      type: "article_published",
+      title: "Your article was published",
+      body: `"${article.title}" is now live.`,
+      link,
+      email: true,
+    });
+  }
 }
 
 export async function restoreVersionAction(articleId: string, versionId: string): Promise<void> {

@@ -5,6 +5,7 @@ import { canEditArticle } from "@/lib/permissions";
 import { legalTransitionsFor } from "@/lib/workflow";
 import { asArticleContent } from "@/lib/content-blocks";
 import { ArticleEditor } from "@/components/admin/ArticleEditor";
+import { isMediaUploadAvailable } from "@/lib/media/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +74,7 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
       categories={categories}
       authors={authors}
       legalTransitions={legalTransitions}
+      mediaUploadAvailable={isMediaUploadAvailable()}
     />
   );
 }

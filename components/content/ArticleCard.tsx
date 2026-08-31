@@ -4,6 +4,7 @@ import { PlaceholderArt } from "@/components/ui/PlaceholderArt";
 import { DemoBadge } from "@/components/ui/DemoBadge";
 import { AuthorByline } from "./AuthorByline";
 import { categoryHref } from "@/lib/constants";
+import { isOptimizableImageSrc } from "@/lib/image-src";
 import type { ArticleWithRelations } from "@/lib/types";
 
 interface ArticleCardProps {
@@ -20,7 +21,7 @@ export function ArticleCard({ article, variant = "standard" }: ArticleCardProps)
       <article className="flex gap-3 border-b border-border py-3 last:border-b-0">
         <Link href={href} className="shrink-0 overflow-hidden rounded-md" style={{ width: 88, height: 62 }}>
           {article.featuredImageUrl ? (
-            <Image src={article.featuredImageUrl} alt={article.featuredImageAlt ?? article.title} width={88} height={62} className="h-full w-full object-cover" />
+            <Image src={article.featuredImageUrl} alt={article.featuredImageAlt ?? article.title} width={88} height={62} unoptimized={!isOptimizableImageSrc(article.featuredImageUrl)} className="h-full w-full object-cover" />
           ) : (
             <PlaceholderArt seed={article.slug} label={article.category.name} className="h-full w-full" />
           )}
@@ -49,6 +50,7 @@ export function ArticleCard({ article, variant = "standard" }: ArticleCardProps)
             alt={article.featuredImageAlt ?? article.title}
             width={800}
             height={500}
+            unoptimized={!isOptimizableImageSrc(article.featuredImageUrl)}
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
