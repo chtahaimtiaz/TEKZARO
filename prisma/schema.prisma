@@ -1,0 +1,514 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  EDITOR
+  REPORTER
+  RESEARCHER
+}
+
+enum ArticleStatus {
+  DRAFT
+  IN_REVIEW
+  CHANGES_REQUESTED
+  APPROVED
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum SourceType {
+  RSS
+  ATOM
+  COMPANY_NEWSROOM
+  OFFICIAL_BLOG
+  API
+  OTHER
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  CONFLICT
+  UNVERIFIED
+}
+
+enum AIStatus {
+  NOT_STARTED
+  PROCESSING
+  COMPLETE
+  FAILED
+}
+
+enum SourceTier {
+  TIER_1
+  TIER_2
+  TIER_3
+}
+
+enum DiscoveryStatus {
+  NEW
+  REVIEWING
+  VERIFIED
+  DUPLICATE
+  POSSIBLE_DUPLICATE
+  REJECTED
+  CONVERTED_TO_DRAFT
+}
+
+enum PakistanImpactLevel {
+  DIRECT
+  HIGH
+  MODERATE
+  LOW
+  NONE
+}
+
+enum ClaimType {
+  FACT
+  CLAIM
+  SPECULATION
+  UNVERIFIED
+}
+
+enum ClaimStance {
+  SUPPORTING
+  CONTRADICTING
+}
+
+enum AITask {
+  SUMMARIZE
+  EXTRACT_ENTITIES
+  CLASSIFY_TOPIC
+  EXTRACT_CLAIMS
+  HEADLINE_SUGGESTIONS
+  PAKISTAN_IMPACT
+  INTERNAL_LINKS
+}
+
+enum KeywordType {
+  PAKISTAN
+  COMPANY
+  TOPIC
+}
+
+enum DigestSection {
+  PAKISTAN
+  REGIONAL
+  GLOBAL
+}
+
+enum DigestStatus {
+  DRAFT
+  READY
+}
+
+model User {
+  id                  String    @id @default(cuid())
+  name                String
+  email               String    @unique
+  passwordHash        String
+  role                Role      @default(REPORTER)
+  active              Boolean   @default(true)
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+  // True right after bootstrap/creation — forces a password change before
+  // any other admin page is usable. Cleared by changePasswordAction.
+  mustChangePassword  Boolean   @default(false)
+  authorId            String?
+  author              Author?   @relation(fields: [authorId], references: [id])
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  auditLogs          AuditLog[]
+  versions           ArticleVersion[]
+  sessions           Session[]
+  createdArticles    Article[]        @relation("ArticleCreatedBy")
+  reviewedItems      SourceItem[]     @relation("SourceItemReviewedBy")
+  claims             Claim[]
+  aiGenerations      AIGeneration[]
+  digests            Digest[]
+  digestItemsAdded   DigestItem[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  slug        String    @unique
+  description String?
+  articles    Article[]
+  sourceItems SourceItem[]
+  sources     Source[]
+}
+
+model Tag {
+  id       String       @id @default(cuid())
+  name     String       @unique
+  slug     String       @unique
+  articles ArticleTag[]
+}
+
+model Author {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  photoUrl    String?
+  bio         String?
+  position    String?
+  socialLinks Json?
+  articles    Article[]
+  users       User[]
+}
+
+model Article {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  subheadline String?
+  excerpt     String?
+  content     Json
+
+  status      ArticleStatus @default(DRAFT)
+  isBreaking  Boolean       @default(false)
+  featured    Boolean       @default(false)
+  // True only for seeded placeholder content (spec: demo content must be
+  // clearly labeled and never presented as real current news). Real
+  // newsroom-authored articles always leave this false.
+  isDemo      Boolean       @default(false)
+
+  // Editorial priority signals (Pakistan-first strategy). 0-100. Populated
+  // manually, or by the deterministic discovery scoring in lib/discovery/*.
+  pakistanRelevance  Int @default(0)
+  regionalRelevance  Int @default(0)
+  globalSignificance Int @default(0)
+
+  // Real, honestly-earned engagement signal — incremented on article view.
+  // Never seeded with fabricated numbers. Trending falls back to this plus
+  // recency when no manual trendingRank override is set.
+  views        Int  @default(0)
+  trendingRank Int?
+
+  publishedAt DateTime?
+  updatedAt   DateTime  @updatedAt
+  scheduledAt DateTime?
+  createdAt   DateTime  @default(now())
+  readingTime Int?
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+  authorId   String
+  author     Author   @relation(fields: [authorId], references: [id])
+
+  // Login account that created this article — distinct from `author` (the
+  // public byline). Used for "reporters/researchers can only edit their own
+  // drafts, and only before they're submitted for review".
+  // Null for the seeded demo articles, which have no owning newsroom user.
+  createdById String?
+  createdBy   User?   @relation("ArticleCreatedBy", fields: [createdById], references: [id])
+
+  locationName String?
+
+  featuredImageUrl     String?
+  featuredImageAlt     String?
+  featuredImageCaption String?
+  featuredImageCredit  String?
+
+  seoTitle        String?
+  metaDescription String?
+  canonicalUrl    String?
+  ogImage         String?
+
+  verification VerificationStatus @default(PENDING)
+  aiStatus     AIStatus           @default(NOT_STARTED)
+
+  // Postgres-generated tsvector (see prisma/migrations follow-up SQL) powering
+  // real relevance-ranked search. Unsupported = Prisma never manages its DDL,
+  // so hand-written GENERATED ALWAYS AS ... STORED column survives migrate dev.
+  searchVector Unsupported("tsvector")?
+
+  sources          ArticleSource[]
+  tags             ArticleTag[]
+  versions         ArticleVersion[]
+  relatedFrom      Relation[]       @relation("from")
+  relatedTo        Relation[]       @relation("to")
+  convertedFrom    SourceItem[]     @relation("SourceItemConvertedArticle")
+  digestItems      DigestItem[]
+
+  @@index([status, publishedAt])
+  @@index([categoryId, publishedAt])
+  @@index([pakistanRelevance, publishedAt])
+}
+
+model ArticleTag {
+  articleId String
+  tagId     String
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, tagId])
+}
+
+model Source {
+  id               String          @id @default(cuid())
+  name             String
+  url              String
+  feedUrl          String?
+  categoryId       String?
+  category         Category?       @relation(fields: [categoryId], references: [id])
+  type             SourceType
+  tier             SourceTier      @default(TIER_3)
+  active           Boolean         @default(true)
+  language         String?
+  country          String?
+  reliabilityNotes String?
+  lastChecked      DateTime?
+  lastSuccess      DateTime?
+  lastError        String?
+  items            SourceItem[]
+  articles         ArticleSource[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+}
+
+model SourceItem {
+  id          String @id @default(cuid())
+  sourceId    String
+  source      Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  externalId  String?
+  sourceUrl   String
+  canonicalUrl String?
+  headline     String
+  normalizedTitle String
+  excerpt      String?
+  publishedAt  DateTime?
+  imageUrl     String?
+  rawMetadata  Json?
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+
+  clusterId String?
+  cluster   StoryCluster? @relation(fields: [clusterId], references: [id])
+
+  pakistanRelevance     Int                  @default(0)
+  pakistanImpactLevel   PakistanImpactLevel?
+  pakistanImpactReasons Json?
+
+  duplicateScore Float   @default(0)
+  duplicateOfId  String?
+  duplicateOf    SourceItem?  @relation("SourceItemDuplicateOf", fields: [duplicateOfId], references: [id])
+  duplicatesOfMe SourceItem[] @relation("SourceItemDuplicateOf")
+
+  priorityScore   Float @default(0)
+  priorityReasons Json?
+
+  status DiscoveryStatus @default(NEW)
+  aiStatus AIStatus @default(NOT_STARTED)
+
+  convertedArticleId String?
+  convertedArticle   Article? @relation("SourceItemConvertedArticle", fields: [convertedArticleId], references: [id])
+
+  reviewedById String?
+  reviewedBy   User?   @relation("SourceItemReviewedBy", fields: [reviewedById], references: [id])
+  reviewNote   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  claimSources ClaimSource[]
+  digestItems  DigestItem[]
+
+  @@unique([sourceId, sourceUrl])
+  @@index([publishedAt])
+  @@index([status])
+  @@index([clusterId])
+}
+
+model StoryCluster {
+  id             String             @id @default(cuid())
+  title          String
+  importance     Float              @default(0)
+  duplicateScore Float              @default(0)
+
+  pakistanRelevance   Int                  @default(0)
+  pakistanImpactLevel PakistanImpactLevel?
+
+  verification VerificationStatus @default(PENDING)
+  notes        ResearchNote[]
+  items        SourceItem[]
+  claims       Claim[]
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+}
+
+model ResearchNote {
+  id        String       @id @default(cuid())
+  clusterId String
+  cluster   StoryCluster @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+  note      String
+  verified  Boolean      @default(false)
+  createdAt DateTime     @default(now())
+}
+
+model Claim {
+  id             String       @id @default(cuid())
+  clusterId      String
+  cluster        StoryCluster @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+  text           String
+  type           ClaimType    @default(CLAIM)
+  // False means an active, unresolved contradiction exists (a
+  // SUPPORTING and a CONTRADICTING source both attached) — this is what
+  // blocks "Create Draft" until an editor explicitly clears it.
+  resolved       Boolean      @default(true)
+  resolutionNote String?
+  createdById    String
+  createdBy      User         @relation(fields: [createdById], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  sources ClaimSource[]
+}
+
+model ClaimSource {
+  claimId      String
+  claim        Claim      @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  sourceItemId String
+  sourceItem   SourceItem @relation(fields: [sourceItemId], references: [id], onDelete: Cascade)
+  stance       ClaimStance
+
+  @@id([claimId, sourceItemId])
+}
+
+model AIGeneration {
+  id            String   @id @default(cuid())
+  task          AITask
+  model         String
+  status        AIStatus @default(NOT_STARTED)
+  requestedById String
+  requestedBy   User     @relation(fields: [requestedById], references: [id])
+  inputRef      Json?
+  output        Json?
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+}
+
+model Keyword {
+  id       String      @id @default(cuid())
+  term     String      @unique
+  type     KeywordType
+  priority Boolean     @default(false)
+  active   Boolean     @default(true)
+  createdAt DateTime   @default(now())
+}
+
+model Digest {
+  id         String       @id @default(cuid())
+  digestDate DateTime     @unique
+  status     DigestStatus @default(DRAFT)
+  createdById String
+  createdBy   User        @relation(fields: [createdById], references: [id])
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  items       DigestItem[]
+}
+
+model DigestItem {
+  id           String        @id @default(cuid())
+  digestId     String
+  digest       Digest        @relation(fields: [digestId], references: [id], onDelete: Cascade)
+  sourceItemId String?
+  sourceItem   SourceItem?   @relation(fields: [sourceItemId], references: [id])
+  articleId    String?
+  article      Article?      @relation(fields: [articleId], references: [id])
+  section      DigestSection
+  order        Int           @default(0)
+  addedById    String
+  addedBy      User          @relation(fields: [addedById], references: [id])
+  createdAt    DateTime      @default(now())
+}
+
+model ArticleSource {
+  articleId String
+  sourceId  String
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  source    Source  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, sourceId])
+}
+
+model ArticleVersion {
+  id            String        @id @default(cuid())
+  articleId     String
+  article       Article       @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  editorId      String
+  editor        User          @relation(fields: [editorId], references: [id])
+  versionNumber Int
+  status        ArticleStatus
+  title         String
+  // Full editable-field snapshot (subheadline, excerpt, content blocks,
+  // categoryId, authorId, tag ids, image fields, seo fields, locationName) —
+  // enough to actually restore a version, not just the body text.
+  snapshot      Json
+  changeSummary String?
+  createdAt     DateTime      @default(now())
+
+  @@unique([articleId, versionNumber])
+  @@index([articleId, createdAt])
+}
+
+model Relation {
+  fromId String
+  toId   String
+  from   Article @relation("from", fields: [fromId], references: [id], onDelete: Cascade)
+  to     Article @relation("to", fields: [toId], references: [id], onDelete: Cascade)
+  score  Float   @default(0)
+
+  @@id([fromId, toId])
+}
+
+model Media {
+  id        String   @id @default(cuid())
+  url       String
+  altText   String
+  caption   String?
+  credit    String?
+  license   String?
+  createdAt DateTime @default(now())
+}
+
+model NewsletterSubscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}

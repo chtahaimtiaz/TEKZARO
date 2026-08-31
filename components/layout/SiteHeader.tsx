@@ -1,0 +1,63 @@
+import Link from "next/link";
+import { CATEGORY_MAP, PRIMARY_NAV, OVERFLOW_NAV, SITE_NAME, categoryHref } from "@/lib/constants";
+import { MobileMenu } from "./MobileMenu";
+
+export function SiteHeader() {
+  return (
+    <header className="relative border-b border-black/10 bg-ink text-white">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-4 py-4">
+        <Link href="/" className="font-serif text-2xl font-black tracking-tight">
+          {SITE_NAME}
+        </Link>
+
+        <nav aria-label="Primary" className="hidden flex-1 items-center gap-5 text-sm font-semibold lg:flex">
+          <Link href="/" className="hover:text-accent">
+            Home
+          </Link>
+          <Link href="/latest" className="hover:text-accent">
+            Latest
+          </Link>
+          {PRIMARY_NAV.map((slug) => (
+            <Link key={slug} href={categoryHref(slug)} className="hover:text-accent">
+              {CATEGORY_MAP[slug].name}
+            </Link>
+          ))}
+          <details className="group relative">
+            <summary className="cursor-pointer list-none hover:text-accent">More</summary>
+            <div className="absolute left-0 top-full z-40 mt-2 w-48 rounded-lg border border-white/10 bg-ink p-2 shadow-xl">
+              {OVERFLOW_NAV.map((slug) => (
+                <Link
+                  key={slug}
+                  href={categoryHref(slug)}
+                  className="block rounded-md px-3 py-2 text-sm hover:bg-white/10 hover:text-accent"
+                >
+                  {CATEGORY_MAP[slug].name}
+                </Link>
+              ))}
+            </div>
+          </details>
+        </nav>
+
+        <div className="flex items-center gap-3">
+          <Link
+            href="/search"
+            aria-label="Search TEKZARO"
+            className="hidden h-9 w-9 items-center justify-center rounded-full border border-white/20 hover:border-accent hover:text-accent sm:flex"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <circle cx="7" cy="7" r="5.2" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M11 11l3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </Link>
+          <Link
+            href="/newsletter"
+            className="hidden rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-dark sm:block"
+          >
+            Newsletter
+          </Link>
+          <MobileMenu />
+        </div>
+      </div>
+    </header>
+  );
+}
