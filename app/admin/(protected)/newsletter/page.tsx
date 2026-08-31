@@ -16,10 +16,12 @@ export default async function NewsletterAdminPage({
   if (!CAN_SEND_NEWSLETTER.includes(user.role)) redirect("/admin");
   const { error } = await searchParams;
 
-  const [campaigns, subscriberCount] = await Promise.all([
+  const [campaigns, statusCounts] = await Promise.all([
     prisma.newsletterCampaign.findMany({ orderBy: { createdAt: "desc" }, take: 20 }),
-    prisma.newsletterSubscriber.count({ where: { active: true } }),
+    prisma.newsletterSubscriber.groupBy({ by: ["status"], _count: true }),
   ]);
+  const byStatus = Object.fromEntries(statusCounts.map((s) => [s.status, s._count]));
+  const subscriberCount = byStatus.CONFIRMED ?? 0; // only CONFIRMED subscribers are ever campaign-eligible
 
   const emailConfigured = isEmailConfigured();
 
@@ -41,7 +43,10 @@ export default async function NewsletterAdminPage({
     <div>
       <p className="eyebrow">Newsroom</p>
       <h1 className="mt-1 font-serif text-3xl font-bold">Newsletter</h1>
-      <p className="mt-1 text-sm text-ink-muted">{subscriberCount} active subscriber(s).</p>
+      <p className="mt-1 text-sm text-ink-muted">
+        {subscriberCount} confirmed subscriber(s) · {byStatus.PENDING ?? 0} pending confirmation ·{" "}
+        {byStatus.UNSUBSCRIBED ?? 0} unsubscribed. Campaigns send to confirmed subscribers only.
+      </p>
 
       {!emailConfigured && (
         <p className="mt-4 rounded-md border border-dashed border-border-strong bg-paper-raised p-3 text-sm text-ink-muted">

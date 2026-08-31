@@ -71,12 +71,15 @@ describe("media storage — local adapter", () => {
 describe("media storage — Vercel ephemeral-filesystem guard", () => {
   const originalVercel = process.env.VERCEL;
   const originalProvider = process.env.STORAGE_PROVIDER;
+  const originalToken = process.env.BLOB_READ_WRITE_TOKEN;
 
   afterEach(() => {
     if (originalVercel === undefined) delete process.env.VERCEL;
     else process.env.VERCEL = originalVercel;
     if (originalProvider === undefined) delete process.env.STORAGE_PROVIDER;
     else process.env.STORAGE_PROVIDER = originalProvider;
+    if (originalToken === undefined) delete process.env.BLOB_READ_WRITE_TOKEN;
+    else process.env.BLOB_READ_WRITE_TOKEN = originalToken;
   });
 
   it("is available locally (VERCEL unset, STORAGE_PROVIDER=local)", () => {
@@ -101,10 +104,17 @@ describe("media storage — Vercel ephemeral-filesystem guard", () => {
     await expect(saveUpload(file, "article")).rejects.toThrow(/durable object storage/i);
   });
 
-  it("is available on Vercel once STORAGE_PROVIDER is set to a non-local value", () => {
+  it("is available on Vercel once STORAGE_PROVIDER=vercel-blob and a token is configured", () => {
     process.env.VERCEL = "1";
-    process.env.STORAGE_PROVIDER = "s3";
+    process.env.STORAGE_PROVIDER = "vercel-blob";
+    process.env.BLOB_READ_WRITE_TOKEN = "fake-token-for-tests";
     expect(isMediaUploadAvailable()).toBe(true);
-    // ...but no adapter is actually implemented for it this phase.
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+  });
+
+  it("stays unavailable on Vercel for an unimplemented provider value, even off the ephemeral-FS guard", () => {
+    process.env.VERCEL = "1";
+    process.env.STORAGE_PROVIDER = "s3"; // no adapter exists for this — never treated as available
+    expect(isMediaUploadAvailable()).toBe(false);
   });
 });

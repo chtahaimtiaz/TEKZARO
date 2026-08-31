@@ -33,9 +33,13 @@ const SECURITY_HEADERS = [
 
 const nextConfig: NextConfig = {
   images: {
-    // No image host is configured yet (STORAGE_BUCKET is empty) — add
-    // remotePatterns here once a licensed media library/CDN is connected.
-    remotePatterns: [],
+    // Narrow allowlist: only our own Vercel Blob store (STORAGE_PROVIDER=
+    // vercel-blob) gets real next/image optimization. Every other external
+    // URL (RSS-sourced images, an editor-pasted URL) is handled safely via
+    // lib/image-src.ts's isOptimizableImageSrc, which falls back to
+    // `unoptimized` instead of crashing the page — never add a bare "*"
+    // hostname here.
+    remotePatterns: [{ protocol: "https", hostname: "*.public.blob.vercel-storage.com" }],
   },
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];

@@ -55,6 +55,21 @@ export async function cleanupRateLimitKey(key: string): Promise<void> {
   await prisma.rateLimitHit.deleteMany({ where: { key } });
 }
 
+/** Server Actions that call next/navigation's redirect() throw (per the
+ * mock in tests/setup.ts) rather than actually redirecting outside a real
+ * Next.js request — this captures that and returns the target URL so tests
+ * can assert on it without a running server. */
+export async function captureRedirect(fn: () => Promise<unknown>): Promise<string> {
+  try {
+    await fn();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.startsWith("NEXT_REDIRECT:")) return message.slice("NEXT_REDIRECT:".length);
+    throw err;
+  }
+  throw new Error("Expected a redirect, but the function returned normally.");
+}
+
 export async function cleanupTestData(): Promise<void> {
   if (createdArticleIds.size) {
     // ArticleVersion/ArticleTag/ArticleSource/Relation rows cascade with the article.

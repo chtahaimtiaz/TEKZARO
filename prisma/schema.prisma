@@ -146,6 +146,12 @@ enum SystemEventLevel {
   ERROR
 }
 
+enum NewsletterSubscriberStatus {
+  PENDING
+  CONFIRMED
+  UNSUBSCRIBED
+}
+
 model User {
   id                  String    @id @default(cuid())
   name                String
@@ -546,13 +552,35 @@ model Media {
 }
 
 model NewsletterSubscriber {
-  id               String   @id @default(cuid())
-  email            String   @unique
-  active           Boolean  @default(true)
+  id               String                     @id @default(cuid())
+  email            String                     @unique
+  // Double opt-in lifecycle: PENDING (signed up, not yet confirmed) ->
+  // CONFIRMED (clicked the confirmation link — the only status eligible for
+  // campaign sends) -> UNSUBSCRIBED. Replaces the old single-opt-in
+  // `active: Boolean`.
+  status           NewsletterSubscriberStatus @default(PENDING)
   // One-click unsubscribe, no login required — generated at signup, included
   // in every campaign/welcome email.
-  unsubscribeToken String   @unique
-  createdAt        DateTime @default(now())
+  unsubscribeToken String                     @unique
+  createdAt        DateTime                   @default(now())
+
+  confirmationTokens NewsletterConfirmationToken[]
+}
+
+model NewsletterConfirmationToken {
+  id           String               @id @default(cuid())
+  subscriberId String
+  subscriber   NewsletterSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  // Only the HMAC hash is stored — same pattern as PasswordResetToken —
+  // so a leaked DB row never yields a usable token. Can't reuse
+  // PasswordResetToken itself: its userId FK points at User, and newsletter
+  // subscribers aren't users.
+  tokenHash    String               @unique
+  expiresAt    DateTime
+  usedAt       DateTime?
+  createdAt    DateTime             @default(now())
+
+  @@index([subscriberId])
 }
 
 model PasswordResetToken {
