@@ -28,7 +28,7 @@ export default async function KeywordsPage({
         built-in list of Pakistani place names is always active — this table only adds to it.
       </p>
 
-      {error && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-medium text-red-700">{error}</p>}
+      {error && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-medium text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>}
 
       <form action={createKeywordAction} className="mt-6 flex flex-wrap items-end gap-2 rounded-xl border border-border bg-paper-raised p-4">
         <label className="flex flex-col gap-1 text-sm">
@@ -80,7 +80,7 @@ export default async function KeywordsPage({
                 </td>
                 <td className="p-3 text-right">
                   <form action={deleteKeywordAction.bind(null, k.id)}>
-                    <button type="submit" className="text-xs font-semibold text-ink-muted hover:text-red-600">
+                    <button type="submit" className="text-xs font-semibold text-ink-muted hover:text-red-600 dark:hover:text-red-400">
                       Delete
                     </button>
                   </form>

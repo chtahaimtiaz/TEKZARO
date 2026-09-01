@@ -33,7 +33,7 @@ export default async function AuthorsPage({
         checked is eligible for every category.
       </p>
 
-      {error && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-medium text-red-700">{error}</p>}
+      {error && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-medium text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>}
 
       <form action={createAuthorAction} className="mt-6 flex flex-col gap-3 rounded-xl border border-border bg-paper-raised p-4 text-sm">
         <div className="flex flex-wrap items-end gap-2">

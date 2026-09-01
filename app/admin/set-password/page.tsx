@@ -16,8 +16,8 @@ export default async function SetPasswordPage({
   const { token, error } = await searchParams;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-ink px-4">
-      <div className="w-full max-w-sm rounded-xl border border-white/10 bg-paper-raised p-8">
+    <div className="flex min-h-screen items-center justify-center bg-paper-sunk px-4">
+      <div className="w-full max-w-sm rounded-xl border border-border bg-paper-raised p-8">
         <p className="eyebrow">TEKZARO Newsroom</p>
         <h1 className="mt-1 font-serif text-2xl font-bold text-ink">Set your password</h1>
         <p className="mt-2 text-sm text-ink-muted">
@@ -25,7 +25,7 @@ export default async function SetPasswordPage({
         </p>
 
         {!token && (
-          <p role="alert" className="mt-4 text-sm font-medium text-red-600">
+          <p role="alert" className="mt-4 text-sm font-medium text-red-600 dark:text-red-400">
             No invite/reset token was provided. Use the link from your email.
           </p>
         )}
@@ -64,14 +64,14 @@ export default async function SetPasswordPage({
             </div>
 
             {error && (
-              <p role="alert" className="text-sm font-medium text-red-600">
+              <p role="alert" className="text-sm font-medium text-red-600 dark:text-red-400">
                 {error}
               </p>
             )}
 
             <button
               type="submit"
-              className="mt-2 rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-dark"
+              className="mt-2 rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-dark dark:text-paper"
             >
               Set password &amp; sign in
             </button>

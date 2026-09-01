@@ -87,7 +87,7 @@ export default async function DiscoveryPage({ searchParams }: { searchParams: Pr
           <option value="50">50+</option>
           <option value="70">70+</option>
         </select>
-        <button type="submit" className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-ink-soft">
+        <button type="submit" className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-ink-soft dark:text-paper">
           Apply
         </button>
       </form>

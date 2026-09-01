@@ -53,7 +53,7 @@ export default async function NewsletterAdminPage({
           SMTP isn&apos;t configured — campaigns can be drafted but not sent until SMTP_HOST/PORT/USER/PASS are set.
         </p>
       )}
-      {error && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-medium text-red-700">{error}</p>}
+      {error && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-medium text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>}
 
       <section className="mt-6 rounded-xl border border-border bg-paper-raised p-5">
         <h2 className="text-lg font-bold">New campaign</h2>

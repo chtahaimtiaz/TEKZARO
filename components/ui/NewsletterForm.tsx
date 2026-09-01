@@ -27,16 +27,23 @@ export function NewsletterForm({ redirectTo, status }: NewsletterFormProps) {
         required
         placeholder="you@example.com"
         suppressHydrationWarning
-        className="w-full rounded-md border border-white/20 bg-white/10 px-4 py-2.5 text-sm text-white placeholder:text-white/50 focus:border-accent"
+        // This form always sits on the bg-ink newsletter band, which
+        // itself flips to a light surface in dark mode — so this translucent
+        // "white on dark" input becomes translucent "paper (dark value) on
+        // light" to match, not literally white-on-white.
+        className="w-full rounded-md border border-white/20 bg-white/10 px-4 py-2.5 text-sm text-white placeholder:text-white/50 focus:border-accent dark:border-paper/20 dark:bg-paper/10 dark:text-paper dark:placeholder:text-paper/50"
       />
       <button
         type="submit"
-        className="shrink-0 rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:bg-accent-dark"
+        className="shrink-0 rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:bg-accent-dark dark:text-paper"
       >
         Subscribe
       </button>
       {message && (
-        <p role="status" className={`text-sm sm:col-span-2 ${message.tone === "ok" ? "text-white" : "text-red-300"}`}>
+        <p
+          role="status"
+          className={`text-sm sm:col-span-2 ${message.tone === "ok" ? "text-white dark:text-paper" : "text-red-300 dark:text-red-700"}`}
+        >
           {message.text}
         </p>
       )}

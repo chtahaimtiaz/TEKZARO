@@ -5,7 +5,7 @@ export function PublicationChecklist({ checks }: { checks: PublicationCheckResul
     <ul className="flex flex-col gap-1.5 text-sm">
       {checks.map((c) => (
         <li key={c.id} className="flex items-start gap-2">
-          <span className={c.passed ? "text-pakistan" : "text-red-500"} aria-hidden>
+          <span className={c.passed ? "text-pakistan" : "text-red-500 dark:text-red-400"} aria-hidden>
             {c.passed ? "✓" : "✗"}
           </span>
           <span>

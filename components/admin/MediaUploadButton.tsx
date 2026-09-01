@@ -70,7 +70,7 @@ export function MediaUploadButton({ kind, available, articleId, onUploaded }: Me
           className="hidden"
         />
       </label>
-      {error && <p className="text-xs font-medium text-red-600">{error}</p>}
+      {error && <p className="text-xs font-medium text-red-600 dark:text-red-400">{error}</p>}
     </div>
   );
 }

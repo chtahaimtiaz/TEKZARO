@@ -35,7 +35,7 @@ export default async function CategoriesPage({
         Article and source categories shown across the public site and used to file discovery items.
       </p>
 
-      {error && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-medium text-red-700">{error}</p>}
+      {error && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-medium text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>}
 
       <section className="mt-6 rounded-xl border border-border bg-paper-raised p-4">
         <p className="mb-2 text-sm font-bold">Editorial Checklist Settings</p>
@@ -50,7 +50,7 @@ export default async function CategoriesPage({
               ))}
             </select>
           </label>
-          <button type="submit" className="rounded-md bg-ink px-4 py-2 font-semibold text-white hover:bg-ink-soft">
+          <button type="submit" className="rounded-md bg-ink px-4 py-2 font-semibold text-white hover:bg-ink-soft dark:text-paper">
             Save
           </button>
         </form>
@@ -94,7 +94,7 @@ export default async function CategoriesPage({
                 <td className="p-3">{c.participatesInQuota ? c.dailyTarget : "—"}</td>
                 <td className="p-3 text-right">
                   <form action={deleteCategoryAction.bind(null, c.id)}>
-                    <button type="submit" className="text-xs font-semibold text-ink-muted hover:text-red-600">
+                    <button type="submit" className="text-xs font-semibold text-ink-muted hover:text-red-600 dark:hover:text-red-400">
                       Delete
                     </button>
                   </form>

@@ -50,9 +50,9 @@ const STATUS_BADGE_CLASSES: Record<ImageReuseStatus, string> = {
   LICENSED: "bg-pakistan-soft text-pakistan",
   OWNED: "bg-pakistan-soft text-pakistan",
   GENERATED: "bg-pakistan-soft text-pakistan",
-  UNKNOWN: "bg-amber-50 text-amber-800",
-  REQUIRES_REVIEW: "bg-amber-50 text-amber-800",
-  REJECTED: "bg-red-50 text-red-700",
+  UNKNOWN: "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
+  REQUIRES_REVIEW: "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
+  REJECTED: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300",
 };
 
 interface SearchParams {
@@ -172,14 +172,14 @@ export default async function MediaLibraryPage({ searchParams }: { searchParams:
                         </button>
                       </form>
                       <form action={rejectMediaAction.bind(null, m.id)}>
-                        <button type="submit" className="text-xs font-semibold text-red-600 hover:underline">
+                        <button type="submit" className="text-xs font-semibold text-red-600 hover:underline dark:text-red-400">
                           Reject
                         </button>
                       </form>
                     </>
                   )}
                   <form action={deleteMediaAction.bind(null, m.id)}>
-                    <button type="submit" className="text-xs font-semibold text-red-600 hover:underline">
+                    <button type="submit" className="text-xs font-semibold text-red-600 hover:underline dark:text-red-400">
                       Delete
                     </button>
                   </form>

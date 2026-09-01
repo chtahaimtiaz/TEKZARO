@@ -32,7 +32,7 @@ export default async function EditAuthorPage({
       <h1 className="mt-1 font-serif text-3xl font-bold">{author.name}</h1>
       <p className="mt-1 text-sm text-ink-muted">/author/{author.slug}</p>
 
-      {error && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-medium text-red-700">{error}</p>}
+      {error && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-medium text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>}
 
       <form action={updateAuthorAction.bind(null, author.id)} className="mt-6 flex flex-col gap-4 rounded-xl border border-border bg-paper-raised p-4 text-sm">
         <label className="flex flex-col gap-1">

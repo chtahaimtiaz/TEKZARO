@@ -17,7 +17,10 @@ export function HeroSection({ main, secondary }: HeroSectionProps) {
 
   return (
     <section className="grid gap-6 py-8 lg:grid-cols-[1.6fr_1fr]">
-      <article className="group relative overflow-hidden rounded-xl border border-border bg-ink">
+      {/* bg-black, not the ink token: this is the image-fallback surface
+          behind a photo + dark gradient scrim, not page chrome — it must
+          stay dark regardless of site theme. */}
+      <article className="group relative overflow-hidden rounded-xl border border-border bg-black">
         <Link href={`/article/${main.slug}`} className="block aspect-[16/10] overflow-hidden">
           {main.featuredImageUrl ? (
             <Image
@@ -42,7 +45,7 @@ export function HeroSection({ main, secondary }: HeroSectionProps) {
               {main.category.name}
             </Link>
             {main.isBreaking && (
-              <span className="rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+              <span className="rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white dark:text-paper">
                 Breaking
               </span>
             )}

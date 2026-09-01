@@ -56,7 +56,7 @@ export default async function StoryClusterPage({ params }: { params: Promise<{ i
       </p>
 
       {hasUnresolved && (
-        <div className="mt-4 rounded-xl border-2 border-red-400 bg-red-50 p-4 text-sm text-red-800">
+        <div className="mt-4 rounded-xl border-2 border-red-400 bg-red-50 p-4 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
           <strong>Potential conflict detected.</strong> One or more claims below have both supporting and
           contradicting sources and haven&apos;t been resolved. Drafting is blocked until an editor resolves them.
         </div>
@@ -77,7 +77,7 @@ export default async function StoryClusterPage({ params }: { params: Promise<{ i
               </div>
               {canResearch && cluster.items.length > 1 && (
                 <form action={removeItemFromClusterAction.bind(null, id, item.id)}>
-                  <button type="submit" className="text-xs font-semibold text-ink-muted hover:text-red-600">
+                  <button type="submit" className="text-xs font-semibold text-ink-muted hover:text-red-600 dark:hover:text-red-400">
                     Remove
                   </button>
                 </form>
@@ -111,9 +111,9 @@ export default async function StoryClusterPage({ params }: { params: Promise<{ i
         <p className="mb-3 text-sm font-bold">Claims</p>
         <div className="flex flex-col gap-4">
           {cluster.claims.map((claim) => (
-            <div key={claim.id} className={`rounded-lg border p-3 ${!claim.resolved ? "border-red-400 bg-red-50" : "border-border"}`}>
+            <div key={claim.id} className={`rounded-lg border p-3 ${!claim.resolved ? "border-red-400 bg-red-50 dark:border-red-800 dark:bg-red-950" : "border-border"}`}>
               <div className="flex items-center gap-2">
-                <span className="rounded bg-ink px-1.5 py-0.5 text-[10px] font-bold uppercase text-white">{claim.type}</span>
+                <span className="rounded bg-ink px-1.5 py-0.5 text-[10px] font-bold uppercase text-white dark:text-paper">{claim.type}</span>
                 <p className="text-sm font-medium">{claim.text}</p>
               </div>
               <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
@@ -157,7 +157,7 @@ export default async function StoryClusterPage({ params }: { params: Promise<{ i
               {!claim.resolved && canResearch && (
                 <form action={resolveClaimAction.bind(null, id, claim.id)} className="mt-2 flex flex-wrap items-center gap-2">
                   <input name="resolutionNote" placeholder="How was this resolved?" className="flex-1 rounded-md border border-border-strong p-1.5 text-xs" />
-                  <button type="submit" className="rounded-md bg-ink px-3 py-1.5 text-xs font-semibold text-white hover:bg-ink-soft">
+                  <button type="submit" className="rounded-md bg-ink px-3 py-1.5 text-xs font-semibold text-white hover:bg-ink-soft dark:text-paper">
                     Resolve contradiction
                   </button>
                 </form>

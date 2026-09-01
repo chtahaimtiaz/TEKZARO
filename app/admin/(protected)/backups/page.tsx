@@ -20,7 +20,7 @@ export default async function EditorialDataExportPage() {
       <p className="eyebrow">Newsroom</p>
       <h1 className="mt-1 font-serif text-3xl font-bold">Editorial Data Export</h1>
 
-      <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+      <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
         Neon PITR is the primary database recovery mechanism. This export provides portability and
         manual recovery assistance; it is <strong>not an independent backup</strong>.
       </div>

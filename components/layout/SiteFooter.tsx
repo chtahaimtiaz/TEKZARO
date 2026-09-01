@@ -43,16 +43,16 @@ export function SiteFooter() {
   const socialLinks = getConfiguredSocialLinks();
 
   return (
-    <footer className="mt-16 border-t border-border bg-ink text-white/80">
+    <footer className="mt-16 border-t border-border bg-paper-raised text-ink-soft">
       <div className="mx-auto max-w-6xl px-4 py-12">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <p className="font-serif text-xl font-black text-white">{SITE_NAME}</p>
+            <p className="font-serif text-xl font-black text-ink">{SITE_NAME}</p>
             <p className="mt-3 max-w-xs text-sm">{SITE_DESCRIPTION}</p>
           </div>
 
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-white/50">Sections</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-ink-muted">Sections</p>
             <ul className="mt-3 space-y-2 text-sm">
               {CATEGORIES.map((c) => (
                 <li key={c.slug}>
@@ -65,7 +65,7 @@ export function SiteFooter() {
           </div>
 
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-white/50">Company</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-ink-muted">Company</p>
             <ul className="mt-3 space-y-2 text-sm">
               {COMPANY_LINKS.map(([label, href]) => (
                 <li key={href}>
@@ -78,7 +78,7 @@ export function SiteFooter() {
           </div>
 
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-white/50">Legal</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-ink-muted">Legal</p>
             <ul className="mt-3 space-y-2 text-sm">
               {LEGAL_LINKS.map(([label, href]) => (
                 <li key={href}>
@@ -97,7 +97,7 @@ export function SiteFooter() {
         </div>
 
         {socialLinks.length > 0 && (
-          <div className="mt-10 flex items-center gap-2 border-t border-white/10 pt-6">
+          <div className="mt-10 flex items-center gap-2 border-t border-border pt-6">
             {socialLinks.map((link) => (
               <a
                 key={link.platform}
@@ -105,7 +105,7 @@ export function SiteFooter() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label={link.label}
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 hover:border-accent hover:text-accent"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-border-strong hover:border-accent hover:text-accent"
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
                   <rect x="3" y="3" width="18" height="18" rx="5" />
@@ -116,7 +116,7 @@ export function SiteFooter() {
           </div>
         )}
 
-        <div className={`${socialLinks.length > 0 ? "mt-6" : "mt-10 border-t border-white/10 pt-6"} text-xs text-white/50`}>
+        <div className={`${socialLinks.length > 0 ? "mt-6" : "mt-10 border-t border-border pt-6"} text-xs text-ink-muted`}>
           © {new Date().getFullYear()} {SITE_NAME}. All rights reserved.
         </div>
       </div>

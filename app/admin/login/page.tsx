@@ -20,8 +20,8 @@ export default async function AdminLoginPage({
   const message = error ? ERROR_MESSAGES[error] ?? "Something went wrong. Try again." : null;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-ink px-4">
-      <div className="w-full max-w-sm rounded-xl border border-white/10 bg-paper-raised p-8">
+    <div className="flex min-h-screen items-center justify-center bg-paper-sunk px-4">
+      <div className="w-full max-w-sm rounded-xl border border-border bg-paper-raised p-8">
         <p className="eyebrow">TEKZARO Newsroom</p>
         <h1 className="mt-1 font-serif text-2xl font-bold text-ink">Sign in</h1>
 
@@ -55,14 +55,14 @@ export default async function AdminLoginPage({
           </div>
 
           {message && (
-            <p role="alert" className="text-sm font-medium text-red-600">
+            <p role="alert" className="text-sm font-medium text-red-600 dark:text-red-400">
               {message}
             </p>
           )}
 
           <button
             type="submit"
-            className="mt-2 rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-dark"
+            className="mt-2 rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-dark dark:text-paper"
           >
             Sign in
           </button>

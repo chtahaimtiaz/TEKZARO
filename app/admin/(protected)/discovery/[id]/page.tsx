@@ -80,7 +80,7 @@ export default async function DiscoveryItemPage({ params }: { params: Promise<{ 
       </div>
 
       {item.duplicateScore > 0 && (
-        <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+        <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
           Duplicate score {item.duplicateScore.toFixed(2)} against a similar item{item.duplicateOfId ? "" : " in this cluster"}.
           {item.status === "POSSIBLE_DUPLICATE" && " Flagged as a possible duplicate — review before converting to a draft."}
         </div>
@@ -131,7 +131,7 @@ export default async function DiscoveryItemPage({ params }: { params: Promise<{ 
         )}
         {canResearch && item.status !== "REJECTED" && (
           <form action={setDiscoveryStatusAction.bind(null, item.id, "REJECTED")}>
-            <button type="submit" className="rounded-md border border-border-strong px-4 py-2.5 text-sm font-semibold text-red-700 hover:border-red-400">
+            <button type="submit" className="rounded-md border border-border-strong px-4 py-2.5 text-sm font-semibold text-red-700 hover:border-red-400 dark:text-red-400 dark:hover:border-red-700">
               Ignore
             </button>
           </form>
@@ -140,7 +140,7 @@ export default async function DiscoveryItemPage({ params }: { params: Promise<{ 
           <CreateDraftButton action={createDraftFromItemAction.bind(null, item.id)} />
         )}
         {item.status === "CONVERTED_TO_DRAFT" && item.convertedArticleId && (
-          <Link href={`/admin/articles/${item.convertedArticleId}`} className="rounded-md bg-ink px-4 py-2.5 text-sm font-semibold text-white hover:bg-ink-soft">
+          <Link href={`/admin/articles/${item.convertedArticleId}`} className="rounded-md bg-ink px-4 py-2.5 text-sm font-semibold text-white hover:bg-ink-soft dark:text-paper">
             Open draft →
           </Link>
         )}

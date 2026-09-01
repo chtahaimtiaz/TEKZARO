@@ -35,7 +35,7 @@ export function CreateDraftButton({ action, label = "Create Draft" }: CreateDraf
       >
         {pending ? "Creating…" : label}
       </button>
-      {error && <p className="max-w-sm text-sm text-red-600">{error}</p>}
+      {error && <p className="max-w-sm text-sm text-red-600 dark:text-red-400">{error}</p>}
     </div>
   );
 }

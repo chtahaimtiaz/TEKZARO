@@ -10,7 +10,7 @@ export default function NotFound() {
         have changed since publication.
       </p>
       <div className="mt-6 flex gap-3">
-        <Link href="/" className="rounded-md bg-ink px-5 py-2.5 text-sm font-semibold text-white hover:bg-ink-soft">
+        <Link href="/" className="rounded-md bg-ink px-5 py-2.5 text-sm font-semibold text-white hover:bg-ink-soft dark:text-paper">
           Go home
         </Link>
         <Link href="/search" className="rounded-md border border-border px-5 py-2.5 text-sm font-semibold hover:border-accent">

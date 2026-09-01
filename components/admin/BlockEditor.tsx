@@ -69,7 +69,7 @@ export function BlockEditor({ blocks, onChange }: BlockEditorProps) {
               <button type="button" onClick={() => moveBlock(index, 1)} className="rounded border border-border px-2 py-0.5 hover:border-accent">
                 ↓
               </button>
-              <button type="button" onClick={() => removeBlock(index)} className="rounded border border-border px-2 py-0.5 text-red-600 hover:border-red-400">
+              <button type="button" onClick={() => removeBlock(index)} className="rounded border border-border px-2 py-0.5 text-red-600 hover:border-red-400 dark:text-red-400 dark:hover:border-red-700">
                 Remove
               </button>
             </div>
@@ -129,7 +129,7 @@ export function BlockEditor({ blocks, onChange }: BlockEditorProps) {
                   <button
                     type="button"
                     onClick={() => updateBlock(index, { ...block, items: block.items.filter((_, j) => j !== i) })}
-                    className="rounded border border-border px-2 text-xs text-red-600 hover:border-red-400"
+                    className="rounded border border-border px-2 text-xs text-red-600 hover:border-red-400 dark:text-red-400 dark:hover:border-red-700"
                   >
                     ✕
                   </button>

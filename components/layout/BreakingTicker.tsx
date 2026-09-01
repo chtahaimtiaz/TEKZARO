@@ -8,9 +8,9 @@ export async function BreakingTicker() {
   const loop = [...articles, ...articles];
 
   return (
-    <div className="overflow-hidden border-b border-black/10 bg-accent text-white">
+    <div className="overflow-hidden border-b border-border bg-accent text-white dark:text-paper">
       <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2 text-sm">
-        <span className="shrink-0 rounded bg-white/20 px-2 py-0.5 text-xs font-black uppercase tracking-wide">
+        <span className="shrink-0 rounded bg-white/20 px-2 py-0.5 text-xs font-black uppercase tracking-wide dark:bg-ink/15">
           Breaking
         </span>
         <div className="overflow-hidden">

@@ -38,7 +38,7 @@ export default async function ArticlePreviewPage({ params }: { params: Promise<{
 
   return (
     <div className="mx-auto max-w-3xl bg-paper px-4 py-10">
-      <div className="mb-4 flex items-center gap-2 rounded-md bg-amber-100 p-3 text-sm text-amber-900">
+      <div className="mb-4 flex items-center gap-2 rounded-md bg-amber-100 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-300">
         <strong>Preview</strong> — status: {article.status.replace(/_/g, " ")}. Not publicly accessible.
       </div>
 

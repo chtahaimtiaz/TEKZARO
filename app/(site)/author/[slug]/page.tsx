@@ -35,7 +35,7 @@ export default async function AuthorPage({ params, searchParams }: Props) {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
       <div className="flex flex-col items-start gap-4 border-b border-border pb-8 sm:flex-row sm:items-center">
-        <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-ink font-serif text-2xl font-bold text-white">
+        <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-ink font-serif text-2xl font-bold text-white dark:text-paper">
           {author.name
             .split(" ")
             .map((n) => n[0])

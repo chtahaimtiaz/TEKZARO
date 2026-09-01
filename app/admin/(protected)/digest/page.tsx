@@ -81,7 +81,7 @@ export default async function DigestPage() {
                     </p>
                   </div>
                   <form action={removeDigestItemAction.bind(null, i.id)}>
-                    <button type="submit" className="text-xs font-semibold text-ink-muted hover:text-red-600">
+                    <button type="submit" className="text-xs font-semibold text-ink-muted hover:text-red-600 dark:hover:text-red-400">
                       Remove
                     </button>
                   </form>

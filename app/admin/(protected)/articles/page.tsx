@@ -123,7 +123,7 @@ export default async function AdminArticlesPage({
           <option value="newest">Newest first</option>
           <option value="oldest">Oldest first</option>
         </select>
-        <button type="submit" className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-ink-soft">
+        <button type="submit" className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-ink-soft dark:text-paper">
           Apply
         </button>
       </form>

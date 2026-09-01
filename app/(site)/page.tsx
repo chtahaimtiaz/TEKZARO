@@ -88,16 +88,16 @@ export default async function HomePage({
         <CategorySection key={slug} title={title} slug={slug} articles={categorySections[i].articles} />
       ))}
 
-      <section className="rounded-xl bg-ink px-6 py-12 text-center text-white sm:px-12">
+      <section className="rounded-xl bg-ink px-6 py-12 text-center text-white sm:px-12 dark:text-paper">
         <p className="eyebrow">Stay Ahead of Technology</p>
         <h2 className="mt-2 font-serif text-3xl font-bold">TEKZARO in your inbox</h2>
-        <p className="mx-auto mt-2 max-w-md text-white/70">
+        <p className="mx-auto mt-2 max-w-md text-white/70 dark:text-paper/70">
           Pakistan technology news first, global technology in context — delivered when it matters.
         </p>
         <div className="mt-6 flex justify-center">
           <NewsletterForm redirectTo="/" status={newsletter} />
         </div>
-        <Link href="/newsletter" className="mt-3 inline-block text-xs text-white/60 hover:text-white">
+        <Link href="/newsletter" className="mt-3 inline-block text-xs text-white/60 hover:text-white dark:text-paper/60 dark:hover:text-paper">
           More about the newsletter →
         </Link>
       </section>

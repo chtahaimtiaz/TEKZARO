@@ -618,7 +618,7 @@ export function ArticleEditor({
               type="button"
               disabled={pending}
               onClick={save}
-              className="rounded-md bg-ink px-4 py-2.5 text-sm font-semibold text-white hover:bg-ink-soft disabled:opacity-50"
+              className="rounded-md bg-ink px-4 py-2.5 text-sm font-semibold text-white hover:bg-ink-soft disabled:opacity-50 dark:text-paper"
             >
               {mode === "create" ? "Create draft" : "Save changes"}
             </button>
@@ -642,7 +642,7 @@ export function ArticleEditor({
                 disabled={pending || (articleId ? false : true) || blockingChecks}
                 onClick={() => runTransition(name)}
                 title={blockingChecks ? "All publication checks must pass first" : undefined}
-                className="rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-dark disabled:opacity-50"
+                className="rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-dark disabled:opacity-50 dark:text-paper"
               >
                 {TRANSITION_LABELS[name]}
               </button>

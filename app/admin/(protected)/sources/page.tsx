@@ -56,7 +56,7 @@ export default async function SourcesPage() {
                 <td className="p-3 text-ink-soft">{s.category?.name ?? "—"}</td>
                 <td className="p-3">{s._count.items}</td>
                 <td className="p-3 text-ink-muted">{s.lastSuccess ? s.lastSuccess.toLocaleString() : "Never"}</td>
-                <td className="max-w-[200px] truncate p-3 text-red-600">{s.lastError ?? ""}</td>
+                <td className="max-w-[200px] truncate p-3 text-red-600 dark:text-red-400">{s.lastError ?? ""}</td>
                 <td className="p-3">
                   <form action={setSourceActiveAction.bind(null, s.id, !s.active)}>
                     <button type="submit" className={`rounded px-2 py-0.5 text-xs font-semibold ${s.active ? "bg-pakistan-soft text-pakistan" : "bg-paper text-ink-muted"}`}>

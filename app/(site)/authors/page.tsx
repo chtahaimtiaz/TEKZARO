@@ -24,7 +24,7 @@ export default async function AuthorsPage() {
             href={`/author/${author.slug}`}
             className="flex items-center gap-4 rounded-xl border border-border bg-paper-raised p-4 hover:border-accent"
           >
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-ink font-serif text-lg font-bold text-white">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-ink font-serif text-lg font-bold text-white dark:text-paper">
               {author.name
                 .split(" ")
                 .map((n) => n[0])

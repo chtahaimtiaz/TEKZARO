@@ -29,7 +29,7 @@ export default async function NewSourcePage({
         independent verification its reporting typically needs.
       </p>
 
-      {error && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-medium text-red-700">{error}</p>}
+      {error && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-medium text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>}
 
       <form action={createSourceAction} className="mt-6 grid gap-4 rounded-xl border border-border bg-paper-raised p-5 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-sm sm:col-span-2">

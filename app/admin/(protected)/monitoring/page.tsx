@@ -38,7 +38,7 @@ export default async function MonitoringPage({
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div className="rounded-xl border border-border bg-paper-raised p-5">
           <p className="text-sm text-ink-muted">Database</p>
-          <p className={`mt-1 font-serif text-xl font-bold ${dbStatus === "ok" ? "text-pakistan" : "text-red-600"}`}>
+          <p className={`mt-1 font-serif text-xl font-bold ${dbStatus === "ok" ? "text-pakistan" : "text-red-600 dark:text-red-400"}`}>
             {dbStatus === "ok" ? "Reachable" : "Error"}
           </p>
         </div>
@@ -103,7 +103,7 @@ export default async function MonitoringPage({
                   <td className="p-3">
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                        e.level === "ERROR" ? "bg-red-100 text-red-700" : e.level === "WARN" ? "bg-amber-100 text-amber-800" : "bg-paper text-ink-muted"
+                        e.level === "ERROR" ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" : e.level === "WARN" ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" : "bg-paper text-ink-muted"
                       }`}
                     >
                       {e.level}

@@ -21,6 +21,72 @@
   --animate-ticker: ticker-scroll 32s linear infinite;
 }
 
+/* Site-wide light/dark/system theming (lib/theme.ts writes the cookie this
+ * reads via data-theme on <html>, set server-side in app/layout.tsx to
+ * avoid a flash of the wrong theme on load).
+ *
+ * Three states, both applied here in lockstep so a CSS custom-property
+ * consumer (this block) and a Tailwind dark: utility consumer (the
+ * @custom-variant below) always agree:
+ *   - No cookie / cookie="system": follows prefers-color-scheme, unless...
+ *   - cookie="light": forces light regardless of system preference.
+ *   - cookie="dark": forces dark regardless of system preference.
+ *
+ * Values are NOT a naive inversion of the light palette — see the PR/commit
+ * notes for the contrast reasoning (WCAG AA checked against both paper and
+ * paper-raised for every text token; accent is a genuinely different shade
+ * from light mode's, not just lightened, since one shade can't simultaneously
+ * satisfy "readable as text on a dark page" and "readable as a button
+ * background under white text" — see components using dark:text-ink on an
+ * accent-colored background instead of relying on white staying legible).
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-ink: #f3f1ec;
+    --color-ink-soft: #c7c3ba;
+    --color-ink-muted: #9b9686;
+    --color-paper: #12141a;
+    --color-paper-raised: #1a1d24;
+    --color-paper-sunk: #0b0d11;
+    --color-border: #262a33;
+    --color-border-strong: #383d48;
+    --color-accent: #c9663a;
+    --color-accent-dark: #a8532c;
+    --color-accent-soft: #3a2418;
+    --color-pakistan: #3fae7a;
+    --color-pakistan-soft: #14261c;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --color-ink: #f3f1ec;
+  --color-ink-soft: #c7c3ba;
+  --color-ink-muted: #9b9686;
+  --color-paper: #12141a;
+  --color-paper-raised: #1a1d24;
+  --color-paper-sunk: #0b0d11;
+  --color-border: #262a33;
+  --color-border-strong: #383d48;
+  --color-accent: #c9663a;
+  --color-accent-dark: #a8532c;
+  --color-accent-soft: #3a2418;
+  --color-pakistan: #3fae7a;
+  --color-pakistan-soft: #14261c;
+  color-scheme: dark;
+}
+
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    &:not([data-theme="light"], [data-theme="light"] *) {
+      @slot;
+    }
+  }
+  &:is([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+}
+
 @layer base {
   html {
     color-scheme: light;

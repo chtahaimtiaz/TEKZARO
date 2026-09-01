@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 const STATUS_STYLES: Record<string, string> = {
   TARGET_MET: "bg-pakistan-soft text-pakistan",
   IN_PROGRESS: "bg-accent-soft text-accent",
-  TARGET_NOT_MET: "bg-red-50 text-red-700",
+  TARGET_NOT_MET: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300",
 };
 
 export default async function EditorialChecklistPage({
@@ -36,7 +36,7 @@ export default async function EditorialChecklistPage({
           Date
           <input type="date" name="date" defaultValue={summary.date} max={today} className="rounded-md border border-border-strong p-2" />
         </label>
-        <button type="submit" className="rounded-md bg-ink px-4 py-2 font-semibold text-white hover:bg-ink-soft">
+        <button type="submit" className="rounded-md bg-ink px-4 py-2 font-semibold text-white hover:bg-ink-soft dark:text-paper">
           View
         </button>
         {summary.date !== today && (

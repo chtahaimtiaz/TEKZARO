@@ -59,7 +59,10 @@ export function ArticleMediaPicker({ media, onSelect, canManageMedia }: ArticleM
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4"
+          // bg-black, not the ink token: a modal backdrop dims whatever's
+          // behind it the same way in both themes, rather than flipping to
+          // a light haze in dark mode.
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
           onClick={() => setOpen(false)}
         >
           <div
@@ -94,13 +97,13 @@ export function ArticleMediaPicker({ media, onSelect, canManageMedia }: ArticleM
                     <div className="p-2 text-xs">
                       <span
                         className={`inline-block rounded px-1.5 py-0.5 font-semibold ${
-                          publishable ? "bg-pakistan-soft text-pakistan" : "bg-amber-50 text-amber-800"
+                          publishable ? "bg-pakistan-soft text-pakistan" : "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
                         }`}
                       >
                         {m.reuseStatus.replace(/_/g, " ")}
                       </span>
                       {m.sourceDomain && <p className="mt-1 truncate text-ink-muted">From {m.sourceDomain}</p>}
-                      {!publishable && <p className="mt-1 text-amber-800">Selecting this still requires review before it can publish.</p>}
+                      {!publishable && <p className="mt-1 text-amber-800 dark:text-amber-300">Selecting this still requires review before it can publish.</p>}
                       {canManageMedia && pending && (
                         <div className="mt-2 flex gap-2">
                           <button
@@ -115,7 +118,7 @@ export function ArticleMediaPicker({ media, onSelect, canManageMedia }: ArticleM
                             type="button"
                             disabled={busy}
                             onClick={() => handleReject(m.id)}
-                            className="text-xs font-semibold text-red-600 hover:underline disabled:opacity-50"
+                            className="text-xs font-semibold text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
                           >
                             {busy ? "…" : "Reject"}
                           </button>

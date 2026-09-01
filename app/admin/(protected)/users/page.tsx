@@ -73,9 +73,9 @@ export default async function AdminUsersPage({
       <p className="eyebrow">Newsroom</p>
       <h1 className="mt-1 font-serif text-3xl font-bold">Users</h1>
 
-      {error && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-medium text-red-700">{error}</p>}
+      {error && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-medium text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>}
       {revealed && (
-        <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+        <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
           <p className="font-semibold">Shown once — copy it now, it will not be shown again:</p>
           <p className="mt-1 break-all font-mono text-xs">{revealed}</p>
           {revealed.startsWith("http") ? (

@@ -63,7 +63,7 @@ export function ArticleCard({ article, variant = "standard" }: ArticleCardProps)
             {article.category.name}
           </Link>
           {article.isBreaking && (
-            <span className="rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+            <span className="rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white dark:text-paper">
               Breaking
             </span>
           )}
