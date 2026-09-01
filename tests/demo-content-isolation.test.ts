@@ -20,9 +20,23 @@ let demoArticleId: string;
 const marker = `demo-isolation-${Date.now()}`;
 
 beforeAll(async () => {
-  const category = await prisma.category.findFirstOrThrow();
-  const author = await prisma.author.findFirstOrThrow();
+  // Dedicated fixtures, not an arbitrary findFirstOrThrow() pick — see the
+  // matching note in tests/cron-publish-scheduled.test.ts for why an
+  // unowned lookup here goes stale under this suite's concurrent test-file
+  // churn. "ZZZ" prefix + a category-restricted (non-generalist) Author
+  // additionally keep this pair out of other files' own findFirst-based
+  // fallback queries.
+  const category = await prisma.category.create({
+    data: { name: `ZZZ Demo Isolation Test Cat ${Date.now()}`, slug: `zzz-demo-isolation-test-cat-${Date.now()}` },
+  });
   categoryId = category.id;
+  const author = await prisma.author.create({
+    data: {
+      name: `Demo Isolation Test Author ${Date.now()}`,
+      slug: `demo-isolation-test-author-${Date.now()}`,
+      categories: { connect: [{ id: categoryId }] },
+    },
+  });
   authorId = author.id;
 
   const real = await prisma.article.create({
@@ -62,6 +76,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma.article.deleteMany({ where: { id: { in: [realArticleId, demoArticleId] } } });
+  if (authorId) await prisma.author.deleteMany({ where: { id: authorId } });
+  if (categoryId) await prisma.category.deleteMany({ where: { id: categoryId } });
 });
 
 describe("demo content isolation — public surfaces", () => {

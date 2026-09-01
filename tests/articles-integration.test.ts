@@ -41,15 +41,31 @@ function baseInput(title: string): ArticleFormInput {
 }
 
 beforeAll(async () => {
-  const category = await prisma.category.findFirstOrThrow();
-  const author = await prisma.author.findFirstOrThrow();
+  // Dedicated fixtures, not an arbitrary findFirstOrThrow() pick — see the
+  // matching note in tests/cron-publish-scheduled.test.ts for why an
+  // unowned lookup here goes stale under this suite's concurrent test-file
+  // churn. "ZZZ" prefix + a category-restricted (non-generalist) Author
+  // additionally keep this pair out of other files' own findFirst-based
+  // fallback queries.
+  const category = await prisma.category.create({
+    data: { name: `ZZZ Articles Integration Test Cat ${Date.now()}`, slug: `zzz-articles-integration-test-cat-${Date.now()}` },
+  });
   categoryId = category.id;
+  const author = await prisma.author.create({
+    data: {
+      name: `Articles Integration Test Author ${Date.now()}`,
+      slug: `articles-integration-test-author-${Date.now()}`,
+      categories: { connect: [{ id: categoryId }] },
+    },
+  });
   authorId = author.id;
 });
 
 afterAll(async () => {
   clearSession();
   await cleanupTestData();
+  if (authorId) await prisma.author.deleteMany({ where: { id: authorId } });
+  if (categoryId) await prisma.category.deleteMany({ where: { id: categoryId } });
 });
 
 describe("article creation and slug uniqueness", () => {

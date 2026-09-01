@@ -8,6 +8,10 @@ import { logAction } from "./audit";
 import { hasUnresolvedContradiction } from "./cluster-actions";
 import { featuredImageFieldsFor } from "./images/featured-image";
 import { pickEligibleAuthor } from "./author-eligibility";
+import { draftArticleFromDiscovery } from "./ai/tasks";
+import { isAIConfigured } from "./ai/provider";
+import { ensureUniqueSlug } from "./slug";
+import type { ContentBlock } from "./content-blocks";
 import type { Prisma } from "@prisma/client";
 
 export interface ActionResult {
@@ -100,7 +104,14 @@ export async function createDraftFromItemAction(itemId: string): Promise<ActionR
     };
   }
 
-  const blocks = [
+  // Real AI-written content when configured, so the draft has actual
+  // reported paragraphs under "What Happened"/"Why It Matters" instead of
+  // blank placeholders — never blocks the button either way: a failed or
+  // unparseable AI call just falls back to the original plain template,
+  // same defensive posture as every other AI task in this codebase.
+  let title = item.headline;
+  let excerpt = item.excerpt;
+  let blocks: ContentBlock[] = [
     { type: "paragraph", text: item.excerpt || item.headline },
     { type: "heading", level: 2, text: "What Happened" },
     { type: "paragraph", text: "" },
@@ -108,29 +119,34 @@ export async function createDraftFromItemAction(itemId: string): Promise<ActionR
     { type: "paragraph", text: "" },
   ];
 
-  const baseSlug = item.headline
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-  let slug = baseSlug || "draft";
-  let n = 1;
-  // eslint-disable-next-line no-constant-condition
-  while (await prisma.article.findUnique({ where: { slug } })) {
-    n += 1;
-    slug = `${baseSlug}-${n}`;
+  if (isAIConfigured()) {
+    const draft = await draftArticleFromDiscovery({
+      requestedById: user.id,
+      sourceItemId: item.id,
+      headline: item.headline,
+      excerpt: item.excerpt,
+      sourceName: item.source.name,
+    });
+    if (draft.parsed) {
+      title = draft.parsed.headline;
+      excerpt = draft.parsed.excerpt;
+      blocks = draft.parsed.blocks;
+    }
   }
+
+  const slug = await ensureUniqueSlug(title);
 
   const article = await prisma.article.create({
     data: {
       slug,
-      title: item.headline,
-      excerpt: item.excerpt,
+      title,
+      excerpt,
       content: { blocks } as unknown as Prisma.InputJsonValue,
       status: "DRAFT",
       categoryId: category.id,
       authorId: eligibleAuthor.id,
       createdById: user.id,
-      metaDescription: item.excerpt,
+      metaDescription: excerpt,
       pakistanRelevance: item.pakistanRelevance,
       ...(await featuredImageFieldsFor(item.id)),
     },

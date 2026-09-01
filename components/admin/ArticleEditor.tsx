@@ -7,7 +7,9 @@ import { BlockEditor } from "./BlockEditor";
 import { PublicationChecklist } from "./PublicationChecklist";
 import { SuggestionsPanel } from "./SuggestionsPanel";
 import { MediaUploadButton } from "./MediaUploadButton";
+import { ArticleMediaPicker } from "./ArticleMediaPicker";
 import { SocialPostPanel } from "./SocialPostPanel";
+import type { ArticleMediaOption } from "@/lib/article-media";
 import { evaluatePublicationChecks, allChecksPassed } from "@/lib/publication-checks";
 import { absoluteUrl } from "@/lib/seo";
 import { slugify } from "@/lib/slugify";
@@ -63,6 +65,10 @@ interface ArticleEditorProps {
    * (lib/verification-actions.ts) — null for every human-authored article,
    * including drafts created from discovery via createDraftFromItemAction. */
   verification?: VerificationInfo | null;
+  /** Images already acquired for this article's own SourceItem, if any —
+   * see lib/article-media.ts. Empty for a brand-new article (mode="create")
+   * or one never linked to a discovery item. */
+  articleSourceItemMedia?: ArticleMediaOption[];
   categories: { id: string; name: string }[];
   authors: EditorAuthorOption[];
   /** Whether this session can save an article with an author ineligible
@@ -80,6 +86,7 @@ export function ArticleEditor({
   initial,
   initialFeaturedMedia,
   verification = null,
+  articleSourceItemMedia = [],
   categories,
   authors,
   canOverrideAuthorEligibility,
@@ -389,25 +396,51 @@ export function ArticleEditor({
           <div className="rounded-xl border border-border bg-paper-raised p-4">
             <p className="mb-3 text-sm font-bold">Featured image</p>
             <div className="flex flex-col gap-3 text-sm">
-              <MediaUploadButton
-                kind="article"
-                available={mediaUploadAvailable}
-                onUploaded={(result) => {
-                  // A fresh upload is real, human-vouched-for permission —
-                  // the upload route sets reuseStatus:"ALLOWED" server-side;
-                  // mirrored here so the checklist updates immediately
-                  // without a round trip. See invariant rule 4.
-                  patch({ featuredImageUrl: result.url, featuredMediaId: result.id });
-                  setFeaturedMedia({
-                    id: result.id,
-                    reuseStatus: "ALLOWED",
-                    sourceDomain: null,
-                    sourceArticleUrl: null,
-                    createdAt: new Date().toISOString(),
-                    selectionReasons: null,
-                  });
-                }}
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                <MediaUploadButton
+                  kind="article"
+                  available={mediaUploadAvailable}
+                  onUploaded={(result) => {
+                    // A fresh upload is real, human-vouched-for permission —
+                    // the upload route sets reuseStatus:"ALLOWED" server-side;
+                    // mirrored here so the checklist updates immediately
+                    // without a round trip. See invariant rule 4.
+                    patch({ featuredImageUrl: result.url, featuredMediaId: result.id });
+                    setFeaturedMedia({
+                      id: result.id,
+                      reuseStatus: "ALLOWED",
+                      sourceDomain: null,
+                      sourceArticleUrl: null,
+                      createdAt: new Date().toISOString(),
+                      selectionReasons: null,
+                    });
+                  }}
+                />
+                <ArticleMediaPicker
+                  media={articleSourceItemMedia}
+                  onSelect={(m) => {
+                    // Selecting an unreviewed image sets featuredMediaId but
+                    // deliberately NOT featuredImageUrl — inherits the same
+                    // "never populate featuredImageUrl with an unreviewed
+                    // image" invariant as the rest of this panel for free.
+                    // See invariant rule 4.
+                    const publishable = isPublishableReuseStatus(m.reuseStatus);
+                    patch({
+                      featuredImageUrl: publishable ? m.url : "",
+                      featuredImageAlt: publishable ? m.altText : form.featuredImageAlt,
+                      featuredMediaId: m.id,
+                    });
+                    setFeaturedMedia({
+                      id: m.id,
+                      reuseStatus: m.reuseStatus,
+                      sourceDomain: m.sourceDomain,
+                      sourceArticleUrl: m.sourceArticleUrl,
+                      createdAt: m.createdAt,
+                      selectionReasons: m.selectionReasons,
+                    });
+                  }}
+                />
+              </div>
               <input
                 value={form.featuredImageUrl}
                 onChange={(e) => {

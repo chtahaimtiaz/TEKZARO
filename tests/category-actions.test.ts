@@ -88,7 +88,17 @@ describe("deleteCategoryAction", () => {
     });
     createdCategoryIds.push(category.id);
 
-    const author = await prisma.author.findFirstOrThrow();
+    // Own dedicated author, not an arbitrary findFirstOrThrow() pick — see
+    // the note in tests/cron-publish-scheduled.test.ts for why an unowned
+    // lookup here can collide with another concurrently-running test
+    // file's own fixture cleanup.
+    const author = await prisma.author.create({
+      data: {
+        name: `Category Delete Test Author ${Date.now()}`,
+        slug: `category-delete-test-author-${Date.now()}`,
+        categories: { connect: [{ id: category.id }] },
+      },
+    });
     const article = await prisma.article.create({
       data: {
         slug: `category-delete-test-${Date.now()}`,
@@ -108,6 +118,7 @@ describe("deleteCategoryAction", () => {
       expect(stillExists).not.toBeNull();
     } finally {
       await prisma.article.delete({ where: { id: article.id } });
+      await prisma.author.delete({ where: { id: author.id } });
     }
   });
 });

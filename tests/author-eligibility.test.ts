@@ -49,6 +49,15 @@ describe("pickEligibleAuthor", () => {
 
     const picked = await pickEligibleAuthor(category.id);
     expect(picked).not.toBeNull();
+
+    // Deactivate right away rather than leaving a live generalist author
+    // sitting around for the rest of this file's run — a concurrently
+    // running test file's own pickEligibleAuthor()/createDraftFromItemAction
+    // call could otherwise "steal" this author for one of THEIR articles
+    // (any generalist is eligible for any category), leaving a real,
+    // untracked Article that blocks this describe block's own author
+    // delete below with a dangling FK.
+    await prisma.author.update({ where: { id: author.id }, data: { active: false } });
   });
 
   it("never picks an inactive author, even one explicitly eligible for the category", async () => {

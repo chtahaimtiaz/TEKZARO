@@ -3,7 +3,8 @@ import { prisma } from "../prisma";
 import { runTask, NEWSROOM_SYSTEM_PROMPT } from "./tasks";
 import { isSearchConfigured, searchWeb } from "../search/web-search";
 import { safeFetch } from "../security/safe-fetch";
-import type { ContentBlock, ParagraphBlock, HeadingBlock, QuoteBlock, ListBlock } from "../content-blocks";
+import { isSynthesizableBlock } from "./synthesizable-blocks";
+import type { ContentBlock } from "../content-blocks";
 import type { ArticleVerificationStatus, SourceItem, Source } from "@prisma/client";
 
 export interface VerifyAndSynthesizeResult {
@@ -104,27 +105,6 @@ async function fetchSourceText(url: string | null): Promise<{ text: string; fina
   }
 }
 
-function isValidBlock(value: unknown): value is ParagraphBlock | HeadingBlock | QuoteBlock | ListBlock {
-  if (typeof value !== "object" || value === null) return false;
-  const block = value as Record<string, unknown>;
-  switch (block.type) {
-    case "paragraph":
-    case "quote":
-      return typeof block.text === "string" && block.text.trim().length > 0;
-    case "heading":
-      return typeof block.text === "string" && block.text.trim().length > 0 && (block.level === 2 || block.level === 3);
-    case "list":
-      return (
-        (block.style === "bullet" || block.style === "number") &&
-        Array.isArray(block.items) &&
-        block.items.length > 0 &&
-        block.items.every((i) => typeof i === "string")
-      );
-    default:
-      return false;
-  }
-}
-
 const VALID_STATUSES: ReadonlySet<string> = new Set([
   "UNVERIFIED",
   "PRIMARY_SOURCE_CONFIRMED",
@@ -178,7 +158,7 @@ function parseModelOutput(text: string): ParsedModelOutput | null {
       typeof d.excerpt === "string" &&
       Array.isArray(d.blocks) &&
       d.blocks.length > 0 &&
-      d.blocks.every(isValidBlock)
+      d.blocks.every(isSynthesizableBlock)
     ) {
       draft = { headline: d.headline, excerpt: d.excerpt, blocks: d.blocks as ContentBlock[] };
     }

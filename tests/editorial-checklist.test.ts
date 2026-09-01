@@ -87,9 +87,19 @@ describe("getDailyChecklist — DB-backed", () => {
       // test files that create/delete their own temporary Author rows
       // concurrently (Vitest runs test files in parallel by default), so an
       // unowned pick could go stale mid-run when another file's afterAll
-      // deletes it.
+      // deletes it. Restricted to this first call's own category (not a
+      // generalist) so it can't be "stolen" by another concurrently-running
+      // file's own pickEligibleAuthor() call for one of THEIR articles —
+      // safe to do even though later calls in this file pass other
+      // categories, since this file writes Article rows straight via
+      // prisma.article.create() and never goes through the
+      // eligibility-enforcing Server Actions.
       const author = await prisma.author.create({
-        data: { name: `Checklist Test Author ${Date.now()}`, slug: `checklist-test-author-${Date.now()}-${Math.random()}` },
+        data: {
+          name: `Checklist Test Author ${Date.now()}`,
+          slug: `checklist-test-author-${Date.now()}-${Math.random()}`,
+          categories: { connect: [{ id: categoryId }] },
+        },
       });
       ownAuthorId = author.id;
       authorId = author.id;

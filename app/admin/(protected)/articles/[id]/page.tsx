@@ -7,6 +7,7 @@ import { legalTransitionsFor } from "@/lib/workflow";
 import { asArticleContent } from "@/lib/content-blocks";
 import { ArticleEditor } from "@/components/admin/ArticleEditor";
 import { isMediaUploadAvailable } from "@/lib/media/storage";
+import { getArticleSourceItemMedia } from "@/lib/article-media";
 
 export const dynamic = "force-dynamic";
 
@@ -28,13 +29,14 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
   // getAuthorsForEditor(article.authorId) needs the article's own authorId,
   // so this can't join the article fetch above in one Promise.all — but it
   // still runs in parallel with the category fetch.
-  const [categories, authors] = await Promise.all([
+  const [categories, authors, articleSourceItemMedia] = await Promise.all([
     prisma.category.findMany({
       where: { OR: [{ active: true }, { id: article.categoryId }] },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
     getAuthorsForEditor(article.authorId),
+    getArticleSourceItemMedia(article.id),
   ]);
 
   const canEdit = canEditArticle(user.role, article, user.id);
@@ -114,6 +116,7 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
       }}
       categories={categories}
       authors={authors}
+      articleSourceItemMedia={articleSourceItemMedia}
       legalTransitions={legalTransitions}
       mediaUploadAvailable={isMediaUploadAvailable()}
     />

@@ -65,9 +65,27 @@ function makeRequest(auth: string | null): NextRequest {
 }
 
 beforeAll(async () => {
-  const category = await prisma.category.findFirstOrThrow();
-  const author = await prisma.author.findFirstOrThrow();
+  // Dedicated fixtures, not an arbitrary findFirstOrThrow() pick — this
+  // suite runs concurrently with other test files that create/delete their
+  // own temporary Category/Author rows, and an unowned findFirstOrThrow()
+  // here can land on one of THOSE rows and go stale (or form a mismatched
+  // category/author pairing) mid-run. "ZZZ" prefix additionally keeps this
+  // category out of processVerificationBatch's/getUsableCategory's
+  // findFirst({orderBy:{name:"asc"}}) fallback — see the matching note in
+  // tests/article-media.test.ts. The Author is restricted to this file's
+  // own category (not a generalist) for the same cross-file-collision
+  // reason — see tests/discovery-ai-draft.test.ts.
+  const category = await prisma.category.create({
+    data: { name: `ZZZ Cron Publish Test Cat ${Date.now()}`, slug: `zzz-cron-publish-test-cat-${Date.now()}` },
+  });
   categoryId = category.id;
+  const author = await prisma.author.create({
+    data: {
+      name: `Cron Publish Test Author ${Date.now()}`,
+      slug: `cron-publish-test-author-${Date.now()}`,
+      categories: { connect: [{ id: categoryId }] },
+    },
+  });
   authorId = author.id;
   // getClientIp() resolves to "unknown" outside a real request in tests, so
   // every call in this file shares one rate-limit key — clear it first so
@@ -79,6 +97,8 @@ beforeAll(async () => {
 afterAll(async () => {
   clearSession();
   await cleanupTestData();
+  if (authorId) await prisma.author.deleteMany({ where: { id: authorId } });
+  if (categoryId) await prisma.category.deleteMany({ where: { id: categoryId } });
   await cleanupRateLimitKey("cron-publish:unknown");
 });
 

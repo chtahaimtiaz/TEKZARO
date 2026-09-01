@@ -1,6 +1,8 @@
 import "server-only";
 import { prisma } from "../prisma";
 import { generateWithAI, isAIConfigured, AI_MODEL, AIProviderNotConfiguredError } from "./provider";
+import { isSynthesizableBlock } from "./synthesizable-blocks";
+import type { ContentBlock } from "../content-blocks";
 import type { AITask, Prisma } from "@prisma/client";
 
 export interface AITaskResult {
@@ -113,4 +115,86 @@ export async function suggestPakistanImpactNarrative(params: {
       "genuine Pakistan angle, say so instead of inventing one. This is a draft for a human editor " +
       "to revise, not a final published statement.",
   });
+}
+
+export interface DraftArticleResult {
+  headline: string;
+  excerpt: string;
+  blocks: ContentBlock[];
+}
+
+const DISCOVERY_DRAFT_SCHEMA_INSTRUCTIONS = `
+Respond with ONLY a single JSON object — no markdown code fences, no commentary before or after. Exact shape:
+{
+  "headline": "an accurate, non-clickbait headline in TEKZARO's own words",
+  "excerpt": "a 1-2 sentence summary of what happened",
+  "blocks": [
+    { "type": "heading", "level": 2, "text": "What Happened" },
+    { "type": "paragraph", "text": "..." },
+    { "type": "heading", "level": 2, "text": "Why It Matters" },
+    { "type": "paragraph", "text": "..." }
+  ]
+}
+Rules:
+- Base this ONLY on the headline and summary provided below — never invent facts, figures, dates, or quotes not present in them.
+- Write ORIGINAL prose in TEKZARO's own voice, not a copy of the headline/summary.
+- Under "Why It Matters", if the provided material doesn't support a genuine reason, write one honest sentence saying the significance isn't yet clear from available information — never invent one just to fill the section.
+- This is a starting draft for a human editor to review and expand before publication, not a final published article.
+`.trim();
+
+/** Writes a starting-point draft (headline/excerpt/body) from a discovered
+ * item's own headline+excerpt — used by createDraftFromItemAction
+ * (lib/discovery-actions.ts) so the manual "create draft" button produces
+ * real written content instead of empty placeholder paragraphs under
+ * fixed headings. Deliberately does NOT search for or read a primary
+ * source (unlike lib/ai/verify-and-synthesize.ts) — this is a fast,
+ * single AI call with no search-quota cost, since a human is about to
+ * review and edit the result before it ever reaches an audience; it does
+ * not need to justify an auto-publish decision the way the verification
+ * pipeline does. */
+export async function draftArticleFromDiscovery(params: {
+  requestedById: string;
+  sourceItemId: string;
+  headline: string;
+  excerpt: string | null;
+  sourceName: string;
+}): Promise<AITaskResult & { parsed?: DraftArticleResult }> {
+  const result = await runTask({
+    task: "SYNTHESIZE_ARTICLE",
+    requestedById: params.requestedById,
+    inputRef: { sourceItemId: params.sourceItemId },
+    systemPrompt: `${NEWSROOM_SYSTEM_PROMPT}\n\n${DISCOVERY_DRAFT_SCHEMA_INSTRUCTIONS}`,
+    userPrompt: [
+      `Headline: ${params.headline}`,
+      `Summary: ${params.excerpt || "(none provided)"}`,
+      `Reported by: ${params.sourceName}`,
+      ``,
+      DISCOVERY_DRAFT_SCHEMA_INSTRUCTIONS,
+    ].join("\n"),
+  });
+
+  if (!result.ok || !result.text) return result;
+
+  const parsed = parseDraftArticleOutput(result.text);
+  return parsed ? { ...result, parsed } : result;
+}
+
+/** Defensive JSON parsing — malformed/unexpected shape degrades to null
+ * (caller falls back to the plain template), never throws. */
+function parseDraftArticleOutput(text: string): DraftArticleResult | null {
+  const stripped = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "");
+  let raw: unknown;
+  try {
+    raw = JSON.parse(stripped);
+  } catch {
+    return null;
+  }
+  if (typeof raw !== "object" || raw === null) return null;
+  const obj = raw as Record<string, unknown>;
+
+  if (typeof obj.headline !== "string" || obj.headline.trim().length === 0) return null;
+  if (typeof obj.excerpt !== "string") return null;
+  if (!Array.isArray(obj.blocks) || obj.blocks.length === 0 || !obj.blocks.every(isSynthesizableBlock)) return null;
+
+  return { headline: obj.headline, excerpt: obj.excerpt, blocks: obj.blocks as ContentBlock[] };
 }

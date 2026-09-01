@@ -36,8 +36,22 @@ beforeAll(async () => {
   ownCategoryId = category.id;
   categoryId = category.id;
 
+  // Restricted to ownCategoryId — NOT a generalist. A generalist author
+  // lives for this whole file's duration and is eligible for every
+  // category, so any concurrently-running file's own "snapshot every
+  // active generalist, deactivate, assert, reactivate" test (e.g.
+  // tests/author-eligibility.test.ts's "returns null when zero active
+  // authors are eligible") can transiently deactivate it out from under a
+  // test in THIS file running at the same moment (observed:
+  // createDraftFromItemAction unexpectedly returning ok:false). Every test
+  // in this file already uses the same categoryId/authorId pairing, so
+  // restricting to ownCategoryId changes nothing else.
   const author = await prisma.author.create({
-    data: { name: `Discovery Test Author ${Date.now()}`, slug: `discovery-test-author-${Date.now()}` },
+    data: {
+      name: `Discovery Test Author ${Date.now()}`,
+      slug: `discovery-test-author-${Date.now()}`,
+      categories: { connect: [{ id: ownCategoryId }] },
+    },
   });
   ownAuthorId = author.id;
   authorId = author.id;

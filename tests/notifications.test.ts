@@ -1,4 +1,4 @@
-import { describe, it, expect, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { prisma } from "../lib/prisma";
 import { notify } from "../lib/notifications";
 import { createArticleAction, transitionArticleAction, type ArticleFormInput } from "../lib/article-actions";
@@ -8,7 +8,11 @@ import { slugify } from "../lib/slugify";
 let categoryId: string;
 let authorId: string;
 
-afterAll(cleanupTestData);
+afterAll(async () => {
+  await cleanupTestData();
+  if (authorId) await prisma.author.deleteMany({ where: { id: authorId } });
+  if (categoryId) await prisma.category.deleteMany({ where: { id: categoryId } });
+});
 
 describe("notify()", () => {
   it("always inserts an in-app Notification row", async () => {
@@ -36,6 +40,35 @@ describe("notify()", () => {
 });
 
 describe("workflow transitions trigger notifications", () => {
+  // Dedicated fixtures, not an arbitrary findFirstOrThrow() pick — this
+  // suite runs concurrently with other test files that create/delete
+  // their own temporary Category/Author rows, and an unowned
+  // findFirstOrThrow() here can land on one of THOSE rows and go stale
+  // mid-run when that file's own afterAll deletes it (observed: "Selected
+  // author not found" from createArticleAction). The Author is restricted
+  // to this file's own dedicated Category (not a generalist) so it can
+  // never be picked up by another file's own pickEligibleAuthor() call
+  // either — see the equivalent note in tests/discovery-ai-draft.test.ts.
+  beforeAll(async () => {
+    // "ZZZ" prefix is deliberate — see the matching note in
+    // tests/article-media.test.ts: an alphabetically-early category name
+    // gets picked up by processVerificationBatch's shared
+    // prisma.category.findFirst({orderBy:{name:"asc"}}) fallback, which
+    // then creates a real, untracked Article against it.
+    const category = await prisma.category.create({
+      data: { name: `ZZZ Notifications Test Cat ${Date.now()}`, slug: `zzz-notifications-test-cat-${Date.now()}` },
+    });
+    categoryId = category.id;
+    const author = await prisma.author.create({
+      data: {
+        name: `Notifications Test Author ${Date.now()}`,
+        slug: `notifications-test-author-${Date.now()}`,
+        categories: { connect: [{ id: categoryId }] },
+      },
+    });
+    authorId = author.id;
+  });
+
   function baseInput(title: string): ArticleFormInput {
     return {
       title,
@@ -68,11 +101,6 @@ describe("workflow transitions trigger notifications", () => {
   }
 
   it("submitting for review notifies every active ADMIN/EDITOR", async () => {
-    const category = await prisma.category.findFirstOrThrow();
-    const author = await prisma.author.findFirstOrThrow();
-    categoryId = category.id;
-    authorId = author.id;
-
     const editor = await createTestUser("EDITOR", "notify-submit-editor");
     trackUser(editor.id);
     const reporter = await createTestUser("REPORTER", "notify-submit-reporter");
