@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { findBestDuplicateMatch, AUTO_MERGE_THRESHOLD, type DuplicateCandidate } from "../lib/discovery/duplicates";
 import { computePriorityScore } from "../lib/discovery/priority";
 import { classifyPakistanRelevance } from "../lib/discovery/pakistan-relevance";
-import { normalizeTitle } from "../lib/ingestion/normalize";
+import { classifyTechRelevance } from "../lib/discovery/tech-relevance";
+import { normalizeTitle, normalizeUrlForDedup } from "../lib/ingestion/normalize";
 import { generateHeadlineSuggestions } from "../lib/discovery/headlines";
 
 function candidate(overrides: Partial<DuplicateCandidate>): DuplicateCandidate {
@@ -62,6 +63,20 @@ describe("findBestDuplicateMatch", () => {
     expect(match).toBeNull();
   });
 
+  it("matches the same story across tracking-parameter URL variants", () => {
+    const match = findBestDuplicateMatch(
+      {
+        sourceUrl: "https://a.example/story?utm_source=twitter&utm_medium=social&fbclid=abc123",
+        normalizedTitle: "irrelevant",
+        sourceId: "source-b",
+        publishedAt: new Date(),
+      },
+      [candidate({ sourceUrl: "https://a.example/story" })],
+    );
+    expect(match?.score).toBe(1);
+    expect(match?.reason).toBe("Exact source URL match");
+  });
+
   it("never returns a score below the possible-duplicate threshold", () => {
     const candidates = [
       candidate({ normalizedTitle: normalizeTitle("Completely Different Topic About Gaming Consoles") }),
@@ -84,6 +99,7 @@ describe("computePriorityScore", () => {
       corroboratingSourceCount: 2,
       headline: "Breaking: Company Launches Product",
       matchedPriorityKeywords: ["5G"],
+      techRelevance: { score: 3, reasons: ['Mentions "5g"'] },
     });
     expect(result.score).toBeGreaterThan(0);
     expect(result.reasons.length).toBeGreaterThanOrEqual(5);
@@ -100,6 +116,7 @@ describe("computePriorityScore", () => {
       corroboratingSourceCount: 0,
       headline: "Plain headline",
       matchedPriorityKeywords: [],
+      techRelevance: { score: 0, reasons: [] },
     });
     const weak = computePriorityScore({
       sourceTier: "TIER_3",
@@ -108,8 +125,74 @@ describe("computePriorityScore", () => {
       corroboratingSourceCount: 0,
       headline: "Plain headline",
       matchedPriorityKeywords: [],
+      techRelevance: { score: 0, reasons: [] },
     });
     expect(strong.score).toBeGreaterThan(weak.score);
+  });
+
+  it("heavily deprioritizes a story with zero technology signal below one with genuine tech relevance", () => {
+    const techStory = computePriorityScore({
+      sourceTier: "TIER_2",
+      publishedAt: new Date(),
+      pakistanRelevance: 0,
+      corroboratingSourceCount: 0,
+      headline: "Company ships new chip",
+      matchedPriorityKeywords: [],
+      techRelevance: { score: 3, reasons: ['Mentions "chip"'] },
+    });
+    const offTopicStory = computePriorityScore({
+      sourceTier: "TIER_2",
+      publishedAt: new Date(),
+      pakistanRelevance: 0,
+      corroboratingSourceCount: 0,
+      headline: "Local team wins championship match",
+      matchedPriorityKeywords: [],
+      techRelevance: { score: 0, reasons: [] },
+    });
+    expect(techStory.score).toBeGreaterThan(offTopicStory.score);
+    expect(offTopicStory.reasons.some((r) => r.toLowerCase().includes("deprioritized"))).toBe(true);
+  });
+});
+
+describe("classifyTechRelevance", () => {
+  it("scores zero for text with no technology signal", () => {
+    const result = classifyTechRelevance("Local team wins championship match after dramatic final.", []);
+    expect(result.score).toBe(0);
+    expect(result.reasons).toEqual([]);
+  });
+
+  it("matches a built-in technology term with a visible reason", () => {
+    const result = classifyTechRelevance("A new smartphone launches with an improved processor.", []);
+    expect(result.score).toBeGreaterThan(0);
+    expect(result.reasons.length).toBeGreaterThan(0);
+  });
+
+  it("scores higher with a configured priority TOPIC keyword than without", () => {
+    const withoutKeyword = classifyTechRelevance("Company announces a new rollout plan.", []);
+    const withKeyword = classifyTechRelevance("Company announces a new rollout plan.", [
+      { term: "rollout plan", type: "TOPIC", priority: true },
+    ]);
+    expect(withKeyword.score).toBeGreaterThan(withoutKeyword.score);
+  });
+});
+
+describe("normalizeUrlForDedup", () => {
+  it("strips common tracking query params", () => {
+    const normalized = normalizeUrlForDedup("https://a.example/story?utm_source=x&utm_medium=y&fbclid=z&gclid=w");
+    expect(normalized).toBe("https://a.example/story");
+  });
+
+  it("keeps genuine, non-tracking query params", () => {
+    const normalized = normalizeUrlForDedup("https://a.example/story?id=123&utm_source=x");
+    expect(normalized).toBe("https://a.example/story?id=123");
+  });
+
+  it("strips a trailing slash and fragment", () => {
+    expect(normalizeUrlForDedup("https://a.example/story/#section")).toBe("https://a.example/story");
+  });
+
+  it("returns the original string unchanged for a malformed URL, never throws", () => {
+    expect(normalizeUrlForDedup("not a url")).toBe("not a url");
   });
 });
 

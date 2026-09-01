@@ -5,7 +5,6 @@ import { notFound } from "next/navigation";
 import { after } from "next/server";
 import { headers } from "next/headers";
 import { PlaceholderArt } from "@/components/ui/PlaceholderArt";
-import { DemoBadge } from "@/components/ui/DemoBadge";
 import { AuthorByline } from "@/components/content/AuthorByline";
 import { PublishedUpdatedMeta } from "@/components/article/PublishedUpdatedMeta";
 import { ArticleBody } from "@/components/article/ArticleBody";
@@ -29,7 +28,7 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const article = await getArticleBySlug(slug);
-  if (!article || article.status !== "PUBLISHED") return {};
+  if (!article || article.status !== "PUBLISHED" || article.isDemo) return {};
   return buildArticleMetadata(article);
 }
 
@@ -37,7 +36,7 @@ export default async function ArticlePage({ params }: Props) {
   const { slug } = await params;
   const article = await getArticleBySlug(slug);
 
-  if (!article || article.status !== "PUBLISHED") notFound();
+  if (!article || article.status !== "PUBLISHED" || article.isDemo) notFound();
 
   const referrer = (await headers()).get("referer");
   after(() => incrementArticleViews(article.id, `/article/${slug}`, referrer));
@@ -66,7 +65,6 @@ export default async function ArticlePage({ params }: Props) {
 
       <div className="flex items-center gap-2">
         <p className={`eyebrow ${isPakistan ? "eyebrow-pakistan" : ""}`}>{article.category.name}</p>
-        {article.isDemo && <DemoBadge />}
       </div>
       <h1 className="mt-2 text-balance font-serif text-4xl font-bold leading-tight sm:text-5xl">{article.title}</h1>
       {article.subheadline && <p className="mt-3 text-lg text-ink-soft">{article.subheadline}</p>}

@@ -12,7 +12,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   if (!def || !category) notFound();
 
   const articles = await prisma.article.findMany({
-    where: { status: "PUBLISHED", categoryId: category.id },
+    where: { status: "PUBLISHED", isDemo: false, categoryId: category.id },
     orderBy: { publishedAt: "desc" },
     take: 50,
     include: { author: true },

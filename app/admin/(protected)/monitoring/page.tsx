@@ -22,9 +22,10 @@ export default async function MonitoringPage({
   }
 
   const where = level && ["INFO", "WARN", "ERROR"].includes(level) ? { level: level as "INFO" | "WARN" | "ERROR" } : {};
-  const [events, lastCronRun, lastEmail] = await Promise.all([
+  const [events, lastCronRun, lastIngestRun, lastEmail] = await Promise.all([
     prisma.systemEvent.findMany({ where, orderBy: { createdAt: "desc" }, take: 50 }),
     prisma.systemEvent.findFirst({ where: { source: "cron.publish-scheduled" }, orderBy: { createdAt: "desc" } }),
+    prisma.systemEvent.findFirst({ where: { source: "cron.ingest-news" }, orderBy: { createdAt: "desc" } }),
     prisma.emailLog.findFirst({ orderBy: { createdAt: "desc" } }),
   ]);
 
@@ -33,7 +34,7 @@ export default async function MonitoringPage({
       <p className="eyebrow">Newsroom</p>
       <h1 className="mt-1 font-serif text-3xl font-bold">Monitoring</h1>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-border bg-paper-raised p-5">
           <p className="text-sm text-ink-muted">Database</p>
           <p className={`mt-1 font-serif text-xl font-bold ${dbStatus === "ok" ? "text-pakistan" : "text-red-600"}`}>
@@ -46,6 +47,13 @@ export default async function MonitoringPage({
             {lastCronRun ? lastCronRun.createdAt.toLocaleString() : "Not configured"}
           </p>
           {lastCronRun && <p className="mt-1 text-xs text-ink-muted">{lastCronRun.message}</p>}
+        </div>
+        <div className="rounded-xl border border-border bg-paper-raised p-5">
+          <p className="text-sm text-ink-muted">Last news ingestion run</p>
+          <p className="mt-1 font-serif text-lg font-bold">
+            {lastIngestRun ? lastIngestRun.createdAt.toLocaleString() : "Not configured"}
+          </p>
+          {lastIngestRun && <p className="mt-1 text-xs text-ink-muted">{lastIngestRun.message}</p>}
         </div>
         <div className="rounded-xl border border-border bg-paper-raised p-5">
           <p className="text-sm text-ink-muted">Last email send</p>

@@ -6,6 +6,7 @@ import { parseFeed } from "./feed-parser";
 import { normalizeTitle } from "./normalize";
 import { findBestDuplicateMatch, AUTO_MERGE_THRESHOLD, type DuplicateCandidate } from "../discovery/duplicates";
 import { classifyPakistanRelevance, relevanceScoreToPercent } from "../discovery/pakistan-relevance";
+import { classifyTechRelevance } from "../discovery/tech-relevance";
 import { computePriorityScore } from "../discovery/priority";
 import { logAction } from "../audit";
 import { logSystemEvent } from "../monitoring";
@@ -20,7 +21,28 @@ export interface IngestResult {
   itemsSeen: number;
   itemsCreated: number;
   itemsSkippedExisting: number;
+  /** Created, but scored zero technology-relevance signal — deprioritized
+   * (see lib/discovery/priority.ts), never dropped; still a normal
+   * SourceItem an editor can find and promote in /admin/discovery. */
+  itemsDeprioritizedNonTech: number;
+  imagesAcquired: number;
+  imagesNeedingReview: number;
+  imagesFailed: number;
   error?: string;
+}
+
+function emptyResult(error?: string): IngestResult {
+  return {
+    ok: false,
+    itemsSeen: 0,
+    itemsCreated: 0,
+    itemsSkippedExisting: 0,
+    itemsDeprioritizedNonTech: 0,
+    imagesAcquired: 0,
+    imagesNeedingReview: 0,
+    imagesFailed: 0,
+    error,
+  };
 }
 
 async function getRecentCandidates(): Promise<DuplicateCandidate[]> {
@@ -42,9 +64,9 @@ async function getRecentCandidates(): Promise<DuplicateCandidate[]> {
  */
 export async function ingestSource(sourceId: string, requestedById: string): Promise<IngestResult> {
   const source = await prisma.source.findUnique({ where: { id: sourceId } });
-  if (!source) return { ok: false, itemsSeen: 0, itemsCreated: 0, itemsSkippedExisting: 0, error: "Source not found." };
-  if (!source.active) return { ok: false, itemsSeen: 0, itemsCreated: 0, itemsSkippedExisting: 0, error: "Source is disabled." };
-  if (!source.feedUrl) return { ok: false, itemsSeen: 0, itemsCreated: 0, itemsSkippedExisting: 0, error: "Source has no feed URL configured." };
+  if (!source) return emptyResult("Source not found.");
+  if (!source.active) return emptyResult("Source is disabled.");
+  if (!source.feedUrl) return emptyResult("Source has no feed URL configured.");
 
   const recordError = async (message: string) => {
     await prisma.source.update({
@@ -57,13 +79,13 @@ export async function ingestSource(sourceId: string, requestedById: string): Pro
     const allowed = await isFetchAllowed(source.feedUrl);
     if (!allowed) {
       await recordError("robots.txt disallows fetching this feed URL.");
-      return { ok: false, itemsSeen: 0, itemsCreated: 0, itemsSkippedExisting: 0, error: "Blocked by robots.txt." };
+      return emptyResult("Blocked by robots.txt.");
     }
 
     const response = await safeFetch(source.feedUrl);
     if (response.status !== 200) {
       await recordError(`Feed returned HTTP ${response.status}.`);
-      return { ok: false, itemsSeen: 0, itemsCreated: 0, itemsSkippedExisting: 0, error: `HTTP ${response.status}` };
+      return emptyResult(`HTTP ${response.status}`);
     }
 
     const items = parseFeed(response.text);
@@ -74,14 +96,19 @@ export async function ingestSource(sourceId: string, requestedById: string): Pro
       // still updates below.
     }
 
-    const [activeKeywords, priorityKeywords] = await Promise.all([
+    const [activeKeywords, priorityKeywords, topicKeywords] = await Promise.all([
       prisma.keyword.findMany({ where: { active: true, type: { in: ["PAKISTAN", "COMPANY"] } } }),
       prisma.keyword.findMany({ where: { active: true, priority: true } }),
+      prisma.keyword.findMany({ where: { active: true, type: "TOPIC" } }),
     ]);
     const candidates = await getRecentCandidates();
 
     let created = 0;
     let skippedExisting = 0;
+    let deprioritizedNonTech = 0;
+    let imagesAcquired = 0;
+    let imagesNeedingReview = 0;
+    let imagesFailed = 0;
 
     for (const item of items) {
       const existing = await prisma.sourceItem.findUnique({
@@ -95,6 +122,7 @@ export async function ingestSource(sourceId: string, requestedById: string): Pro
       const normalizedTitle = normalizeTitle(item.title);
       const text = `${item.title} ${item.excerpt}`;
       const relevance = classifyPakistanRelevance(text, activeKeywords);
+      const techRelevance = classifyTechRelevance(text, topicKeywords);
       const matchedPriorityKeywords = priorityKeywords
         .filter((k) => text.toLowerCase().includes(k.term.toLowerCase()))
         .map((k) => k.term);
@@ -126,7 +154,9 @@ export async function ingestSource(sourceId: string, requestedById: string): Pro
         corroboratingSourceCount: corroboratingCount,
         headline: item.title,
         matchedPriorityKeywords,
+        techRelevance,
       });
+      if (techRelevance.score === 0) deprioritizedNonTech++;
 
       const createdItem = await prisma.sourceItem.create({
         data: {
@@ -162,7 +192,14 @@ export async function ingestSource(sourceId: string, requestedById: string): Pro
           sourceUrl: createdItem.sourceUrl,
           headline: createdItem.headline,
         });
-        if (!acquisition.ok) {
+        if (acquisition.ok) {
+          if (acquisition.reuseStatus === "REQUIRES_REVIEW" || acquisition.reuseStatus === "UNKNOWN") {
+            imagesNeedingReview++;
+          } else {
+            imagesAcquired++;
+          }
+        } else {
+          imagesFailed++;
           await logSystemEvent({
             level: "INFO",
             source: "images.acquire",
@@ -171,6 +208,7 @@ export async function ingestSource(sourceId: string, requestedById: string): Pro
           });
         }
       } catch (err) {
+        imagesFailed++;
         const message = err instanceof Error ? err.message : String(err);
         await logSystemEvent({
           level: "WARN",
@@ -209,10 +247,19 @@ export async function ingestSource(sourceId: string, requestedById: string): Pro
       metadata: { itemsSeen: items.length, itemsCreated: created, itemsSkippedExisting: skippedExisting },
     });
 
-    return { ok: true, itemsSeen: items.length, itemsCreated: created, itemsSkippedExisting: skippedExisting };
+    return {
+      ok: true,
+      itemsSeen: items.length,
+      itemsCreated: created,
+      itemsSkippedExisting: skippedExisting,
+      itemsDeprioritizedNonTech: deprioritizedNonTech,
+      imagesAcquired,
+      imagesNeedingReview,
+      imagesFailed,
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await recordError(message);
-    return { ok: false, itemsSeen: 0, itemsCreated: 0, itemsSkippedExisting: 0, error: message };
+    return emptyResult(message);
   }
 }

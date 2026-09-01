@@ -10,7 +10,13 @@ export const ARTICLE_INCLUDE = {
   sources: { include: { source: true } },
 } as const;
 
-const PUBLISHED = { status: "PUBLISHED" as const };
+// isDemo: false is load-bearing, not cosmetic — every public query in this
+// file goes through this constant. Seeded demo content (prisma/seed.ts) is
+// status:"PUBLISHED" like real articles, so without this exclusion demo
+// headlines can appear anywhere real news would, including the site-wide
+// breaking ticker and homepage hero. Admin surfaces query Article directly
+// and intentionally keep showing demo content for reference.
+const PUBLISHED = { status: "PUBLISHED" as const, isDemo: false };
 
 export async function getBreakingArticles(limit = 6): Promise<ArticleWithRelations[]> {
   return prisma.article.findMany({

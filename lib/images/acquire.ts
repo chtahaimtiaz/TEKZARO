@@ -9,7 +9,7 @@ import { extractImageCandidates } from "./extract";
 import { rankImageCandidates } from "./filter-rank";
 import { evaluateReuseStatus } from "./rights";
 import { sniffImage, type SniffedImage } from "./sniff";
-import type { Prisma } from "@prisma/client";
+import type { Prisma, ImageReuseStatus } from "@prisma/client";
 
 const MIME_BY_FORMAT: Record<SniffedImage["format"], string> = {
   jpeg: "image/jpeg",
@@ -28,6 +28,10 @@ export interface AcquisitionResult {
   ok: boolean;
   mediaId?: string;
   reason?: string;
+  /** Set whenever ok:true — lets callers (e.g. the hourly ingestion cron
+   * summary) tally how many acquired images are actually publishable vs.
+   * awaiting editorial review, without a second query. */
+  reuseStatus?: ImageReuseStatus;
 }
 
 interface CandidateAuditEntry {
@@ -117,7 +121,7 @@ export async function acquireImageForSourceItem(item: AcquireImageInput): Promis
             await prisma.media.update({ where: { id: existing.id }, data: { sourceItemId: item.id } });
           }
           entry.selected = true;
-          return await finish({ ok: true, mediaId: existing.id });
+          return await finish({ ok: true, mediaId: existing.id, reuseStatus: existing.reuseStatus });
         }
 
         const mimeType = MIME_BY_FORMAT[sniffed.format];
@@ -154,7 +158,7 @@ export async function acquireImageForSourceItem(item: AcquireImageInput): Promis
         });
 
         entry.selected = true;
-        return await finish({ ok: true, mediaId: media.id });
+        return await finish({ ok: true, mediaId: media.id, reuseStatus: media.reuseStatus });
       } catch (err) {
         entry.rejected = err instanceof Error ? err.message : String(err);
       }

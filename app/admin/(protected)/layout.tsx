@@ -22,8 +22,6 @@ const CORE_NAV = [
   { label: "Articles", href: "/admin/articles" },
 ];
 
-const COMING_SOON_NAV = ["Categories", "Tags", "Authors", "SEO", "Settings"];
-
 export default async function ProtectedAdminLayout({ children }: { children: React.ReactNode }) {
   // Defense in depth — proxy.ts already redirects anonymous requests, but
   // every protected surface re-checks independently rather than trusting it.
@@ -59,6 +57,11 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
           {CAN_MANAGE_SOURCES.includes(user.role) && (
             <Link href="/admin/sources" className="rounded-md px-2 py-1.5 text-white/80 hover:bg-white/10 hover:text-white">
               Sources
+            </Link>
+          )}
+          {CAN_MANAGE_SOURCES.includes(user.role) && (
+            <Link href="/admin/categories" className="rounded-md px-2 py-1.5 text-white/80 hover:bg-white/10 hover:text-white">
+              Categories
             </Link>
           )}
           {CAN_MANAGE_KEYWORDS.includes(user.role) && (
@@ -106,14 +109,6 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
               Users
             </Link>
           )}
-          <div className="mt-3 border-t border-white/10 pt-3">
-            {COMING_SOON_NAV.map((label) => (
-              <span key={label} className="flex items-center justify-between rounded-md px-2 py-1.5 text-white/35">
-                {label}
-                <span className="text-[10px] uppercase tracking-wide">Soon</span>
-              </span>
-            ))}
-          </div>
         </nav>
 
         <div className="mt-auto flex flex-col gap-3 border-t border-white/10 pt-4 text-xs text-white/70">

@@ -32,7 +32,7 @@ export async function searchArticles(query: string, page = 1): Promise<SearchRes
     SELECT id, rank FROM (
       SELECT "id", ts_rank_cd("searchVector", websearch_to_tsquery('english', ${q})) AS rank
       FROM "Article"
-      WHERE status = 'PUBLISHED' AND "searchVector" @@ websearch_to_tsquery('english', ${q})
+      WHERE status = 'PUBLISHED' AND "isDemo" = false AND "searchVector" @@ websearch_to_tsquery('english', ${q})
       UNION
       SELECT a."id", 0.01 AS rank
       FROM "Article" a
@@ -40,7 +40,7 @@ export async function searchArticles(query: string, page = 1): Promise<SearchRes
       LEFT JOIN "Author" au ON au.id = a."authorId"
       LEFT JOIN "ArticleTag" at ON at."articleId" = a.id
       LEFT JOIN "Tag" t ON t.id = at."tagId"
-      WHERE a.status = 'PUBLISHED'
+      WHERE a.status = 'PUBLISHED' AND a."isDemo" = false
         AND (c.name ILIKE ${"%" + q + "%"} OR au.name ILIKE ${"%" + q + "%"} OR t.name ILIKE ${"%" + q + "%"})
     ) matches
     ORDER BY rank DESC
@@ -54,7 +54,7 @@ export async function searchArticles(query: string, page = 1): Promise<SearchRes
     LEFT JOIN "Author" au ON au.id = a."authorId"
     LEFT JOIN "ArticleTag" at ON at."articleId" = a.id
     LEFT JOIN "Tag" t ON t.id = at."tagId"
-    WHERE a.status = 'PUBLISHED'
+    WHERE a.status = 'PUBLISHED' AND a."isDemo" = false
       AND (
         a."searchVector" @@ websearch_to_tsquery('english', ${q})
         OR c.name ILIKE ${"%" + q + "%"}

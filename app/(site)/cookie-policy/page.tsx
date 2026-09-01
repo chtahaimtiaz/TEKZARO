@@ -10,7 +10,7 @@ export default function CookiePolicyPage() {
     <div className="mx-auto max-w-2xl px-4 py-10">
       <p className="eyebrow">Legal</p>
       <h1 className="mt-1 font-serif text-4xl font-bold">Cookie Policy</h1>
-      <p className="mt-2 text-sm text-ink-muted">Last updated: 2026-08-31</p>
+      <p className="mt-2 text-sm text-ink-muted">Last updated: 2026-09-01</p>
 
       <div className="prose-article mt-8 space-y-5 text-ink-soft">
         <p>
@@ -24,9 +24,9 @@ export default function CookiePolicyPage() {
           a consent mechanism will be added ahead of that change going live.
         </p>
         <p>
-          The CMS/admin area (not publicly accessible) will use a strictly necessary session cookie
-          for authenticated editorial staff once login is implemented — that cookie is required for
-          the CMS to function and is not used for tracking.
+          The CMS/admin area (not publicly accessible) uses a strictly necessary session cookie for
+          authenticated editorial staff — that cookie is required for the CMS to function and is not
+          used for tracking.
         </p>
       </div>
     </div>

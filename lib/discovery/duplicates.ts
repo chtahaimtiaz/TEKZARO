@@ -1,4 +1,4 @@
-import { titleSimilarity } from "../ingestion/normalize";
+import { titleSimilarity, normalizeUrlForDedup } from "../ingestion/normalize";
 
 export const AUTO_MERGE_THRESHOLD = 0.72;
 export const POSSIBLE_DUPLICATE_THRESHOLD = 0.45;
@@ -33,11 +33,14 @@ export function findBestDuplicateMatch(
 ): DuplicateMatch | null {
   let best: DuplicateMatch | null = null;
 
+  const incomingUrl = normalizeUrlForDedup(incoming.sourceUrl);
+  const incomingCanonical = incoming.canonicalUrl ? normalizeUrlForDedup(incoming.canonicalUrl) : null;
+
   for (const candidate of candidates) {
-    if (incoming.canonicalUrl && candidate.canonicalUrl && incoming.canonicalUrl === candidate.canonicalUrl) {
+    if (incomingCanonical && candidate.canonicalUrl && incomingCanonical === normalizeUrlForDedup(candidate.canonicalUrl)) {
       return { candidate, score: 1, reason: "Exact canonical URL match" };
     }
-    if (incoming.sourceUrl === candidate.sourceUrl) {
+    if (incomingUrl === normalizeUrlForDedup(candidate.sourceUrl)) {
       return { candidate, score: 1, reason: "Exact source URL match" };
     }
 

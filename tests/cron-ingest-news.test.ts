@@ -1,0 +1,114 @@
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { NextRequest } from "next/server";
+import { prisma } from "../lib/prisma";
+import { GET as ingestNews } from "../app/api/cron/ingest-news/route";
+import { cleanupRateLimitKey } from "./helpers";
+
+const createdSourceIds: string[] = [];
+// This test suite runs against the same shared dev database used all
+// session, not an isolated test DB — if it left any real, currently-active
+// Source rows in scope, running these tests would trigger real network
+// fetches (and real image downloads/uploads) as a side effect of running
+// the test suite. Temporarily deactivate every other active source for the
+// duration of this file, and restore them afterward, so only the sources
+// this file creates itself are ever actually ingested.
+let deactivatedSourceIds: string[] = [];
+
+async function makeSource(label: string, feedUrl: string) {
+  const source = await prisma.source.create({
+    data: {
+      name: `Cron Test Source ${label} ${Date.now()}`,
+      url: "https://example.invalid",
+      feedUrl,
+      type: "RSS",
+      tier: "TIER_3",
+      active: true,
+    },
+  });
+  createdSourceIds.push(source.id);
+  return source;
+}
+
+function makeRequest(auth: string | null): NextRequest {
+  const headers = new Headers();
+  if (auth !== null) headers.set("authorization", auth);
+  return new NextRequest("http://localhost/api/cron/ingest-news", { headers });
+}
+
+beforeAll(async () => {
+  // getClientIp() resolves to "unknown" outside a real request in tests —
+  // same reasoning as tests/cron-publish-scheduled.test.ts.
+  await cleanupRateLimitKey("cron-ingest-news:unknown");
+
+  const otherActiveSources = await prisma.source.findMany({
+    where: { active: true, feedUrl: { not: null } },
+    select: { id: true },
+  });
+  deactivatedSourceIds = otherActiveSources.map((s) => s.id);
+  if (deactivatedSourceIds.length) {
+    await prisma.source.updateMany({ where: { id: { in: deactivatedSourceIds } }, data: { active: false } });
+  }
+});
+
+afterAll(async () => {
+  if (createdSourceIds.length) {
+    await prisma.source.deleteMany({ where: { id: { in: createdSourceIds } } });
+  }
+  if (deactivatedSourceIds.length) {
+    await prisma.source.updateMany({ where: { id: { in: deactivatedSourceIds } }, data: { active: true } });
+  }
+  await cleanupRateLimitKey("cron-ingest-news:unknown");
+});
+
+describe("GET /api/cron/ingest-news", () => {
+  it("rejects a request with no/incorrect bearer token", async () => {
+    const res1 = await ingestNews(makeRequest(null));
+    expect(res1.status).toBe(401);
+
+    const res2 = await ingestNews(makeRequest("Bearer wrong-secret"));
+    expect(res2.status).toBe(401);
+  });
+
+  it("runs cleanly with zero active sources and returns the expected summary shape", async () => {
+    const res = await ingestNews(makeRequest(`Bearer ${process.env.CRON_SECRET}`));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toMatchObject({
+      sourcesChecked: 0,
+      sourcesFailed: 0,
+      itemsCreated: 0,
+      itemsSkippedExisting: 0,
+      itemsDeprioritizedNonTech: 0,
+      imagesAcquired: 0,
+      imagesNeedingReview: 0,
+      imagesFailed: 0,
+    });
+  });
+
+  it("a source that fails to fetch doesn't stop the run — both sources are attempted and the failure is recorded", async () => {
+    // .invalid is IANA-reserved (RFC 2606) to never resolve — a real,
+    // deterministic DNS-failure path through safeFetch, no network mocking.
+    const bad1 = await makeSource("bad1", "https://this-does-not-resolve-1.invalid/feed.xml");
+    const bad2 = await makeSource("bad2", "https://this-does-not-resolve-2.invalid/feed.xml");
+
+    const before = await prisma.source.findMany({
+      where: { id: { in: [bad1.id, bad2.id] } },
+      select: { id: true, lastError: true },
+    });
+    expect(before.every((s) => s.lastError === null)).toBe(true);
+
+    const res = await ingestNews(makeRequest(`Bearer ${process.env.CRON_SECRET}`));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.sourcesChecked).toBe(2);
+    expect(body.sourcesFailed).toBe(2);
+
+    // Both sources were actually attempted (ingestSource records lastError
+    // per-source), not just the first one before the loop gave up.
+    const after = await prisma.source.findMany({
+      where: { id: { in: [bad1.id, bad2.id] } },
+      select: { id: true, lastError: true },
+    });
+    expect(after.every((s) => s.lastError !== null)).toBe(true);
+  });
+});

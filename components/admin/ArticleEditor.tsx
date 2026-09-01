@@ -7,7 +7,9 @@ import { BlockEditor } from "./BlockEditor";
 import { PublicationChecklist } from "./PublicationChecklist";
 import { SuggestionsPanel } from "./SuggestionsPanel";
 import { MediaUploadButton } from "./MediaUploadButton";
+import { SocialPostPanel } from "./SocialPostPanel";
 import { evaluatePublicationChecks, allChecksPassed } from "@/lib/publication-checks";
+import { absoluteUrl } from "@/lib/seo";
 import { slugify } from "@/lib/slugify";
 import { splitPakistanImpact } from "@/lib/content-blocks";
 import { TRANSITION_LABELS, type TransitionName } from "@/lib/workflow";
@@ -402,6 +404,17 @@ export function ArticleEditor({
               )}
             </div>
           </div>
+
+          {mode === "edit" && (
+            <SocialPostPanel
+              title={form.title}
+              excerpt={form.excerpt}
+              categoryName={categories.find((c) => c.id === form.categoryId)?.name ?? ""}
+              tagNames={tagNames}
+              url={absoluteUrl(`/article/${form.slug}`)}
+              pakistanRelevance={form.pakistanRelevance}
+            />
+          )}
 
           <div className="rounded-xl border border-border bg-paper-raised p-4">
             <p className="mb-3 text-sm font-bold">SEO</p>
