@@ -234,6 +234,40 @@ model Category {
   articles    Article[]
   sourceItems SourceItem[]
   sources     Source[]
+
+  // General editorial-use toggle (mirrors Source.active/Keyword.active) —
+  // separate from participatesInQuota so a real, active category can opt
+  // out of daily-target tracking specifically without being deactivated.
+  active Boolean @default(true)
+
+  // Daily Editorial Checklist config (lib/editorial-checklist.ts). Changes
+  // are logged to AuditLog (category_quota_updated) — see
+  // updateCategoryAction in lib/category-actions.ts.
+  dailyTarget                      Int     @default(2)
+  participatesInQuota              Boolean @default(true)
+  // When true, a published article only counts toward this category's
+  // daily quota if verificationStatus === PRIMARY_SOURCE_CONFIRMED — a
+  // real, enforced per-category verification bar, not just documentation.
+  requirePrimarySourceVerification Boolean @default(false)
+  // Admin-authored guidance shown on the checklist. Deliberately NOT an
+  // enforced threshold — there is no existing measurable "quality score"
+  // in this schema to gate on, and inventing one now would be a separate
+  // feature, not a config knob.
+  minQualityNote                   String?
+
+  eligibleAuthors Author[] @relation("AuthorCategoryEligibility")
+}
+
+// Singleton — nothing like a site-settings model exists elsewhere in this
+// schema, and a general-purpose settings system would be overbuilt for the
+// one field this feature needs. Literal id (not cuid()) so every read/write
+// targets the same self-documenting, lookup-free row. See
+// lib/editorial-settings.ts (lazy-default reads, no lazy-create — a plain
+// read never writes) / lib/editorial-settings-actions.ts (the one write path).
+model EditorialSettings {
+  id        String   @id @default("singleton")
+  timezone  String   @default("Asia/Karachi")
+  updatedAt DateTime @updatedAt
 }
 
 model Tag {
@@ -253,6 +287,19 @@ model Author {
   socialLinks Json?
   articles    Article[]
   users       User[]
+
+  // Soft-toggle only (mirrors User.active/Source.active/Keyword.active),
+  // never a hard delete — authorId is a required FK on Article, and any
+  // real author will accumulate published articles a hard delete would be
+  // blocked by anyway. See lib/author-actions.ts's setAuthorActiveAction.
+  active Boolean @default(true)
+
+  // Category-eligibility allowlist (lib/author-eligibility.ts). An empty
+  // list means eligible for EVERY category — default-permissive, not
+  // default-restrictive, since every existing Author row has zero links
+  // and a restrictive default would make every current author instantly
+  // unassignable the moment this migration runs.
+  categories Category[] @relation("AuthorCategoryEligibility")
 }
 
 model Article {
@@ -325,10 +372,14 @@ model Article {
   createdAt   DateTime  @default(now())
   readingTime Int?
 
-  categoryId String
-  category   Category @relation(fields: [categoryId], references: [id])
-  authorId   String
-  author     Author   @relation(fields: [authorId], references: [id])
+  categoryId                  String
+  category                    Category @relation(fields: [categoryId], references: [id])
+  authorId                    String
+  author                      Author   @relation(fields: [authorId], references: [id])
+  // True only when the saved (authorId, categoryId) pairing was ineligible
+  // (lib/author-eligibility.ts) and an ADMIN explicitly overrode it via
+  // CAN_OVERRIDE_AUTHOR_ELIGIBILITY. Recomputed on every create/update save.
+  authorEligibilityOverridden Boolean  @default(false)
 
   // Login account that created this article — distinct from `author` (the
   // public byline). Used for "reporters/researchers can only edit their own

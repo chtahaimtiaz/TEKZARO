@@ -33,6 +33,12 @@ export interface PublicationCheckInput {
   /** Omit while evaluating client-side (no DB access) — publish/schedule
    * server actions always pass this in after a real uniqueness query. */
   slugAvailable?: boolean;
+  /** Whether authorId is eligible for categoryId per
+   * lib/author-eligibility.ts. Omit while evaluating client-side without
+   * that data loaded — undefined never blocks, same convention as
+   * slugAvailable. */
+  authorEligible?: boolean;
+  authorEligibilityOverridden?: boolean;
 }
 
 export interface PublicationCheckResult {
@@ -136,6 +142,16 @@ export function evaluatePublicationChecks(input: PublicationCheckInput): Publica
     reason: imageRightsOk
       ? undefined
       : "This image was automatically found and hasn't been cleared for publication yet — review it on the Media page, or replace it with an uploaded or manually-sourced image.",
+  });
+
+  const authorEligibilityOk = input.authorEligible !== false || input.authorEligibilityOverridden === true;
+  results.push({
+    id: "author-eligibility",
+    label: "Author is eligible for this category",
+    passed: authorEligibilityOk,
+    reason: authorEligibilityOk
+      ? undefined
+      : "This author isn't eligible for the selected category. Choose an eligible author, or have an admin override it.",
   });
 
   return results;

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { getDailyChecklist, dayStatusLabel } from "@/lib/editorial-checklist";
 
 export const dynamic = "force-dynamic";
 
@@ -68,7 +69,7 @@ export default async function AdminOverviewPage({
 }) {
   const user = await requireUser();
   const { notice } = await searchParams;
-  const data = await getOverviewData();
+  const [data, checklist] = await Promise.all([getOverviewData(), getDailyChecklist()]);
 
   const stats = [
     ["Total articles", data.total],
@@ -136,6 +137,42 @@ export default async function AdminOverviewPage({
             </p>
           </div>
         </div>
+      </section>
+
+      <section className="mt-6 rounded-xl border border-border bg-paper-raised p-5">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-bold">Today&apos;s Editorial Checklist</h2>
+          <Link href="/admin/checklist" className="text-sm font-semibold text-accent hover:underline">
+            Open full checklist →
+          </Link>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <p className="text-sm text-ink-muted">Articles published</p>
+            <p className="mt-1 font-serif text-2xl font-bold">
+              {checklist.totalCompleted} / {checklist.totalRequired}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-ink-muted">Categories completed</p>
+            <p className="mt-1 font-serif text-2xl font-bold">
+              {checklist.completedCategories} / {checklist.totalCategories}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-ink-muted">Completion</p>
+            <p className="mt-1 font-serif text-2xl font-bold">{checklist.percentComplete}%</p>
+          </div>
+          <div>
+            <p className="text-sm text-ink-muted">Status</p>
+            <p className="mt-1 font-serif text-xl font-bold">{dayStatusLabel(checklist.status)}</p>
+          </div>
+        </div>
+        {checklist.categories.filter((c) => !c.complete).length > 0 && (
+          <p className="mt-3 text-sm text-ink-muted">
+            Still needed: {checklist.categories.filter((c) => !c.complete).map((c) => `${c.categoryName} (${c.count}/${c.target})`).join(", ")}
+          </p>
+        )}
       </section>
 
       <section className="mt-6 rounded-xl border border-border bg-paper-raised p-5">

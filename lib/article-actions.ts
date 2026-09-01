@@ -4,7 +4,8 @@ import { z } from "zod";
 import { redirect } from "next/navigation";
 import { prisma } from "./prisma";
 import { requireRole, getSessionUser, ForbiddenError } from "./auth";
-import { CAN_WRITE, canEditArticle } from "./permissions";
+import { CAN_WRITE, CAN_OVERRIDE_AUTHOR_ELIGIBILITY, canEditArticle } from "./permissions";
+import { isAuthorEligibleForCategory } from "./author-eligibility";
 import { assertTransition, type TransitionName, WorkflowError } from "./workflow";
 import { evaluatePublicationChecks } from "./publication-checks";
 import { ensureUniqueSlug, slugify } from "./slug";
@@ -13,7 +14,7 @@ import { estimateReadingTime } from "./reading-time";
 import { logAction } from "./audit";
 import { notify } from "./notifications";
 import { buildSnapshotFromArticleRow, snapshotVersion } from "./article-snapshot";
-import type { Prisma } from "@prisma/client";
+import type { Prisma, Role } from "@prisma/client";
 
 // Every route under /admin reads the session cookie (via requireUser/
 // getSessionUser), which already forces Next to render those routes
@@ -69,6 +70,10 @@ const articleInputSchema = z.object({
   regionalRelevance: z.number().min(0).max(100),
   globalSignificance: z.number().min(0).max(100),
   scheduledAt: z.string().trim(),
+  // Always starts unchecked client-side per submission — an explicit,
+  // re-confirmed choice each time an ineligible pairing is saved, not
+  // persisted form state. See resolveAuthorEligibility below.
+  overrideAuthorEligibility: z.boolean(),
 });
 
 export type ArticleFormInput = z.infer<typeof articleInputSchema>;
@@ -156,6 +161,46 @@ async function verifiedFeaturedMediaId(featuredMediaId: string, featuredImageUrl
 // buildSnapshotFromArticleRow is a plain sync helper. Shared with
 // app/api/cron/publish-scheduled/route.ts from that non-"use server" module.
 
+/** Prevention layer for the (authorId, categoryId) eligibility invariant —
+ * lib/publication-checks.ts's author-eligibility check is the backstop for
+ * paths (restoreVersionAction) that bypass this. An already-accepted
+ * override doesn't need re-ticking on every unrelated edit: if the saved
+ * pairing is unchanged from `existing` and was already overridden, it
+ * stays overridden without requiring the checkbox again. */
+async function resolveAuthorEligibility(
+  input: { authorId: string; categoryId: string; overrideAuthorEligibility: boolean },
+  existing: { authorId: string; categoryId: string; authorEligibilityOverridden: boolean } | null,
+  actorRole: Role,
+): Promise<{ ok: true; overridden: boolean } | { ok: false; error: string }> {
+  const author = await prisma.author.findUnique({
+    where: { id: input.authorId },
+    select: { name: true, categories: { select: { id: true } } },
+  });
+  if (!author) return { ok: false, error: "Selected author not found." };
+
+  const eligibleCategoryIds = author.categories.map((c) => c.id);
+  if (isAuthorEligibleForCategory(eligibleCategoryIds, input.categoryId)) return { ok: true, overridden: false };
+
+  if (input.overrideAuthorEligibility && CAN_OVERRIDE_AUTHOR_ELIGIBILITY.includes(actorRole)) {
+    return { ok: true, overridden: true };
+  }
+
+  if (
+    existing &&
+    existing.authorId === input.authorId &&
+    existing.categoryId === input.categoryId &&
+    existing.authorEligibilityOverridden
+  ) {
+    return { ok: true, overridden: true };
+  }
+
+  const category = await prisma.category.findUnique({ where: { id: input.categoryId }, select: { name: true } });
+  return {
+    ok: false,
+    error: `"${author.name}" is not eligible for the "${category?.name ?? "selected"}" category. Choose an eligible author, or check the override box (admin only).`,
+  };
+}
+
 export async function createArticleAction(raw: ArticleFormInput): Promise<ActionResult<{ id: string; slug: string }>> {
   const sessionUser = await getSessionUser();
   const user = requireRole(sessionUser, CAN_WRITE);
@@ -163,6 +208,9 @@ export async function createArticleAction(raw: ArticleFormInput): Promise<Action
   const parsed = articleInputSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
   const input = parsed.data;
+
+  const eligibility = await resolveAuthorEligibility(input, null, user.role);
+  if (!eligibility.ok) return { ok: false, error: eligibility.error };
 
   const slug = await ensureUniqueSlug(input.slug || input.title);
   const blocks = joinPakistanImpact(input.blocks, input.pakistanImpact);
@@ -185,6 +233,7 @@ export async function createArticleAction(raw: ArticleFormInput): Promise<Action
       readingTime: estimateReadingTime(blocks),
       categoryId: input.categoryId,
       authorId: input.authorId,
+      authorEligibilityOverridden: eligibility.overridden,
       createdById: user.id,
       locationName: nullable(input.locationName),
       featuredImageUrl: nullable(input.featuredImageUrl),
@@ -210,6 +259,15 @@ export async function createArticleAction(raw: ArticleFormInput): Promise<Action
     changeSummary: "Created",
   });
   await logAction({ userId: user.id, action: "article_created", entityType: "Article", entityId: article.id });
+  if (eligibility.overridden) {
+    await logAction({
+      userId: user.id,
+      action: "author_eligibility_override_used",
+      entityType: "Article",
+      entityId: article.id,
+      metadata: { authorId: input.authorId, categoryId: input.categoryId },
+    });
+  }
 
   return { ok: true, data: { id: article.id, slug: article.slug } };
 }
@@ -227,6 +285,13 @@ export async function updateArticleAction(articleId: string, raw: ArticleFormInp
   const parsed = articleInputSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
   const input = parsed.data;
+
+  const eligibility = await resolveAuthorEligibility(
+    input,
+    { authorId: existing.authorId, categoryId: existing.categoryId, authorEligibilityOverridden: existing.authorEligibilityOverridden },
+    user.role,
+  );
+  if (!eligibility.ok) return { ok: false, error: eligibility.error };
 
   const slug =
     slugify(input.slug) === existing.slug ? existing.slug : await ensureUniqueSlug(input.slug, articleId);
@@ -249,6 +314,7 @@ export async function updateArticleAction(articleId: string, raw: ArticleFormInp
       readingTime: estimateReadingTime(blocks),
       categoryId: input.categoryId,
       authorId: input.authorId,
+      authorEligibilityOverridden: eligibility.overridden,
       locationName: nullable(input.locationName),
       featuredImageUrl: nullable(input.featuredImageUrl),
       featuredImageAlt: nullable(input.featuredImageAlt),
@@ -273,6 +339,20 @@ export async function updateArticleAction(articleId: string, raw: ArticleFormInp
     changeSummary: "Edited",
   });
   await logAction({ userId: user.id, action: "article_edited", entityType: "Article", entityId: article.id });
+  // Only log a fresh override, not every subsequent unrelated edit to an
+  // article whose pairing was already overridden.
+  const isNewOverride =
+    eligibility.overridden &&
+    (!existing.authorEligibilityOverridden || existing.authorId !== input.authorId || existing.categoryId !== input.categoryId);
+  if (isNewOverride) {
+    await logAction({
+      userId: user.id,
+      action: "author_eligibility_override_used",
+      entityType: "Article",
+      entityId: article.id,
+      metadata: { authorId: input.authorId, categoryId: input.categoryId },
+    });
+  }
 
   return { ok: true, data: { slug: article.slug } };
 }
@@ -299,6 +379,11 @@ export async function transitionArticleAction(articleId: string, name: Transitio
     const slugAvailable = await prisma.article
       .findFirst({ where: { slug: article.slug, NOT: { id: article.id } } })
       .then((row) => !row);
+    // Backstop for restoreVersionAction, which bypasses create/update's
+    // prevention layer entirely by writing (authorId, categoryId) straight
+    // from an ArticleVersion snapshot.
+    const author = await prisma.author.findUnique({ where: { id: article.authorId }, select: { categories: { select: { id: true } } } });
+    const authorEligible = author ? isAuthorEligibleForCategory(author.categories.map((c) => c.id), article.categoryId) : false;
     const content = article.content as unknown as { blocks?: ContentBlock[] };
     const { blocks } = splitPakistanImpact(content.blocks ?? []);
     const checks = evaluatePublicationChecks({
@@ -313,6 +398,8 @@ export async function transitionArticleAction(articleId: string, name: Transitio
       excerpt: article.excerpt,
       featuredMediaReuseStatus: article.featuredMedia?.reuseStatus ?? null,
       slugAvailable,
+      authorEligible,
+      authorEligibilityOverridden: article.authorEligibilityOverridden,
     });
     const failed = checks.find((c) => !c.passed);
     if (failed) return { ok: false, error: `Publication check failed: ${failed.label} — ${failed.reason}` };

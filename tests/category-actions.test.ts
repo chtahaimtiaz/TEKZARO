@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { prisma } from "../lib/prisma";
-import { createCategoryAction, deleteCategoryAction } from "../lib/category-actions";
+import { createCategoryAction, updateCategoryAction, deleteCategoryAction } from "../lib/category-actions";
 import { createTestUser, loginAs, clearSession, trackUser, cleanupTestData, captureRedirect } from "./helpers";
 
 const createdCategoryIds: string[] = [];
@@ -43,6 +43,40 @@ describe("createCategoryAction", () => {
     createdCategoryIds.push(second.id);
 
     expect(second.slug).not.toBe(first.slug);
+  });
+});
+
+describe("updateCategoryAction", () => {
+  it("persists the quota/checklist fields and writes an audit log entry", async () => {
+    await asEditor();
+    const category = await prisma.category.create({
+      data: { name: `Quota Test Category ${Date.now()}`, slug: `quota-test-category-${Date.now()}` },
+    });
+    createdCategoryIds.push(category.id);
+
+    const fd = formData({
+      dailyTarget: "3",
+      minQualityNote: "Prefer hands-on reviews over press-release rewrites.",
+    });
+    fd.set("active", "on");
+    fd.set("participatesInQuota", "on");
+    // requirePrimarySourceVerification deliberately omitted — unchecked.
+
+    await captureRedirect(() => updateCategoryAction(category.id, fd));
+
+    const updated = await prisma.category.findUniqueOrThrow({ where: { id: category.id } });
+    expect(updated.dailyTarget).toBe(3);
+    expect(updated.active).toBe(true);
+    expect(updated.participatesInQuota).toBe(true);
+    expect(updated.requirePrimarySourceVerification).toBe(false);
+    expect(updated.minQualityNote).toBe("Prefer hands-on reviews over press-release rewrites.");
+
+    const audit = await prisma.auditLog.findFirst({
+      where: { entityType: "Category", entityId: category.id, action: "category_quota_updated" },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(audit).not.toBeNull();
+    expect((audit?.metadata as { dailyTarget?: number } | null)?.dailyTarget).toBe(3);
   });
 });
 

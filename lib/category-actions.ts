@@ -48,6 +48,53 @@ export async function createCategoryAction(formData: FormData): Promise<void> {
   redirect("/admin/categories");
 }
 
+const quotaSchema = z.object({
+  dailyTarget: z.coerce.number().int().min(0).max(100),
+  active: z.union([z.literal("on"), z.literal(null)]).optional(),
+  participatesInQuota: z.union([z.literal("on"), z.literal(null)]).optional(),
+  requirePrimarySourceVerification: z.union([z.literal("on"), z.literal(null)]).optional(),
+  minQualityNote: z.string().trim().optional().or(z.literal("")),
+});
+
+/** Daily Editorial Checklist config — see lib/editorial-checklist.ts.
+ * Distinct from createCategoryAction/deleteCategoryAction, which only ever
+ * handled name/description; this is genuinely new surface area, not an
+ * extension of an existing update path (none existed before). */
+export async function updateCategoryAction(categoryId: string, formData: FormData): Promise<void> {
+  const sessionUser = await getSessionUser();
+  const user = requireRole(sessionUser, CAN_MANAGE_SOURCES);
+
+  const parsed = quotaSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    redirect(`/admin/categories?error=${encodeURIComponent(parsed.error.issues[0]?.message ?? "Invalid input.")}`);
+  }
+  const { dailyTarget, active, participatesInQuota, requirePrimarySourceVerification, minQualityNote } = parsed.data;
+
+  await prisma.category.update({
+    where: { id: categoryId },
+    data: {
+      dailyTarget,
+      active: active === "on",
+      participatesInQuota: participatesInQuota === "on",
+      requirePrimarySourceVerification: requirePrimarySourceVerification === "on",
+      minQualityNote: nullable(minQualityNote),
+    },
+  });
+  await logAction({
+    userId: user.id,
+    action: "category_quota_updated",
+    entityType: "Category",
+    entityId: categoryId,
+    metadata: {
+      dailyTarget,
+      active: active === "on",
+      participatesInQuota: participatesInQuota === "on",
+      requirePrimarySourceVerification: requirePrimarySourceVerification === "on",
+    },
+  });
+  redirect("/admin/categories");
+}
+
 export async function deleteCategoryAction(categoryId: string): Promise<void> {
   const sessionUser = await getSessionUser();
   const user = requireRole(sessionUser, CAN_MANAGE_SOURCES);

@@ -9,6 +9,7 @@ import {
   CAN_VIEW_DISCOVERY,
   CAN_MANAGE_SOURCES,
   CAN_MANAGE_KEYWORDS,
+  CAN_MANAGE_AUTHORS,
   CAN_BUILD_DIGEST,
   CAN_MANAGE_MEDIA,
   CAN_SEND_NEWSLETTER,
@@ -20,6 +21,7 @@ import {
 const CORE_NAV = [
   { label: "Overview", href: "/admin" },
   { label: "Articles", href: "/admin/articles" },
+  { label: "Editorial Checklist", href: "/admin/checklist" },
 ];
 
 export default async function ProtectedAdminLayout({ children }: { children: React.ReactNode }) {
@@ -62,6 +64,11 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
           {CAN_MANAGE_SOURCES.includes(user.role) && (
             <Link href="/admin/categories" className="rounded-md px-2 py-1.5 text-white/80 hover:bg-white/10 hover:text-white">
               Categories
+            </Link>
+          )}
+          {CAN_MANAGE_AUTHORS.includes(user.role) && (
+            <Link href="/admin/authors" className="rounded-md px-2 py-1.5 text-white/80 hover:bg-white/10 hover:text-white">
+              Authors
             </Link>
           )}
           {CAN_MANAGE_KEYWORDS.includes(user.role) && (

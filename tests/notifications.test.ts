@@ -63,6 +63,7 @@ describe("workflow transitions trigger notifications", () => {
       regionalRelevance: 0,
       globalSignificance: 0,
       scheduledAt: "",
+      overrideAuthorEligibility: false,
     };
   }
 

@@ -37,6 +37,12 @@ export const CAN_VIEW_MONITORING: Role[] = ["ADMIN"];
 export const CAN_VIEW_ANALYTICS: Role[] = ["ADMIN", "EDITOR"];
 /** Roles allowed to run the editorial data export. */
 export const CAN_MANAGE_BACKUPS: Role[] = ["ADMIN"];
+/** Roles allowed to create/edit authors and set their category eligibility. */
+export const CAN_MANAGE_AUTHORS: Role[] = ["ADMIN", "EDITOR"];
+/** Roles allowed to save an article with an author ineligible for its
+ * category — a rare, explicit bypass, deliberately narrower than
+ * CAN_MANAGE_AUTHORS/CAN_WRITE. */
+export const CAN_OVERRIDE_AUTHOR_ELIGIBILITY: Role[] = ["ADMIN"];
 
 /** SYSTEM is a real Role value but is never assignable through any admin
  * action, never shown in the user list, and can never be deactivated —

@@ -36,6 +36,7 @@ function baseInput(title: string): ArticleFormInput {
     regionalRelevance: 0,
     globalSignificance: 0,
     scheduledAt: "",
+    overrideAuthorEligibility: false,
   };
 }
 

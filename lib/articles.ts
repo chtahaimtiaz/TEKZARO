@@ -16,7 +16,9 @@ export const ARTICLE_INCLUDE = {
 // headlines can appear anywhere real news would, including the site-wide
 // breaking ticker and homepage hero. Admin surfaces query Article directly
 // and intentionally keep showing demo content for reference.
-const PUBLISHED = { status: "PUBLISHED" as const, isDemo: false };
+// Exported: lib/editorial-checklist.ts's counting query reuses this exact
+// constant rather than re-deriving "what counts as really published."
+export const PUBLISHED = { status: "PUBLISHED" as const, isDemo: false };
 
 export async function getBreakingArticles(limit = 6): Promise<ArticleWithRelations[]> {
   return prisma.article.findMany({

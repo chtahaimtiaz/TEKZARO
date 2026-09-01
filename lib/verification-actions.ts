@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "./prisma";
 import { getSystemUserId } from "./system-actor";
 import { verifyAndSynthesize } from "./ai/verify-and-synthesize";
+import { pickEligibleAuthor } from "./author-eligibility";
 import { ensureUniqueSlug } from "./slug";
 import { featuredImageFieldsFor } from "./images/featured-image";
 import { evaluatePublicationChecks, allChecksPassed } from "./publication-checks";
@@ -16,13 +17,22 @@ export interface VerificationBatchSummary {
   autoPublished: number;
   sentToReview: number;
   skippedNoDraft: number;
+  skippedNoEligibleAuthor: number;
   failed: number;
 }
 
 const DEFAULT_LIMIT = 1;
 
 function emptySummary(): VerificationBatchSummary {
-  return { itemsProcessed: 0, draftsCreated: 0, autoPublished: 0, sentToReview: 0, skippedNoDraft: 0, failed: 0 };
+  return {
+    itemsProcessed: 0,
+    draftsCreated: 0,
+    autoPublished: 0,
+    sentToReview: 0,
+    skippedNoDraft: 0,
+    skippedNoEligibleAuthor: 0,
+    failed: 0,
+  };
 }
 
 /**
@@ -68,15 +78,34 @@ export async function processVerificationBatch(
   if (items.length === 0) return summary;
 
   // Same precondition createDraftFromItemAction enforces for the
-  // human-triggered path — without at least one Author/Category to assign,
-  // there's nothing this batch can do. Items stay NEW for a future run.
-  const defaultAuthor = await prisma.author.findFirst({ orderBy: { name: "asc" } });
+  // human-triggered path — without at least one Category to assign, there's
+  // nothing this batch can do. Author eligibility is per-category now, so
+  // it's checked per-item below, not as a single upfront guard.
   const fallbackCategory = await prisma.category.findFirst({ orderBy: { name: "asc" } });
-  if (!defaultAuthor || !fallbackCategory) return summary;
+  if (!fallbackCategory) return summary;
 
   for (const item of items) {
     summary.itemsProcessed += 1;
     try {
+      const category = item.category ?? fallbackCategory;
+
+      // Checked BEFORE the paid search call in verifyAndSynthesize — no
+      // point burning a Tavily credit on an item that can't produce an
+      // eligible draft anyway. "No eligible author" must never fall back to
+      // *any* author; it's an operator-visible skip, not a silent wrong
+      // assignment.
+      const eligibleAuthor = await pickEligibleAuthor(category.id);
+      if (!eligibleAuthor) {
+        summary.skippedNoEligibleAuthor += 1;
+        await logSystemEvent({
+          level: "WARN",
+          source: "verification.batch",
+          message: `No active author is eligible for category "${category.name}" — SourceItem ${item.id} left for a future run.`,
+          context: { sourceItemId: item.id, categoryId: category.id },
+        });
+        continue;
+      }
+
       const result = await verifyAndSynthesize({ requestedById: systemUserId, item });
 
       if (!result.draft) {
@@ -84,7 +113,6 @@ export async function processVerificationBatch(
         continue;
       }
 
-      const category = item.category ?? fallbackCategory;
       const slug = await ensureUniqueSlug(result.draft.headline);
       const imageFields = await featuredImageFieldsFor(item.id);
 
@@ -96,7 +124,7 @@ export async function processVerificationBatch(
           content: { blocks: result.draft.blocks } as unknown as Prisma.InputJsonValue,
           status: "DRAFT",
           categoryId: category.id,
-          authorId: defaultAuthor.id,
+          authorId: eligibleAuthor.id,
           createdById: systemUserId,
           metaDescription: result.draft.excerpt,
           pakistanRelevance: item.pakistanRelevance,
@@ -136,6 +164,11 @@ export async function processVerificationBatch(
           // unused) — this is the "real uniqueness query" the check input
           // otherwise expects a caller to have already done.
           slugAvailable: true,
+          // Guaranteed by pickEligibleAuthor's own construction above —
+          // stated explicitly rather than relying on the "undefined never
+          // blocks" default, so this stays correct if the code is ever
+          // reordered.
+          authorEligible: true,
         });
 
         if (allChecksPassed(checks) && isCategoryAllowedForAutoPublish(category.slug)) {

@@ -12,6 +12,7 @@ import { evaluatePublicationChecks, allChecksPassed } from "@/lib/publication-ch
 import { absoluteUrl } from "@/lib/seo";
 import { slugify } from "@/lib/slugify";
 import { splitPakistanImpact } from "@/lib/content-blocks";
+import { isAuthorEligibleForCategory } from "@/lib/author-eligibility-shared";
 import { TRANSITION_LABELS, type TransitionName } from "@/lib/workflow";
 import {
   createArticleAction,
@@ -22,6 +23,12 @@ import {
 import { isPublishableReuseStatus } from "@/lib/publication-checks";
 import type { ArticleStatus, ArticleVerificationStatus, ImageReuseStatus } from "@prisma/client";
 import type { ContentBlock } from "@/lib/content-blocks";
+
+export interface EditorAuthorOption {
+  id: string;
+  name: string;
+  eligibleCategoryIds: string[];
+}
 
 export interface FeaturedMediaInfo {
   id: string;
@@ -57,7 +64,10 @@ interface ArticleEditorProps {
    * including drafts created from discovery via createDraftFromItemAction. */
   verification?: VerificationInfo | null;
   categories: { id: string; name: string }[];
-  authors: { id: string; name: string }[];
+  authors: EditorAuthorOption[];
+  /** Whether this session can save an article with an author ineligible
+   * for its category (CAN_OVERRIDE_AUTHOR_ELIGIBILITY, ADMIN only). */
+  canOverrideAuthorEligibility: boolean;
   legalTransitions: TransitionName[];
   mediaUploadAvailable: boolean;
 }
@@ -72,6 +82,7 @@ export function ArticleEditor({
   verification = null,
   categories,
   authors,
+  canOverrideAuthorEligibility,
   legalTransitions,
   mediaUploadAvailable,
 }: ArticleEditorProps) {
@@ -111,6 +122,11 @@ export function ArticleEditor({
 
   const fullInput: ArticleFormInput = { ...form, blocks, pakistanImpact, tagNames };
 
+  const selectedAuthor = authors.find((a) => a.id === fullInput.authorId) ?? null;
+  const authorEligible = selectedAuthor
+    ? isAuthorEligibleForCategory(selectedAuthor.eligibleCategoryIds, fullInput.categoryId)
+    : true; // no author selected yet — the separate "author" check already covers that
+
   const checks = useMemo(
     () =>
       evaluatePublicationChecks({
@@ -124,10 +140,12 @@ export function ArticleEditor({
         metaDescription: fullInput.metaDescription || null,
         excerpt: fullInput.excerpt || null,
         featuredMediaReuseStatus: featuredMedia?.reuseStatus ?? null,
+        authorEligible,
+        authorEligibilityOverridden: form.overrideAuthorEligibility,
       }),
     // slugAvailable omitted deliberately — verified server-side on save/publish
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [fullInput.title, fullInput.slug, fullInput.categoryId, fullInput.authorId, blocks, fullInput.featuredImageUrl, fullInput.featuredImageAlt, fullInput.metaDescription, fullInput.excerpt, featuredMedia],
+    [fullInput.title, fullInput.slug, fullInput.categoryId, fullInput.authorId, blocks, fullInput.featuredImageUrl, fullInput.featuredImageAlt, fullInput.metaDescription, fullInput.excerpt, featuredMedia, authorEligible, form.overrideAuthorEligibility],
   );
 
   function save() {
@@ -285,7 +303,7 @@ export function ArticleEditor({
                 Category
                 <select
                   value={form.categoryId}
-                  onChange={(e) => patch({ categoryId: e.target.value })}
+                  onChange={(e) => patch({ categoryId: e.target.value, overrideAuthorEligibility: false })}
                   className="rounded-md border border-border-strong p-2"
                 >
                   <option value="">Select a category</option>
@@ -300,17 +318,46 @@ export function ArticleEditor({
                 Author byline
                 <select
                   value={form.authorId}
-                  onChange={(e) => patch({ authorId: e.target.value })}
+                  onChange={(e) => {
+                    // Changing author (or category, handled separately)
+                    // means any prior override no longer applies to this
+                    // new pairing — re-confirm explicitly rather than
+                    // silently carrying it forward.
+                    patch({ authorId: e.target.value, overrideAuthorEligibility: false });
+                  }}
                   className="rounded-md border border-border-strong p-2"
                 >
                   <option value="">Select an author</option>
                   {authors.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.name}
+                      {fullInput.categoryId && !isAuthorEligibleForCategory(a.eligibleCategoryIds, fullInput.categoryId)
+                        ? " (not eligible for this category)"
+                        : ""}
                     </option>
                   ))}
                 </select>
               </label>
+              {selectedAuthor && !authorEligible && (
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs font-semibold text-amber-800">
+                  <p>
+                    &quot;{selectedAuthor.name}&quot; isn&apos;t eligible for the selected category. Choose an
+                    eligible author{canOverrideAuthorEligibility ? ", or override below." : "."}
+                  </p>
+                  {canOverrideAuthorEligibility ? (
+                    <label className="mt-2 flex items-center gap-2 font-normal normal-case text-amber-900">
+                      <input
+                        type="checkbox"
+                        checked={form.overrideAuthorEligibility}
+                        onChange={(e) => patch({ overrideAuthorEligibility: e.target.checked })}
+                      />
+                      Override — publish with this author anyway
+                    </label>
+                  ) : (
+                    <p className="mt-1 font-normal normal-case">Ask an admin to override if this is intentional.</p>
+                  )}
+                </div>
+              )}
               <label className="flex flex-col gap-1">
                 Tags (comma-separated)
                 <input

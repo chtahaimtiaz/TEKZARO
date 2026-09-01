@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { canEditArticle } from "@/lib/permissions";
+import { canEditArticle, CAN_OVERRIDE_AUTHOR_ELIGIBILITY } from "@/lib/permissions";
+import { getAuthorsForEditor } from "@/lib/author-eligibility";
 import { legalTransitionsFor } from "@/lib/workflow";
 import { asArticleContent } from "@/lib/content-blocks";
 import { ArticleEditor } from "@/components/admin/ArticleEditor";
@@ -13,21 +14,28 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
   const { id } = await params;
   const user = await requireUser();
 
-  const [article, categories, authors] = await Promise.all([
-    prisma.article.findUnique({
-      where: { id },
-      include: {
-        tags: { include: { tag: true } },
-        featuredMedia: {
-          select: { id: true, reuseStatus: true, sourceDomain: true, sourceArticleUrl: true, createdAt: true, selectionReasons: true },
-        },
+  const article = await prisma.article.findUnique({
+    where: { id },
+    include: {
+      tags: { include: { tag: true } },
+      featuredMedia: {
+        select: { id: true, reuseStatus: true, sourceDomain: true, sourceArticleUrl: true, createdAt: true, selectionReasons: true },
       },
-    }),
-    prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    prisma.author.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
-  ]);
-
+    },
+  });
   if (!article) notFound();
+
+  // getAuthorsForEditor(article.authorId) needs the article's own authorId,
+  // so this can't join the article fetch above in one Promise.all — but it
+  // still runs in parallel with the category fetch.
+  const [categories, authors] = await Promise.all([
+    prisma.category.findMany({
+      where: { OR: [{ active: true }, { id: article.categoryId }] },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+    getAuthorsForEditor(article.authorId),
+  ]);
 
   const canEdit = canEditArticle(user.role, article, user.id);
   const content = asArticleContent(article.content);
@@ -64,6 +72,7 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
             }
           : null
       }
+      canOverrideAuthorEligibility={CAN_OVERRIDE_AUTHOR_ELIGIBILITY.includes(user.role)}
       verification={{
         status: article.verificationStatus,
         primarySourceUrl: article.primarySourceUrl,
@@ -97,6 +106,11 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
         regionalRelevance: article.regionalRelevance,
         globalSignificance: article.globalSignificance,
         scheduledAt: article.scheduledAt ? article.scheduledAt.toISOString().slice(0, 16) : "",
+        // Always starts unchecked — a fresh, explicit re-confirmation per
+        // save, not persisted UI state (see resolveAuthorEligibility in
+        // lib/article-actions.ts for why an unchanged, already-overridden
+        // pairing still doesn't require re-ticking server-side).
+        overrideAuthorEligibility: false,
       }}
       categories={categories}
       authors={authors}

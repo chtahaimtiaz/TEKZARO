@@ -7,6 +7,7 @@ import { CAN_RESEARCH, CAN_CREATE_DRAFT_FROM_DISCOVERY } from "./permissions";
 import { logAction } from "./audit";
 import { hasUnresolvedContradiction } from "./cluster-actions";
 import { featuredImageFieldsFor } from "./images/featured-image";
+import { pickEligibleAuthor } from "./author-eligibility";
 import type { Prisma } from "@prisma/client";
 
 export interface ActionResult {
@@ -89,10 +90,15 @@ export async function createDraftFromItemAction(itemId: string): Promise<ActionR
     };
   }
 
-  const defaultAuthor = await prisma.author.findFirst({ orderBy: { name: "asc" } });
-  if (!defaultAuthor) return { ok: false, error: "No author profiles exist yet — create one first." };
   const category = item.category ?? (await prisma.category.findFirst({ orderBy: { name: "asc" } }));
   if (!category) return { ok: false, error: "No categories exist yet." };
+  const eligibleAuthor = await pickEligibleAuthor(category.id);
+  if (!eligibleAuthor) {
+    return {
+      ok: false,
+      error: `No active author is eligible for the "${category.name}" category. Add eligibility for an author on the Authors page first.`,
+    };
+  }
 
   const blocks = [
     { type: "paragraph", text: item.excerpt || item.headline },
@@ -122,7 +128,7 @@ export async function createDraftFromItemAction(itemId: string): Promise<ActionR
       content: { blocks } as unknown as Prisma.InputJsonValue,
       status: "DRAFT",
       categoryId: category.id,
-      authorId: defaultAuthor.id,
+      authorId: eligibleAuthor.id,
       createdById: user.id,
       metaDescription: item.excerpt,
       pakistanRelevance: item.pakistanRelevance,

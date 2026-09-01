@@ -20,7 +20,7 @@ describe("evaluatePublicationChecks", () => {
   it("passes every check for a well-formed article", () => {
     const checks = evaluatePublicationChecks(baseInput);
     expect(allChecksPassed(checks)).toBe(true);
-    expect(checks).toHaveLength(8);
+    expect(checks).toHaveLength(9);
   });
 
   it("fails the title check when too short", () => {
@@ -103,6 +103,30 @@ describe("evaluatePublicationChecks", () => {
       const checks = evaluatePublicationChecks({ ...baseInput, featuredMediaReuseStatus: "REQUIRES_REVIEW" });
       expect(allChecksPassed(checks)).toBe(false);
       expect(checks.filter((c) => !c.passed).map((c) => c.id)).toEqual(["image-rights"]);
+    });
+  });
+
+  describe("author-eligibility check", () => {
+    it("passes when authorEligible is omitted (client-side, no DB access)", () => {
+      const checks = evaluatePublicationChecks(baseInput);
+      expect(checks.find((c) => c.id === "author-eligibility")!.passed).toBe(true);
+    });
+
+    it("passes when authorEligible is true", () => {
+      const checks = evaluatePublicationChecks({ ...baseInput, authorEligible: true });
+      expect(checks.find((c) => c.id === "author-eligibility")!.passed).toBe(true);
+    });
+
+    it("fails when authorEligible is false and not overridden", () => {
+      const checks = evaluatePublicationChecks({ ...baseInput, authorEligible: false });
+      const check = checks.find((c) => c.id === "author-eligibility")!;
+      expect(check.passed).toBe(false);
+      expect(check.reason).toBeTruthy();
+    });
+
+    it("passes when authorEligible is false but authorEligibilityOverridden is true", () => {
+      const checks = evaluatePublicationChecks({ ...baseInput, authorEligible: false, authorEligibilityOverridden: true });
+      expect(checks.find((c) => c.id === "author-eligibility")!.passed).toBe(true);
     });
   });
 });

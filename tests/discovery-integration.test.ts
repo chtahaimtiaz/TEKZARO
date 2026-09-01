@@ -178,6 +178,71 @@ describe("createDraftFromItemAction — Non-negotiable invariant on the acquired
   });
 });
 
+describe("createDraftFromItemAction — no eligible author", () => {
+  const createdCategoryIds: string[] = [];
+  let deactivatedGeneralistIds: string[] = [];
+
+  afterAll(async () => {
+    if (deactivatedGeneralistIds.length) {
+      await prisma.author.updateMany({ where: { id: { in: deactivatedGeneralistIds } }, data: { active: true } });
+    }
+    if (createdCategoryIds.length) await prisma.category.deleteMany({ where: { id: { in: createdCategoryIds } } });
+  });
+
+  it("returns a clear error and creates no article when no active author is eligible for the item's category", async () => {
+    const editor = await createTestUser("EDITOR", "no-eligible-author");
+    trackUser(editor.id);
+    await loginAs(editor.id);
+
+    const freshCategory = await prisma.category.create({
+      data: { name: `No Eligible Author Cat ${Date.now()}`, slug: `no-eligible-author-cat-${Date.now()}-${Math.random()}` },
+    });
+    createdCategoryIds.push(freshCategory.id);
+
+    // Brand new category — no author's explicit list could include it yet,
+    // so eligibility reduces to "is any active author a generalist". Set
+    // every current generalist aside for this one assertion.
+    const activeGeneralists = await prisma.author.findMany({
+      where: { active: true, categories: { none: {} } },
+      select: { id: true },
+    });
+    deactivatedGeneralistIds = activeGeneralists.map((a) => a.id);
+    if (deactivatedGeneralistIds.length) {
+      await prisma.author.updateMany({ where: { id: { in: deactivatedGeneralistIds } }, data: { active: false } });
+    }
+
+    try {
+      const source = await prisma.source.create({
+        data: { name: `No Eligible Author Source ${Date.now()}`, url: "https://example.com", type: "RSS", tier: "TIER_2" },
+      });
+      createdSourceIds.push(source.id);
+      const item = await prisma.sourceItem.create({
+        data: {
+          sourceId: source.id,
+          sourceUrl: `https://example.com/no-author-${Date.now()}`,
+          headline: "No eligible author item",
+          normalizedTitle: "no eligible author item",
+          categoryId: freshCategory.id,
+        },
+      });
+
+      const result = await createDraftFromItemAction(item.id);
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/no active author is eligible/i);
+      expect(result.articleId).toBeUndefined();
+
+      const unchanged = await prisma.sourceItem.findUniqueOrThrow({ where: { id: item.id } });
+      expect(unchanged.status).toBe("NEW");
+    } finally {
+      if (deactivatedGeneralistIds.length) {
+        await prisma.author.updateMany({ where: { id: { in: deactivatedGeneralistIds } }, data: { active: true } });
+        deactivatedGeneralistIds = [];
+      }
+      clearSession();
+    }
+  });
+});
+
 describe("unauthorized discovery/source actions", () => {
   it("rejects a REPORTER managing sources", async () => {
     const reporter = await createTestUser("REPORTER", "sources-unauth");
