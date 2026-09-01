@@ -16,7 +16,7 @@ export async function SiteHeader() {
           {SITE_NAME}
         </Link>
 
-        <nav aria-label="Primary" className="hidden flex-1 items-center gap-5 text-sm font-semibold lg:flex">
+        <nav aria-label="Primary" className="hidden flex-1 items-center gap-5 text-sm font-semibold xl:flex">
           <Link href="/" className="hover:text-accent">
             Home
           </Link>
@@ -45,7 +45,9 @@ export async function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-3">
-          <ThemeToggle initialPreference={themePreference} />
+          <div className="hidden xl:block">
+            <ThemeToggle initialPreference={themePreference} />
+          </div>
           <Link
             href="/search"
             aria-label="Search TEKZARO"
@@ -62,7 +64,7 @@ export async function SiteHeader() {
           >
             Newsletter
           </Link>
-          <MobileMenu />
+          <MobileMenu themePreference={themePreference} />
         </div>
       </div>
     </header>

@@ -4,12 +4,21 @@ import { useState } from "react";
 import Link from "next/link";
 import { CATEGORIES } from "@/lib/constants";
 import { categoryHref } from "@/lib/constants";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import type { ThemePreference } from "@/lib/theme";
 
-export function MobileMenu() {
+interface MobileMenuProps {
+  /** Rendered inside this dropdown instead of the header row — see the note
+   * on ThemeToggle for why it doesn't live in the always-visible header
+   * below the xl breakpoint. */
+  themePreference: ThemePreference;
+}
+
+export function MobileMenu({ themePreference }: MobileMenuProps) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="lg:hidden">
+    <div className="xl:hidden">
       <button
         type="button"
         aria-expanded={open}
@@ -30,7 +39,11 @@ export function MobileMenu() {
       </button>
 
       {open && (
-        <nav id="mobile-nav" aria-label="Mobile" className="absolute inset-x-0 top-full z-40 border-t border-border bg-paper-raised px-4 py-4 shadow-xl">
+        <nav id="mobile-nav" aria-label="Mobile" className="absolute inset-x-0 top-full z-40 max-h-[calc(100vh-4rem)] overflow-y-auto border-t border-border bg-paper-raised px-4 py-4 shadow-xl">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <span className="text-sm font-semibold text-ink-muted">Theme</span>
+            <ThemeToggle initialPreference={themePreference} />
+          </div>
           <ul className="flex flex-col divide-y divide-border text-ink">
             <li>
               <Link href="/" className="block py-3 font-semibold" onClick={() => setOpen(false)}>

@@ -66,8 +66,8 @@ export default async function ArticlePage({ params }: Props) {
       <div className="flex items-center gap-2">
         <p className={`eyebrow ${isPakistan ? "eyebrow-pakistan" : ""}`}>{article.category.name}</p>
       </div>
-      <h1 className="mt-2 text-balance font-serif text-4xl font-bold leading-tight sm:text-5xl">{article.title}</h1>
-      {article.subheadline && <p className="mt-3 text-lg text-ink-soft">{article.subheadline}</p>}
+      <h1 className="mt-2 text-balance font-serif text-3xl font-bold leading-tight sm:text-4xl md:text-5xl">{article.title}</h1>
+      {article.subheadline && <p className="mt-3 text-base text-ink-soft sm:text-lg">{article.subheadline}</p>}
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-y border-border py-4">
         <AuthorByline author={article.author} publishedAt={article.publishedAt} readingTime={article.readingTime} size="md" />
