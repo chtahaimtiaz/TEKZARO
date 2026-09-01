@@ -68,6 +68,14 @@ async function makeTier1Source(url: string) {
   return source;
 }
 
+async function makeTier2Source(url: string) {
+  const source = await prisma.source.create({
+    data: { name: `VS Tier2 Source ${Date.now()}-${Math.random()}`, url, type: "RSS", tier: "TIER_2" },
+  });
+  createdSourceIds.push(source.id);
+  return source;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -166,6 +174,76 @@ describe("verifyAndSynthesize — configured, TIER_1 domain match found", () => 
     expect(result.verificationStatus).toBe("PRIMARY_SOURCE_CONFIRMED");
     expect(result.primarySourceUrl).toBe("https://official-newsroom.test/press-release");
     expect(result.draft?.headline).toBe(validDraft.headline);
+  });
+
+  it("also finds and fetches a TIER_2 secondary source, and passes verificationConfidence/claimsChecked through from the model", async () => {
+    isSearchConfiguredMock.mockReturnValue(true);
+    await makeTier1Source("https://official-newsroom.test");
+    await makeTier2Source("https://reputable-tech-media.test");
+    searchWebMock.mockResolvedValue([
+      { title: "Official statement", url: "https://official-newsroom.test/press-release", snippet: "..." },
+      { title: "Independent report", url: "https://reputable-tech-media.test/story", snippet: "..." },
+    ]);
+    safeFetchMock.mockImplementation(async (url: string) => ({
+      status: 200,
+      headers: new Headers(),
+      text: `Text fetched from ${url}`,
+      finalUrl: url,
+    }));
+    generateWithAIMock.mockResolvedValue(
+      JSON.stringify({
+        verificationStatus: "PRIMARY_SOURCE_CONFIRMED",
+        verificationConfidence: 88,
+        claimsChecked: ["The company announced the product.", "It ships next month."],
+        notes: "Confirmed by the primary source and corroborated by an independent outlet.",
+        draft: validDraft,
+      }),
+    );
+
+    const user = await createTestUser("EDITOR", "vs-secondary");
+    trackUser(user.id);
+    const { source, item } = await makeSourceAndItem("https://example-outlet.test");
+
+    const result = await verifyAndSynthesize({ requestedById: user.id, item: { ...item, source } });
+
+    expect(safeFetchMock).toHaveBeenCalledWith("https://official-newsroom.test/press-release");
+    expect(safeFetchMock).toHaveBeenCalledWith("https://reputable-tech-media.test/story");
+    expect(result.verificationStatus).toBe("PRIMARY_SOURCE_CONFIRMED");
+    expect(result.secondarySourceUrl).toBe("https://reputable-tech-media.test/story");
+    expect(result.verificationConfidence).toBe(88);
+    expect(result.claimsChecked).toEqual(["The company announced the product.", "It ships next month."]);
+  });
+
+  it("does not let a secondary source unlock PRIMARY_SOURCE_CONFIRMED on its own — primary is still required", async () => {
+    isSearchConfiguredMock.mockReturnValue(true);
+    // No TIER_1 source registered at all — only a TIER_2 secondary match exists.
+    await makeTier2Source("https://reputable-tech-media.test");
+    searchWebMock.mockResolvedValue([
+      { title: "Independent report", url: "https://reputable-tech-media.test/story", snippet: "..." },
+    ]);
+    safeFetchMock.mockResolvedValue({
+      status: 200,
+      headers: new Headers(),
+      text: "Independent report text.",
+      finalUrl: "https://reputable-tech-media.test/story",
+    });
+    generateWithAIMock.mockResolvedValue(
+      JSON.stringify({
+        verificationStatus: "PRIMARY_SOURCE_CONFIRMED", // model over-claiming with only a secondary source
+        notes: "Should be overridden — no primary source was ever provided.",
+        draft: validDraft,
+      }),
+    );
+
+    const user = await createTestUser("EDITOR", "vs-secondary-only");
+    trackUser(user.id);
+    const { source, item } = await makeSourceAndItem("https://example-outlet.test");
+
+    const result = await verifyAndSynthesize({ requestedById: user.id, item: { ...item, source } });
+
+    expect(result.verificationStatus).toBe("PRIMARY_SOURCE_NOT_FOUND");
+    expect(result.primarySourceUrl).toBeNull();
+    expect(result.secondarySourceUrl).toBe("https://reputable-tech-media.test/story");
   });
 
   it("treats an unreachable candidate as not-found rather than trusting a URL it never actually read", async () => {

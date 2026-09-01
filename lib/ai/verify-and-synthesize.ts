@@ -9,6 +9,15 @@ import type { ArticleVerificationStatus, SourceItem, Source } from "@prisma/clie
 export interface VerifyAndSynthesizeResult {
   verificationStatus: ArticleVerificationStatus;
   primarySourceUrl: string | null;
+  /** A second, independent reputable (TIER_1/TIER_2) source that also
+   * discusses this story, if one was found — optional corroboration, never
+   * required for PRIMARY_SOURCE_CONFIRMED (see findSourceCandidates). */
+  secondarySourceUrl: string | null;
+  /** AI-reported 0-100 confidence — editorial transparency signal only.
+   * lib/verification-actions.ts's auto-publish gate never reads this. */
+  verificationConfidence: number | null;
+  /** The specific claims the model says it compared against the source(s). */
+  claimsChecked: string[];
   notes: string;
   draft: { headline: string; excerpt: string; blocks: ContentBlock[] } | null;
   /** Null when no AI call was ever attempted (e.g. search not configured) —
@@ -17,7 +26,20 @@ export interface VerifyAndSynthesizeResult {
   generationId: string | null;
 }
 
-const MAX_PRIMARY_SOURCE_CHARS = 6000;
+function emptyResult(notes: string, generationId: string | null = null): VerifyAndSynthesizeResult {
+  return {
+    verificationStatus: "UNVERIFIED",
+    primarySourceUrl: null,
+    secondarySourceUrl: null,
+    verificationConfidence: null,
+    claimsChecked: [],
+    notes,
+    draft: null,
+    generationId,
+  };
+}
+
+const MAX_SOURCE_CHARS = 6000;
 
 function hostnameOf(url: string): string | null {
   try {
@@ -28,31 +50,58 @@ function hostnameOf(url: string): string | null {
 }
 
 /**
- * Finds the first search result hosted on a known-official (Source.tier =
- * TIER_1) domain, excluding the discovered item's own source domain (so a
- * story is never "confirmed" against itself). Deliberately deterministic,
- * not LLM-guessed — consistent with this codebase's existing preference for
+ * Finds up to two search results hosted on known, curated Source domains:
+ * a primary (TIER_1 — official/company newsroom) match, and a secondary
+ * (TIER_2 — reputable tech media) match, each excluding the discovered
+ * item's own source domain and each other. Deliberately deterministic, not
+ * LLM-guessed — consistent with this codebase's existing preference for
  * auditable, code-driven classification (tech-relevance, Pakistan-relevance,
- * priority scoring all do this already) — and reuses the TIER_1 curation
+ * priority scoring all do this already) — and reuses the tier curation
  * already done when the source list was built, rather than hand-maintaining
- * a second "official domains" list that could drift out of sync.
+ * a second "which domains count as reputable" list that could drift out of
+ * sync.
  */
-async function findPrimarySourceCandidate(
+async function findSourceCandidates(
   results: { title: string; url: string; snippet: string }[],
   ownSourceUrl: string,
-): Promise<string | null> {
-  const tier1 = await prisma.source.findMany({
-    where: { tier: "TIER_1", active: true },
-    select: { url: true },
+): Promise<{ primaryUrl: string | null; secondaryUrl: string | null }> {
+  const reputable = await prisma.source.findMany({
+    where: { tier: { in: ["TIER_1", "TIER_2"] }, active: true },
+    select: { url: true, tier: true },
   });
-  const tier1Hostnames = new Set(tier1.map((s) => hostnameOf(s.url)).filter((h): h is string => h !== null));
+  const tier1Hostnames = new Set(
+    reputable.filter((s) => s.tier === "TIER_1").map((s) => hostnameOf(s.url)).filter((h): h is string => h !== null),
+  );
+  const tier2Hostnames = new Set(
+    reputable.filter((s) => s.tier === "TIER_2").map((s) => hostnameOf(s.url)).filter((h): h is string => h !== null),
+  );
   const ownHostname = hostnameOf(ownSourceUrl);
 
-  const match = results.find((r) => {
+  const primaryMatch = results.find((r) => {
     const h = hostnameOf(r.url);
     return h !== null && tier1Hostnames.has(h) && h !== ownHostname;
   });
-  return match?.url ?? null;
+  const primaryHostname = primaryMatch ? hostnameOf(primaryMatch.url) : null;
+
+  const secondaryMatch = results.find((r) => {
+    const h = hostnameOf(r.url);
+    return h !== null && tier2Hostnames.has(h) && h !== ownHostname && h !== primaryHostname;
+  });
+
+  return { primaryUrl: primaryMatch?.url ?? null, secondaryUrl: secondaryMatch?.url ?? null };
+}
+
+async function fetchSourceText(url: string | null): Promise<{ text: string; finalUrl: string } | null> {
+  if (!url) return null;
+  try {
+    const fetched = await safeFetch(url);
+    return { text: fetched.text.slice(0, MAX_SOURCE_CHARS), finalUrl: fetched.finalUrl };
+  } catch {
+    // Unreachable candidate doesn't count as a confirmable/citable source for
+    // this run — proceed as if none was found, rather than trusting a URL we
+    // couldn't actually read.
+    return null;
+  }
 }
 
 function isValidBlock(value: unknown): value is ParagraphBlock | HeadingBlock | QuoteBlock | ListBlock {
@@ -85,12 +134,18 @@ const VALID_STATUSES: ReadonlySet<string> = new Set([
 
 interface ParsedModelOutput {
   verificationStatus: ArticleVerificationStatus;
+  verificationConfidence: number | null;
+  claimsChecked: string[];
   notes: string;
   draft: { headline: string; excerpt: string; blocks: ContentBlock[] } | null;
 }
 
 /** Parses the model's JSON response defensively — malformed/unexpected
- * shape degrades to null (caller treats that as UNVERIFIED), never throws. */
+ * shape degrades to null (caller treats that as UNVERIFIED), never throws.
+ * Only verificationStatus/notes are load-bearing (missing/invalid fails the
+ * whole parse); verificationConfidence/claimsChecked are enrichment fields
+ * that degrade individually to null/[] rather than invalidating an
+ * otherwise-usable response. */
 function parseModelOutput(text: string): ParsedModelOutput | null {
   const stripped = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "");
   let raw: unknown;
@@ -104,6 +159,15 @@ function parseModelOutput(text: string): ParsedModelOutput | null {
 
   if (typeof obj.verificationStatus !== "string" || !VALID_STATUSES.has(obj.verificationStatus)) return null;
   if (typeof obj.notes !== "string") return null;
+
+  const verificationConfidence =
+    typeof obj.verificationConfidence === "number" && obj.verificationConfidence >= 0 && obj.verificationConfidence <= 100
+      ? Math.round(obj.verificationConfidence)
+      : null;
+  const claimsChecked =
+    Array.isArray(obj.claimsChecked) && obj.claimsChecked.every((c) => typeof c === "string")
+      ? (obj.claimsChecked as string[])
+      : [];
 
   let draft: ParsedModelOutput["draft"] = null;
   if (obj.draft !== null && typeof obj.draft === "object") {
@@ -122,6 +186,8 @@ function parseModelOutput(text: string): ParsedModelOutput | null {
 
   return {
     verificationStatus: obj.verificationStatus as ArticleVerificationStatus,
+    verificationConfidence,
+    claimsChecked,
     notes: obj.notes,
     draft,
   };
@@ -131,6 +197,8 @@ const RESPONSE_SCHEMA_INSTRUCTIONS = `
 Respond with ONLY a single JSON object — no markdown code fences, no commentary before or after. Exact shape:
 {
   "verificationStatus": "PRIMARY_SOURCE_CONFIRMED" | "PRIMARY_SOURCE_NOT_FOUND" | "CONTRADICTION_FOUND" | "UNVERIFIED",
+  "verificationConfidence": 0-100,
+  "claimsChecked": ["specific factual claim you compared against the source(s)", "..."],
   "notes": "plain-English explanation of your reasoning, for a human editor",
   "draft": null | {
     "headline": "original headline in TEKZARO's own words",
@@ -138,12 +206,14 @@ Respond with ONLY a single JSON object — no markdown code fences, no commentar
     "blocks": [ { "type": "paragraph", "text": "..." }, { "type": "heading", "level": 2, "text": "..." }, { "type": "list", "style": "bullet", "items": ["..."] }, { "type": "quote", "text": "...", "cite": "optional" } ]
   }
 }
-Rules for "draft":
-- Write ORIGINAL prose in TEKZARO's own voice. Never copy sentences verbatim from the source material provided — summarize and re-report, don't reproduce.
-- Include an inline attribution line naming where this was first reported and, if a primary source was provided, the official source it was verified against (e.g. "According to Samsung's newsroom... TechCrunch first reported this development").
+Rules:
+- "claimsChecked": list the specific factual claims from the discovered story you actually compared against the source material provided below — an empty array if none could be checked.
+- "verificationConfidence": your own honest confidence (0-100) that this story is accurately reported. This is recorded for editorial transparency ONLY and never by itself decides whether anything gets published — do not inflate it.
+- Use "verificationStatus": "PRIMARY_SOURCE_CONFIRMED" ONLY if a primary source's text was actually provided to you below AND it corroborates the story. A secondary source, if provided, strengthens this but is NEVER required — an official primary source is sufficient on its own. If no primary source text was provided, you MUST NOT claim PRIMARY_SOURCE_CONFIRMED, even if a secondary source was provided.
+- Use "CONTRADICTION_FOUND" if any provided source's text contradicts the discovered claims.
+- Write ORIGINAL prose in TEKZARO's own voice for "draft". Never copy sentences verbatim from the source material provided — summarize and re-report, don't reproduce.
+- Include an inline attribution line naming where this was first reported and every official/independent source it was verified against (e.g. "According to Samsung's newsroom... TechCrunch first reported this development, and it was independently corroborated by The Verge").
 - Set "draft" to null if you don't have enough material to write a genuine, factual article.
-- Use "verificationStatus": "PRIMARY_SOURCE_CONFIRMED" ONLY if a primary source's text was actually provided to you below AND it corroborates the story. If no primary source text was provided, you MUST NOT claim PRIMARY_SOURCE_CONFIRMED.
-- Use "CONTRADICTION_FOUND" if the primary source's text contradicts the discovered claims.
 `.trim();
 
 export async function verifyAndSynthesize(params: {
@@ -153,43 +223,19 @@ export async function verifyAndSynthesize(params: {
   const { requestedById, item } = params;
 
   if (!isSearchConfigured()) {
-    return {
-      verificationStatus: "UNVERIFIED",
-      primarySourceUrl: null,
-      notes: "Search not configured (SEARCH_API_KEY / GOOGLE_SEARCH_ENGINE_ID missing) — no verification attempted.",
-      draft: null,
-      generationId: null,
-    };
+    return emptyResult("Search not configured (SEARCH_API_KEY missing) — no verification attempted.");
   }
 
   let searchResults: { title: string; url: string; snippet: string }[];
   try {
     searchResults = await searchWeb(item.headline);
   } catch (err) {
-    return {
-      verificationStatus: "UNVERIFIED",
-      primarySourceUrl: null,
-      notes: `Search failed: ${err instanceof Error ? err.message : String(err)}`,
-      draft: null,
-      generationId: null,
-    };
+    return emptyResult(`Search failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  const candidateUrl = await findPrimarySourceCandidate(searchResults, item.source.url);
-
-  let primarySourceText: string | null = null;
-  let confirmedPrimarySourceUrl: string | null = null;
-  if (candidateUrl) {
-    try {
-      const fetched = await safeFetch(candidateUrl);
-      primarySourceText = fetched.text.slice(0, MAX_PRIMARY_SOURCE_CHARS);
-      confirmedPrimarySourceUrl = fetched.finalUrl;
-    } catch {
-      // Unreachable candidate doesn't count as a confirmable primary source
-      // for this run — proceed as if none was found, rather than trusting a
-      // URL we couldn't actually read.
-    }
-  }
+  const { primaryUrl, secondaryUrl } = await findSourceCandidates(searchResults, item.source.url);
+  const primaryFetched = await fetchSourceText(primaryUrl);
+  const secondaryFetched = await fetchSourceText(secondaryUrl);
 
   const userPrompt = [
     `Discovered story:`,
@@ -197,9 +243,13 @@ export async function verifyAndSynthesize(params: {
     `Summary: ${item.excerpt ?? "(none provided)"}`,
     `Reported by: ${item.source.name} (${item.source.url})`,
     ``,
-    primarySourceText
-      ? `Primary source text found at ${confirmedPrimarySourceUrl}:\n${primarySourceText}`
+    primaryFetched
+      ? `Primary source text found at ${primaryFetched.finalUrl}:\n${primaryFetched.text}`
       : `No primary/official source could be found or read for this story.`,
+    ``,
+    secondaryFetched
+      ? `Secondary independent source text found at ${secondaryFetched.finalUrl}:\n${secondaryFetched.text}`
+      : `No secondary independent source could be found or read for this story.`,
     ``,
     RESPONSE_SCHEMA_INSTRUCTIONS,
   ].join("\n");
@@ -207,46 +257,35 @@ export async function verifyAndSynthesize(params: {
   const result = await runTask({
     task: "VERIFY_PRIMARY_SOURCE",
     requestedById,
-    inputRef: { sourceItemId: item.id, primarySourceUrl: confirmedPrimarySourceUrl },
+    inputRef: { sourceItemId: item.id, primarySourceUrl: primaryFetched?.finalUrl ?? null, secondarySourceUrl: secondaryFetched?.finalUrl ?? null },
     systemPrompt: `${NEWSROOM_SYSTEM_PROMPT}\n\n${RESPONSE_SCHEMA_INSTRUCTIONS}`,
     userPrompt,
   });
 
   if (!result.ok || !result.text) {
-    return {
-      verificationStatus: "UNVERIFIED",
-      primarySourceUrl: null,
-      notes: result.notConfigured ? "AI not configured — no verification attempted." : `AI call failed: ${result.error ?? "unknown error"}`,
-      draft: null,
-      generationId: result.generationId,
-    };
+    return emptyResult(
+      result.notConfigured ? "AI not configured — no verification attempted." : `AI call failed: ${result.error ?? "unknown error"}`,
+      result.generationId,
+    );
   }
 
   const parsed = parseModelOutput(result.text);
   if (!parsed) {
-    return {
-      verificationStatus: "UNVERIFIED",
-      primarySourceUrl: null,
-      notes: "AI response could not be parsed as valid JSON — treated as unverified.",
-      draft: null,
-      generationId: result.generationId,
-    };
+    return emptyResult("AI response could not be parsed as valid JSON — treated as unverified.", result.generationId);
   }
 
   // Deterministic override, not just a prompt instruction: the model cannot
   // have confirmed or contradicted a primary source that was never actually
-  // fetched for it to read, regardless of what it claims.
-  const verificationStatus: ArticleVerificationStatus = primarySourceText
-    ? parsed.verificationStatus
-    : "PRIMARY_SOURCE_NOT_FOUND";
+  // fetched for it to read, regardless of what it claims. The secondary
+  // source never unlocks CONFIRMED by itself — see RESPONSE_SCHEMA_INSTRUCTIONS.
+  const verificationStatus: ArticleVerificationStatus = primaryFetched ? parsed.verificationStatus : "PRIMARY_SOURCE_NOT_FOUND";
 
   return {
-    // confirmedPrimarySourceUrl is only ever non-null when primarySourceText
-    // was actually fetched, which is exactly the condition verificationStatus
-    // was just derived from above — so this is already consistent whether
-    // the primary source confirmed or contradicted the story.
     verificationStatus,
-    primarySourceUrl: confirmedPrimarySourceUrl,
+    primarySourceUrl: primaryFetched?.finalUrl ?? null,
+    secondarySourceUrl: secondaryFetched?.finalUrl ?? null,
+    verificationConfidence: parsed.verificationConfidence,
+    claimsChecked: parsed.claimsChecked,
     notes: parsed.notes,
     draft: parsed.draft,
     generationId: result.generationId,

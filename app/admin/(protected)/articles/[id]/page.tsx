@@ -67,6 +67,9 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
       verification={{
         status: article.verificationStatus,
         primarySourceUrl: article.primarySourceUrl,
+        secondarySourceUrl: article.secondarySourceUrl,
+        confidence: article.verificationConfidence,
+        claimsChecked: (article.claimsChecked as string[] | null) ?? [],
         notes: article.verificationNotes,
         autoPublished: article.autoPublished,
       }}

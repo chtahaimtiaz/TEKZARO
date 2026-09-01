@@ -35,6 +35,9 @@ export interface FeaturedMediaInfo {
 export interface VerificationInfo {
   status: ArticleVerificationStatus;
   primarySourceUrl: string | null;
+  secondarySourceUrl: string | null;
+  confidence: number | null;
+  claimsChecked: string[];
   notes: string | null;
   autoPublished: boolean;
 }
@@ -432,6 +435,30 @@ export function ArticleEditor({
                           {verification.primarySourceUrl}
                         </a>
                       </p>
+                    )}
+                    {verification.secondarySourceUrl && (
+                      <p>
+                        <span className="font-medium text-ink-soft">Secondary source: </span>
+                        <a href={verification.secondarySourceUrl} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+                          {verification.secondarySourceUrl}
+                        </a>
+                      </p>
+                    )}
+                    {verification.confidence !== null && (
+                      <p>
+                        <span className="font-medium text-ink-soft">AI-reported confidence: </span>
+                        {verification.confidence}/100 (editorial signal only — never used to gate publishing)
+                      </p>
+                    )}
+                    {verification.claimsChecked.length > 0 && (
+                      <div>
+                        <span className="font-medium text-ink-soft">Claims checked:</span>
+                        <ul className="list-disc pl-4">
+                          {verification.claimsChecked.map((claim, i) => (
+                            <li key={i}>{claim}</li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
                     {verification.notes && (
                       <p>

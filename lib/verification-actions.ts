@@ -19,23 +19,39 @@ export interface VerificationBatchSummary {
   failed: number;
 }
 
-const DEFAULT_LIMIT = 4;
+const DEFAULT_LIMIT = 1;
 
 function emptySummary(): VerificationBatchSummary {
   return { itemsProcessed: 0, draftsCreated: 0, autoPublished: 0, sentToReview: 0, skippedNoDraft: 0, failed: 0 };
 }
 
 /**
- * Claims a bounded batch of NEW SourceItems, verifies each against a known
- * primary source (lib/ai/verify-and-synthesize.ts), and either auto-publishes
- * the synthesized draft or routes it to human review. Additive to, never a
- * replacement for, the existing manual createDraftFromItemAction path
- * (lib/discovery-actions.ts) — an item this batch can't produce a draft for
- * (search/AI not configured, or nothing usable found) is simply left NEW.
+ * Kill switch / gradual-rollout control: a category must be explicitly
+ * listed in AUTO_PUBLISH_CATEGORY_SLUGS (comma-separated slugs) before this
+ * pipeline will ever auto-publish into it. Defaults to empty — meaning
+ * nothing auto-publishes anywhere — so a fresh deploy starts in pure
+ * "verify + synthesize -> human review" mode, matching the recommended
+ * trial period before enabling auto-publish for selected high-confidence
+ * categories.
+ */
+function isCategoryAllowedForAutoPublish(categorySlug: string): boolean {
+  const raw = process.env.AUTO_PUBLISH_CATEGORY_SLUGS ?? "";
+  const allowed = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  return allowed.includes(categorySlug);
+}
+
+/**
+ * Claims a bounded batch of NEW SourceItems, verifies each against known
+ * primary/secondary sources (lib/ai/verify-and-synthesize.ts), and either
+ * auto-publishes the synthesized draft or routes it to human review.
+ * Additive to, never a replacement for, the existing manual
+ * createDraftFromItemAction path (lib/discovery-actions.ts) — an item this
+ * batch can't produce a draft for (search/AI not configured, or nothing
+ * usable found) is simply left NEW.
  *
- * limit defaults to VERIFY_BATCH_SIZE (see .env.example for the Google
- * Custom Search free-tier quota arithmetic behind the default of 4) rather
- * than an unbounded claim — each item costs one search query.
+ * limit defaults to VERIFY_BATCH_SIZE (see .env.example for the Tavily
+ * free-tier quota arithmetic behind the default of 1) rather than an
+ * unbounded claim — each item costs one search credit.
  */
 export async function processVerificationBatch(
   limit: number = Number(process.env.VERIFY_BATCH_SIZE) || DEFAULT_LIMIT,
@@ -86,7 +102,12 @@ export async function processVerificationBatch(
           pakistanRelevance: item.pakistanRelevance,
           verificationStatus: result.verificationStatus,
           primarySourceUrl: result.primarySourceUrl,
+          secondarySourceUrl: result.secondarySourceUrl,
+          verificationConfidence: result.verificationConfidence,
+          claimsChecked: result.claimsChecked,
           verificationNotes: result.notes,
+          verifiedAt: new Date(),
+          verificationGenerationId: result.generationId,
           ...imageFields,
         },
       });
@@ -117,7 +138,7 @@ export async function processVerificationBatch(
           slugAvailable: true,
         });
 
-        if (allChecksPassed(checks)) {
+        if (allChecksPassed(checks) && isCategoryAllowedForAutoPublish(category.slug)) {
           const now = new Date();
           await prisma.article.update({
             where: { id: article.id },
@@ -147,9 +168,11 @@ export async function processVerificationBatch(
           published = true;
           summary.autoPublished += 1;
         } else {
-          // Verification confirmed a primary source but a publication check
-          // still failed (e.g. an acquired image not yet cleared for reuse)
-          // — surface it higher in the human queue rather than leaving it an
+          // Verification confirmed a primary source, but either a
+          // publication check still failed (e.g. an acquired image not yet
+          // cleared for reuse) or this category isn't yet enabled for
+          // auto-publish (AUTO_PUBLISH_CATEGORY_SLUGS) — either way, surface
+          // it higher in the human queue rather than leaving it an
           // easy-to-miss bare DRAFT.
           await prisma.article.update({ where: { id: article.id }, data: { status: "IN_REVIEW" } });
         }
