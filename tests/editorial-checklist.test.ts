@@ -56,15 +56,13 @@ describe("computeCategoryEntry / computeDayStatus / dayStatusLabel (pure)", () =
 describe("getDailyChecklist — DB-backed", () => {
   const createdArticleIds: string[] = [];
   const createdCategoryIds: string[] = [];
-  let authorId: string;
-  let deactivatedOtherCategoryIds: string[] = [];
+  let authorId: string | null = null;
+  let ownAuthorId: string | null = null;
 
   afterAll(async () => {
     if (createdArticleIds.length) await prisma.article.deleteMany({ where: { id: { in: createdArticleIds } } });
     if (createdCategoryIds.length) await prisma.category.deleteMany({ where: { id: { in: createdCategoryIds } } });
-    if (deactivatedOtherCategoryIds.length) {
-      await prisma.category.updateMany({ where: { id: { in: deactivatedOtherCategoryIds } }, data: { participatesInQuota: true } });
-    }
+    if (ownAuthorId) await prisma.author.deleteMany({ where: { id: ownAuthorId } });
   });
 
   async function makeCategory(target: number, extra: Partial<{ requirePrimarySourceVerification: boolean }> = {}) {
@@ -83,7 +81,19 @@ describe("getDailyChecklist — DB-backed", () => {
   }
 
   async function makeArticle(categoryId: string, publishedAt: Date, extra: Partial<{ verificationStatus: "UNVERIFIED" | "PRIMARY_SOURCE_CONFIRMED" }> = {}) {
-    if (!authorId) authorId = (await prisma.author.findFirstOrThrow()).id;
+    if (!authorId) {
+      // A dedicated author, not an arbitrary findFirstOrThrow() pick — this
+      // suite runs against the same shared dev database as several other
+      // test files that create/delete their own temporary Author rows
+      // concurrently (Vitest runs test files in parallel by default), so an
+      // unowned pick could go stale mid-run when another file's afterAll
+      // deletes it.
+      const author = await prisma.author.create({
+        data: { name: `Checklist Test Author ${Date.now()}`, slug: `checklist-test-author-${Date.now()}-${Math.random()}` },
+      });
+      ownAuthorId = author.id;
+      authorId = author.id;
+    }
     const article = await prisma.article.create({
       data: {
         slug: `checklist-test-article-${Date.now()}-${Math.random()}`,
@@ -118,38 +128,38 @@ describe("getDailyChecklist — DB-backed", () => {
     expect(day16.categories.find((c) => c.categoryId === category.id)?.count).toBe(1);
   });
 
-  it("TARGET_MET only once the (isolated) category reaches its target; TARGET NOT MET — INSUFFICIENT VERIFIED NEWS on a past day short of it", async () => {
+  it("TARGET_MET only once the category reaches its target; TARGET NOT MET — INSUFFICIENT VERIFIED NEWS on a past day short of it", async () => {
     const category = await makeCategory(2);
+    const pastDate = "2026-01-15";
 
-    // Isolate the day-level status to just this one category — set every
-    // other currently-participating category aside for this assertion,
-    // same idiom tests/verification-actions.test.ts already established
-    // for a different shared resource.
-    const others = await prisma.category.findMany({ where: { participatesInQuota: true, id: { not: category.id } }, select: { id: true } });
-    deactivatedOtherCategoryIds = others.map((c) => c.id);
-    if (deactivatedOtherCategoryIds.length) {
-      await prisma.category.updateMany({ where: { id: { in: deactivatedOtherCategoryIds } }, data: { participatesInQuota: false } });
-    }
+    // Compute the day-status assertion from ONLY this test's own category
+    // entry via the pure computeDayStatus, rather than trusting
+    // getDailyChecklist's aggregate summary.status across every
+    // participating category in the shared dev DB. Several other test
+    // files create their own temporary categories concurrently (Vitest
+    // runs test files in parallel), so a real category created by another
+    // file mid-run — with zero articles on this specific pastDate — could
+    // otherwise drag a "set aside everything else" snapshot-based
+    // isolation stale and falsely report TARGET_NOT_MET. Reading just this
+    // one category's own `complete` flag out of the real result sidesteps
+    // that entirely, with no global state to mutate or race on.
+    await makeArticle(category.id, new Date(`${pastDate}T10:00:00Z`)); // 1 of 2 — a genuine shortfall on a past day
 
-    try {
-      const pastDate = "2026-01-15";
-      await makeArticle(category.id, new Date(`${pastDate}T10:00:00Z`)); // 1 of 2 — a genuine shortfall on a past day
+    const short = await getDailyChecklist(pastDate);
+    const shortEntry = short.categories.find((c) => c.categoryId === category.id)!;
+    expect(shortEntry.complete).toBe(false);
+    const shortStatus = computeDayStatus([shortEntry], short.isToday);
+    expect(shortStatus).toBe("TARGET_NOT_MET");
+    expect(dayStatusLabel(shortStatus)).toBe("TARGET NOT MET — INSUFFICIENT VERIFIED NEWS");
 
-      const short = await getDailyChecklist(pastDate);
-      expect(short.status).toBe("TARGET_NOT_MET");
-      expect(dayStatusLabel(short.status)).toBe("TARGET NOT MET — INSUFFICIENT VERIFIED NEWS");
+    await makeArticle(category.id, new Date(`${pastDate}T11:00:00Z`)); // now 2 of 2
 
-      await makeArticle(category.id, new Date(`${pastDate}T11:00:00Z`)); // now 2 of 2
-
-      const met = await getDailyChecklist(pastDate);
-      expect(met.status).toBe("TARGET_MET");
-      expect(dayStatusLabel(met.status)).toBe("TARGET MET");
-    } finally {
-      if (deactivatedOtherCategoryIds.length) {
-        await prisma.category.updateMany({ where: { id: { in: deactivatedOtherCategoryIds } }, data: { participatesInQuota: true } });
-        deactivatedOtherCategoryIds = [];
-      }
-    }
+    const met = await getDailyChecklist(pastDate);
+    const metEntry = met.categories.find((c) => c.categoryId === category.id)!;
+    expect(metEntry.complete).toBe(true);
+    const metStatus = computeDayStatus([metEntry], met.isToday);
+    expect(metStatus).toBe("TARGET_MET");
+    expect(dayStatusLabel(metStatus)).toBe("TARGET MET");
   });
 
   it("caps a category's contribution at its own target, so overachieving doesn't mask a shortfall elsewhere", async () => {

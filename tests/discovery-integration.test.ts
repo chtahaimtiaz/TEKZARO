@@ -18,10 +18,29 @@ let authorId: string;
 const createdSourceIds: string[] = [];
 const createdClusterIds: string[] = [];
 const createdArticleIds: string[] = [];
+let ownCategoryId: string | null = null;
+let ownAuthorId: string | null = null;
 
 beforeAll(async () => {
-  categoryId = (await prisma.category.findFirstOrThrow()).id;
-  authorId = (await prisma.author.findFirstOrThrow()).id;
+  // Dedicated fixtures, not an arbitrary findFirstOrThrow() pick — this
+  // suite runs against the same shared dev database used all session, and
+  // several other test files now create/delete their own temporary
+  // Category/Author rows concurrently (Vitest runs test files in parallel
+  // by default). Prisma's findFirstOrThrow() with no orderBy has no
+  // guaranteed stability, so it can land on one of THOSE files' temporary
+  // rows and go stale mid-run when that file's own afterAll deletes it —
+  // exactly the failure this replaces.
+  const category = await prisma.category.create({
+    data: { name: `Discovery Test Category ${Date.now()}`, slug: `discovery-test-category-${Date.now()}` },
+  });
+  ownCategoryId = category.id;
+  categoryId = category.id;
+
+  const author = await prisma.author.create({
+    data: { name: `Discovery Test Author ${Date.now()}`, slug: `discovery-test-author-${Date.now()}` },
+  });
+  ownAuthorId = author.id;
+  authorId = author.id;
 });
 
 afterAll(async () => {
@@ -29,6 +48,8 @@ afterAll(async () => {
   if (createdArticleIds.length) await prisma.article.deleteMany({ where: { id: { in: createdArticleIds } } });
   if (createdClusterIds.length) await prisma.storyCluster.deleteMany({ where: { id: { in: createdClusterIds } } });
   if (createdSourceIds.length) await prisma.source.deleteMany({ where: { id: { in: createdSourceIds } } });
+  if (ownAuthorId) await prisma.author.deleteMany({ where: { id: ownAuthorId } });
+  if (ownCategoryId) await prisma.category.deleteMany({ where: { id: ownCategoryId } });
   await cleanupTestData();
 });
 
