@@ -60,7 +60,7 @@ export function BlockEditor({ blocks, onChange }: BlockEditorProps) {
 
       {blocks.map((block, index) => (
         <div key={index} className="rounded-lg border border-border bg-paper-raised p-3">
-          <div className="mb-2 flex items-center justify-between text-xs text-ink-muted">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-muted">
             <span className="font-semibold uppercase tracking-wide">{block.type}</span>
             <div className="flex gap-1">
               <button type="button" onClick={() => moveBlock(index, -1)} className="rounded border border-border px-2 py-0.5 hover:border-accent">
@@ -89,7 +89,7 @@ export function BlockEditor({ blocks, onChange }: BlockEditorProps) {
             <select
               value={block.level}
               onChange={(e) => updateBlock(index, { ...block, level: Number(e.target.value) as 2 | 3 })}
-              className="mt-2 rounded-md border border-border-strong p-1.5 text-sm"
+              className="mt-2 rounded-md border border-border-strong p-1.5 text-sm bg-paper-raised text-ink"
             >
               <option value={2}>H2</option>
               <option value={3}>H3</option>
@@ -110,7 +110,7 @@ export function BlockEditor({ blocks, onChange }: BlockEditorProps) {
               <select
                 value={block.style}
                 onChange={(e) => updateBlock(index, { ...block, style: e.target.value as "bullet" | "number" })}
-                className="w-fit rounded-md border border-border-strong p-1.5 text-sm"
+                className="w-fit rounded-md border border-border-strong p-1.5 text-sm bg-paper-raised text-ink"
               >
                 <option value="bullet">Bullet</option>
                 <option value="number">Numbered</option>

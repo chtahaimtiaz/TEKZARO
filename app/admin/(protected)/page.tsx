@@ -117,7 +117,7 @@ export default async function AdminOverviewPage({
       </div>
 
       <section className="mt-8 rounded-xl border border-border bg-paper-raised p-5">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-bold">News Discovery</h2>
           <Link href="/admin/discovery" className="text-sm font-semibold text-accent hover:underline">
             Open discovery queue →
@@ -140,7 +140,7 @@ export default async function AdminOverviewPage({
       </section>
 
       <section className="mt-6 rounded-xl border border-border bg-paper-raised p-5">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-bold">Today&apos;s Editorial Checklist</h2>
           <Link href="/admin/checklist" className="text-sm font-semibold text-accent hover:underline">
             Open full checklist →
@@ -176,7 +176,7 @@ export default async function AdminOverviewPage({
       </section>
 
       <section className="mt-6 rounded-xl border border-border bg-paper-raised p-5">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-bold">Recent activity</h2>
           <Link href="/admin/audit-log" className="text-sm font-semibold text-accent hover:underline">
             View audit log →
@@ -187,7 +187,7 @@ export default async function AdminOverviewPage({
         ) : (
           <ul className="divide-y divide-border text-sm">
             {data.recentLogs.map((log) => (
-              <li key={log.id} className="flex items-center justify-between py-2">
+              <li key={log.id} className="flex flex-wrap items-center justify-between gap-x-3 py-2">
                 <span>
                   <strong>{log.user.name}</strong> {log.action.replace(/_/g, " ")} <span className="text-ink-muted">{log.entityType}</span>
                 </span>

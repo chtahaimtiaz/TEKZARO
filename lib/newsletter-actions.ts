@@ -107,6 +107,43 @@ export async function createCampaignAction(formData: FormData): Promise<ActionRe
   return { ok: true, data: { id: campaign.id } };
 }
 
+/** Sends the campaign's real content to the acting admin's own address only
+ * — never touches subscribers, campaign status, sentAt, or recipientCount.
+ * Lets an editor see exactly what will be sent (subject line, rendering in
+ * a real inbox, spam-folder behavior) before committing to the real send. */
+export async function sendTestCampaignAction(campaignId: string): Promise<ActionResult> {
+  const sessionUser = await getSessionUser();
+  const actor = requireRole(sessionUser, CAN_SEND_NEWSLETTER);
+
+  const campaign = await prisma.newsletterCampaign.findUnique({ where: { id: campaignId } });
+  if (!campaign) return { ok: false, error: "Campaign not found." };
+
+  const result = await sendEmail({
+    to: actor.email,
+    subject: `[TEST] ${campaign.subject}`,
+    html: wrapEmailHtml(
+      `${campaign.bodyHtml}<p style="color:#888;font-size:12px;margin-top:24px;">This is a test send to yourself — the line below is a placeholder, not a real per-subscriber unsubscribe link.</p><p style="color:#888;font-size:12px;">(Unsubscribe link)</p>`,
+    ),
+    text: `[TEST] ${campaign.subject}\n\nThis is a test send to yourself — no real subscribers were emailed.`,
+    relatedType: "NewsletterCampaign",
+    relatedId: campaign.id,
+  });
+
+  if (!result.ok) {
+    return { ok: false, error: "notConfigured" in result ? "SMTP isn't configured." : result.error };
+  }
+
+  await logAction({
+    userId: actor.id,
+    action: "newsletter_campaign_test_sent",
+    entityType: "NewsletterCampaign",
+    entityId: campaignId,
+    metadata: { to: actor.email },
+  });
+
+  return { ok: true };
+}
+
 /**
  * MVP send path — NOT the production architecture. Loops active
  * subscribers sequentially inside one request/Server Action invocation;

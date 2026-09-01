@@ -88,9 +88,9 @@ export default async function AnalyticsPage() {
           {topArticles.map((t) => {
             const article = t.articleId ? articleById.get(t.articleId) : null;
             return (
-              <li key={t.articleId} className="flex items-center justify-between py-2">
+              <li key={t.articleId} className="flex flex-wrap items-center justify-between gap-x-3 py-2">
                 <span>{article?.title ?? "(deleted article)"}</span>
-                <span className="font-semibold">{t._count} views</span>
+                <span className="shrink-0 font-semibold">{t._count} views</span>
               </li>
             );
           })}

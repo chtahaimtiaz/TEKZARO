@@ -78,7 +78,7 @@ export default async function AdminArticlesPage({
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="eyebrow">Newsroom</p>
           <h1 className="mt-1 font-serif text-3xl font-bold">Articles</h1>
@@ -88,9 +88,9 @@ export default async function AdminArticlesPage({
         </Link>
       </div>
 
-      <form className="mb-4 grid gap-2 rounded-xl border border-border bg-paper-raised p-4 sm:grid-cols-5">
-        <input name="q" defaultValue={sp.q} placeholder="Search titles…" className="rounded-md border border-border-strong p-2 text-sm sm:col-span-2" />
-        <select name="status" defaultValue={sp.status ?? ""} className="rounded-md border border-border-strong p-2 text-sm">
+      <form className="mb-4 grid grid-cols-2 gap-2 rounded-xl border border-border bg-paper-raised p-4 sm:grid-cols-3 lg:grid-cols-5">
+        <input name="q" defaultValue={sp.q} placeholder="Search titles…" className="col-span-2 rounded-md border border-border-strong p-2 text-sm sm:col-span-3 lg:col-span-2" />
+        <select name="status" defaultValue={sp.status ?? ""} className="rounded-md border border-border-strong p-2 text-sm bg-paper-raised text-ink">
           <option value="">All statuses</option>
           {ALL_STATUSES.map((s) => (
             <option key={s} value={s}>
@@ -98,7 +98,7 @@ export default async function AdminArticlesPage({
             </option>
           ))}
         </select>
-        <select name="category" defaultValue={sp.category ?? ""} className="rounded-md border border-border-strong p-2 text-sm">
+        <select name="category" defaultValue={sp.category ?? ""} className="rounded-md border border-border-strong p-2 text-sm bg-paper-raised text-ink">
           <option value="">All categories</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
@@ -106,7 +106,7 @@ export default async function AdminArticlesPage({
             </option>
           ))}
         </select>
-        <select name="author" defaultValue={sp.author ?? ""} className="rounded-md border border-border-strong p-2 text-sm">
+        <select name="author" defaultValue={sp.author ?? ""} className="rounded-md border border-border-strong p-2 text-sm bg-paper-raised text-ink">
           <option value="">All authors</option>
           {authors.map((a) => (
             <option key={a.id} value={a.id}>
@@ -114,12 +114,12 @@ export default async function AdminArticlesPage({
             </option>
           ))}
         </select>
-        <select name="demo" defaultValue={sp.demo ?? ""} className="rounded-md border border-border-strong p-2 text-sm">
+        <select name="demo" defaultValue={sp.demo ?? ""} className="rounded-md border border-border-strong p-2 text-sm bg-paper-raised text-ink">
           <option value="">Demo + real</option>
           <option value="true">Demo only</option>
           <option value="false">Real only</option>
         </select>
-        <select name="sort" defaultValue={sp.sort ?? "newest"} className="rounded-md border border-border-strong p-2 text-sm">
+        <select name="sort" defaultValue={sp.sort ?? "newest"} className="rounded-md border border-border-strong p-2 text-sm bg-paper-raised text-ink">
           <option value="newest">Newest first</option>
           <option value="oldest">Oldest first</option>
         </select>

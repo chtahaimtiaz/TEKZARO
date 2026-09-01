@@ -30,7 +30,7 @@ export default async function EditSourcePage({
 
   return (
     <div className="max-w-2xl">
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="eyebrow">Sources</p>
           <h1 className="mt-1 font-serif text-3xl font-bold">{source.name}</h1>
@@ -60,7 +60,7 @@ export default async function EditSourcePage({
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Type
-          <select name="type" defaultValue={source.type} className="rounded-md border border-border-strong p-2">
+          <select name="type" defaultValue={source.type} className="rounded-md border border-border-strong p-2 bg-paper-raised text-ink">
             {SOURCE_TYPES.map((t) => (
               <option key={t} value={t}>
                 {t.replace(/_/g, " ")}
@@ -70,7 +70,7 @@ export default async function EditSourcePage({
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Tier
-          <select name="tier" defaultValue={source.tier} className="rounded-md border border-border-strong p-2">
+          <select name="tier" defaultValue={source.tier} className="rounded-md border border-border-strong p-2 bg-paper-raised text-ink">
             {SOURCE_TIERS.map((t) => (
               <option key={t} value={t}>
                 {t.replace("_", " ")}
@@ -80,7 +80,7 @@ export default async function EditSourcePage({
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Default category
-          <select name="categoryId" defaultValue={source.categoryId ?? ""} className="rounded-md border border-border-strong p-2">
+          <select name="categoryId" defaultValue={source.categoryId ?? ""} className="rounded-md border border-border-strong p-2 bg-paper-raised text-ink">
             <option value="">None</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>

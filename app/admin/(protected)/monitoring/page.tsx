@@ -77,7 +77,7 @@ export default async function MonitoringPage({
             const configured = integration.check();
             return (
               <div key={integration.name} className="rounded-xl border border-border bg-paper-raised p-5">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm font-bold">{integration.name}</p>
                   <span
                     className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
@@ -133,10 +133,10 @@ export default async function MonitoringPage({
       </div>
 
       <section className="mt-6">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-bold">System events</h2>
-          <form method="get" className="flex items-center gap-2 text-sm">
-            <select name="level" defaultValue={level || ""} className="rounded-md border border-border-strong p-1.5">
+          <form method="get" className="flex flex-wrap items-center gap-2 text-sm">
+            <select name="level" defaultValue={level || ""} className="rounded-md border border-border-strong p-1.5 bg-paper-raised text-ink">
               <option value="">All levels</option>
               <option value="INFO">Info</option>
               <option value="WARN">Warn</option>

@@ -234,13 +234,13 @@ export function ArticleEditor({
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="eyebrow">{mode === "create" ? "New Article" : "Edit Article"}</p>
           {status && <p className="text-sm text-ink-muted">Status: {status.replace(/_/g, " ")}</p>}
         </div>
         {articleId && (
-          <div className="flex gap-3 text-sm">
+          <div className="flex flex-wrap gap-3 text-sm">
             <Link href={`/admin/articles/${articleId}/preview`} className="font-semibold text-accent hover:underline" target="_blank">
               Preview →
             </Link>
@@ -336,7 +336,7 @@ export function ArticleEditor({
                 <select
                   value={form.categoryId}
                   onChange={(e) => patch({ categoryId: e.target.value, overrideAuthorEligibility: false })}
-                  className="rounded-md border border-border-strong p-2"
+                  className="rounded-md border border-border-strong p-2 bg-paper-raised text-ink"
                 >
                   <option value="">Select a category</option>
                   {categories.map((c) => (
@@ -357,7 +357,7 @@ export function ArticleEditor({
                     // silently carrying it forward.
                     patch({ authorId: e.target.value, overrideAuthorEligibility: false });
                   }}
-                  className="rounded-md border border-border-strong p-2"
+                  className="rounded-md border border-border-strong p-2 bg-paper-raised text-ink"
                 >
                   <option value="">Select an author</option>
                   {authors.map((a) => (

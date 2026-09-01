@@ -29,9 +29,9 @@ export default async function DiscoveryItemPage({ params }: { params: Promise<{ 
   return (
     <div className="max-w-3xl">
       <p className="eyebrow">Discovery</p>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <h1 className="mt-1 font-serif text-3xl font-bold">{item.headline}</h1>
-        <span className="rounded bg-paper px-2 py-0.5 text-xs font-semibold">{item.status.replace(/_/g, " ")}</span>
+        <span className="shrink-0 rounded bg-paper px-2 py-0.5 text-xs font-semibold">{item.status.replace(/_/g, " ")}</span>
       </div>
       <p className="mt-2 text-sm text-ink-soft">{item.excerpt}</p>
 

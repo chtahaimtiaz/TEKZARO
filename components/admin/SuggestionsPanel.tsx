@@ -44,7 +44,7 @@ export function SuggestionsPanel({
       <p className="mb-3 text-sm font-bold">Suggestions</p>
 
       <div className="mb-4">
-        <div className="mb-2 flex items-center justify-between">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Headlines (rule-based)</p>
           <button type="button" onClick={suggestHeadlines} className="text-xs font-semibold text-accent hover:underline">
             Suggest
@@ -69,7 +69,7 @@ export function SuggestionsPanel({
       </div>
 
       <div>
-        <div className="mb-2 flex items-center justify-between">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Related TEKZARO articles</p>
           <button type="button" onClick={suggestLinks} disabled={pending} className="text-xs font-semibold text-accent hover:underline disabled:opacity-50">
             {pending ? "Loading…" : "Suggest"}
@@ -79,7 +79,7 @@ export function SuggestionsPanel({
         {links && links.length > 0 && (
           <ul className="flex flex-col gap-1.5">
             {links.map((l) => (
-              <li key={l.id} className="flex items-center justify-between gap-2 rounded-md border border-border-strong p-2 text-xs">
+              <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border-strong p-2 text-xs">
                 <span>
                   {l.title} <span className="text-ink-muted">({l.categoryName})</span>
                 </span>

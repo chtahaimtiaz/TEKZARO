@@ -48,7 +48,7 @@ export default async function DigestPage() {
 
   return (
     <div className="max-w-4xl">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="eyebrow eyebrow-pakistan">Pakistan Tech Daily</p>
           <h1 className="mt-1 font-serif text-3xl font-bold">{digest.digestDate.toDateString()}</h1>
@@ -72,7 +72,7 @@ export default async function DigestPage() {
             {items
               .filter((i) => i.section === section)
               .map((i) => (
-                <li key={i.id} className="flex items-center justify-between gap-3 py-2">
+                <li key={i.id} className="flex flex-wrap items-center justify-between gap-3 py-2">
                   <div>
                     <p className="font-medium">{i.sourceItem?.headline ?? i.article?.title}</p>
                     <p className="text-xs text-ink-muted">
@@ -100,16 +100,16 @@ export default async function DigestPage() {
           {candidates
             .filter((c) => !includedIds.has(c.id))
             .map((c) => (
-              <li key={c.id} className="flex items-center justify-between gap-3 py-2">
+              <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-2">
                 <div>
                   <p className="font-medium">{c.headline}</p>
                   <p className="text-xs text-ink-muted">
                     {c.source.name} · {c.status} · PK relevance {c.pakistanRelevance} · dup {c.duplicateScore.toFixed(2)}
                   </p>
                 </div>
-                <form action={addDigestItemAction.bind(null, digest.id)} className="flex items-center gap-2">
+                <form action={addDigestItemAction.bind(null, digest.id)} className="flex flex-wrap items-center gap-2">
                   <input type="hidden" name="sourceItemId" value={c.id} />
-                  <select name="section" defaultValue={suggestedSection(c.pakistanImpactLevel, c.source.country)} className="rounded-md border border-border-strong p-1.5 text-xs">
+                  <select name="section" defaultValue={suggestedSection(c.pakistanImpactLevel, c.source.country)} className="rounded-md border border-border-strong p-1.5 text-xs bg-paper-raised text-ink">
                     {SECTIONS.map((s) => (
                       <option key={s} value={s}>
                         {SECTION_LABELS[s]}

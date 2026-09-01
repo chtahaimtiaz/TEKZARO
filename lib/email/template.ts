@@ -1,4 +1,3 @@
-import "server-only";
 import { SITE_NAME, siteUrl } from "../constants";
 
 /**
@@ -10,6 +9,12 @@ import { SITE_NAME, siteUrl } from "../constants";
  * prefers-color-scheme handling per client and isn't attempted here, only
  * the logo/brand-color pass this call asked for. Callers keep their own
  * plain-text sibling untouched — this only wraps the html field.
+ *
+ * Deliberately NOT server-only: it only reads siteUrl() (backed by the
+ * NEXT_PUBLIC_ env var, already inlined into the client bundle by design)
+ * and plain constants — nothing sensitive — so components/admin/
+ * NewCampaignForm.tsx can call it directly client-side for an instant,
+ * network-free live preview while composing, before the campaign is saved.
  */
 export function wrapEmailHtml(bodyHtml: string): string {
   const logoUrl = `${siteUrl()}/logo.png`;

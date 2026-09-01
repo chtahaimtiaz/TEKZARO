@@ -93,7 +93,7 @@ export default async function AdminUsersPage({
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-ink-muted">Role</label>
-          <select name="role" defaultValue={role || ""} className="rounded-md border border-border-strong p-2">
+          <select name="role" defaultValue={role || ""} className="rounded-md border border-border-strong p-2 bg-paper-raised text-ink">
             <option value="">All</option>
             {ASSIGNABLE_ROLES.map((r) => (
               <option key={r} value={r}>
@@ -104,7 +104,7 @@ export default async function AdminUsersPage({
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-ink-muted">Status</label>
-          <select name="status" defaultValue={status || ""} className="rounded-md border border-border-strong p-2">
+          <select name="status" defaultValue={status || ""} className="rounded-md border border-border-strong p-2 bg-paper-raised text-ink">
             <option value="">All</option>
             <option value="active">Active</option>
             <option value="disabled">Disabled</option>
@@ -134,7 +134,7 @@ export default async function AdminUsersPage({
                 <td className="p-3 text-ink-soft">{u.email}</td>
                 <td className="p-3">
                   <form action={updateUserRoleAction.bind(null, u.id)} className="flex items-center gap-2">
-                    <select name="role" defaultValue={u.role} className="rounded-md border border-border-strong p-1.5 text-sm">
+                    <select name="role" defaultValue={u.role} className="rounded-md border border-border-strong p-1.5 text-sm bg-paper-raised text-ink">
                       {ASSIGNABLE_ROLES.map((r) => (
                         <option key={r} value={r}>
                           {r}
@@ -207,7 +207,7 @@ export default async function AdminUsersPage({
               className="rounded-md border border-border-strong p-2 text-sm"
             />
           )}
-          <select name="role" className="rounded-md border border-border-strong p-2 text-sm">
+          <select name="role" className="rounded-md border border-border-strong p-2 text-sm bg-paper-raised text-ink">
             {ASSIGNABLE_ROLES.map((r) => (
               <option key={r} value={r}>
                 {r}

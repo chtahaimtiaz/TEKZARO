@@ -46,7 +46,7 @@ export default async function NewSourcePage({
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Type
-          <select name="type" className="rounded-md border border-border-strong p-2">
+          <select name="type" className="rounded-md border border-border-strong p-2 bg-paper-raised text-ink">
             {SOURCE_TYPES.map((t) => (
               <option key={t} value={t}>
                 {t.replace(/_/g, " ")}
@@ -56,7 +56,7 @@ export default async function NewSourcePage({
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Tier
-          <select name="tier" defaultValue="TIER_3" className="rounded-md border border-border-strong p-2">
+          <select name="tier" defaultValue="TIER_3" className="rounded-md border border-border-strong p-2 bg-paper-raised text-ink">
             {SOURCE_TIERS.map((t) => (
               <option key={t} value={t}>
                 {t.replace("_", " ")}
@@ -66,7 +66,7 @@ export default async function NewSourcePage({
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Default category
-          <select name="categoryId" className="rounded-md border border-border-strong p-2">
+          <select name="categoryId" className="rounded-md border border-border-strong p-2 bg-paper-raised text-ink">
             <option value="">None</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>

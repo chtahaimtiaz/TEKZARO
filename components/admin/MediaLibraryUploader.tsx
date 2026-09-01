@@ -23,7 +23,7 @@ export function MediaLibraryUploader({ available, articles }: MediaLibraryUpload
           <select
             value={articleId}
             onChange={(e) => setArticleId(e.target.value)}
-            className="w-full max-w-sm rounded-md border border-border-strong p-2 text-sm text-ink"
+            className="w-full max-w-sm rounded-md border border-border-strong p-2 text-sm bg-paper-raised text-ink"
           >
             <option value="">Not tagged to a specific article</option>
             {articles.map((a) => (

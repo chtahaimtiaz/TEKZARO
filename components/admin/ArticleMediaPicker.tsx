@@ -69,7 +69,7 @@ export function ArticleMediaPicker({ media, onSelect, canManageMedia }: ArticleM
             className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-paper-raised p-5"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-bold">Images found for this article</p>
               <button type="button" onClick={() => setOpen(false)} className="text-sm text-ink-muted hover:text-ink">
                 Close

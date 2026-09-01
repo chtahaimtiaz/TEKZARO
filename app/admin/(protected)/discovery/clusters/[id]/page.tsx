@@ -66,7 +66,7 @@ export default async function StoryClusterPage({ params }: { params: Promise<{ i
         <p className="mb-3 text-sm font-bold">Sources ({cluster.items.length})</p>
         <ul className="divide-y divide-border text-sm">
           {cluster.items.map((item) => (
-            <li key={item.id} className="flex items-center justify-between gap-3 py-2">
+            <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-2">
               <div>
                 <Link href={`/admin/discovery/${item.id}`} className="font-medium text-accent hover:underline">
                   {item.headline}
@@ -91,8 +91,8 @@ export default async function StoryClusterPage({ params }: { params: Promise<{ i
             "use server";
             const itemId = String(formData.get("itemId") ?? "");
             if (itemId) await mergeIntoClusterAction(itemId, id);
-          }} className="mt-3 flex gap-2">
-            <select name="itemId" className="flex-1 rounded-md border border-border-strong p-2 text-sm">
+          }} className="mt-3 flex flex-wrap gap-2">
+            <select name="itemId" className="flex-1 rounded-md border border-border-strong p-2 text-sm bg-paper-raised text-ink">
               <option value="">Add a source to this cluster…</option>
               {otherItems.map((i) => (
                 <option key={i.id} value={i.id}>
@@ -137,14 +137,14 @@ export default async function StoryClusterPage({ params }: { params: Promise<{ i
 
               {canResearch && (
                 <form action={addClaimSourceAction.bind(null, id, claim.id)} className="mt-2 flex flex-wrap items-center gap-2">
-                  <select name="sourceItemId" className="rounded-md border border-border-strong p-1.5 text-xs">
+                  <select name="sourceItemId" className="rounded-md border border-border-strong p-1.5 text-xs bg-paper-raised text-ink">
                     {cluster.items.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.source.name}
                       </option>
                     ))}
                   </select>
-                  <select name="stance" className="rounded-md border border-border-strong p-1.5 text-xs">
+                  <select name="stance" className="rounded-md border border-border-strong p-1.5 text-xs bg-paper-raised text-ink">
                     <option value="SUPPORTING">Supporting</option>
                     <option value="CONTRADICTING">Contradicting</option>
                   </select>
@@ -173,7 +173,7 @@ export default async function StoryClusterPage({ params }: { params: Promise<{ i
         {canResearch && (
           <form action={createClaimAction.bind(null, id)} className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
             <input name="text" placeholder="New claim text" required className="flex-1 rounded-md border border-border-strong p-2 text-sm" />
-            <select name="type" className="rounded-md border border-border-strong p-2 text-sm">
+            <select name="type" className="rounded-md border border-border-strong p-2 text-sm bg-paper-raised text-ink">
               {CLAIM_TYPES.map((t) => (
                 <option key={t} value={t}>
                   {t}
@@ -204,7 +204,7 @@ export default async function StoryClusterPage({ params }: { params: Promise<{ i
           {cluster.notes.length === 0 && <p className="text-ink-muted">No notes yet.</p>}
         </ul>
         {canResearch && (
-          <form action={addResearchNoteAction.bind(null, id)} className="flex gap-2">
+          <form action={addResearchNoteAction.bind(null, id)} className="flex flex-wrap gap-2">
             <input name="note" placeholder="Add a research note" className="flex-1 rounded-md border border-border-strong p-2 text-sm" />
             <button type="submit" className="rounded-md border border-border-strong px-3 py-2 text-sm font-semibold hover:border-accent">
               Add

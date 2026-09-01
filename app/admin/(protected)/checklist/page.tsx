@@ -31,7 +31,7 @@ export default async function EditorialChecklistPage({
         complete by hand. Timezone: {summary.timezone}.
       </p>
 
-      <form method="get" className="mt-4 flex items-end gap-2 text-sm">
+      <form method="get" className="mt-4 flex flex-wrap items-end gap-2 text-sm">
         <label className="flex flex-col gap-1">
           Date
           <input type="date" name="date" defaultValue={summary.date} max={today} className="rounded-md border border-border-strong p-2" />
@@ -74,10 +74,10 @@ export default async function EditorialChecklistPage({
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         {summary.categories.map((c) => (
           <div key={c.categoryId} className="rounded-xl border border-border bg-paper-raised p-5">
-            <div className="mb-2 flex items-center justify-between">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-serif text-lg font-bold">{c.categoryName}</h2>
               <span
-                className={`rounded-md px-2 py-0.5 text-xs font-bold ${c.complete ? "bg-pakistan-soft text-pakistan" : "bg-paper text-ink-muted"}`}
+                className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-bold ${c.complete ? "bg-pakistan-soft text-pakistan" : "bg-paper text-ink-muted"}`}
               >
                 {c.complete ? "COMPLETE" : "INCOMPLETE"}
               </span>

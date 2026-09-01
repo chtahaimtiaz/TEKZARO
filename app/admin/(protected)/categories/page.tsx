@@ -42,7 +42,7 @@ export default async function CategoriesPage({
         <form action={updateEditorialSettingsAction} className="flex flex-wrap items-end gap-2 text-sm">
           <label className="flex flex-col gap-1">
             Checklist timezone
-            <select name="timezone" defaultValue={settings.timezone} className="rounded-md border border-border-strong p-2">
+            <select name="timezone" defaultValue={settings.timezone} className="rounded-md border border-border-strong p-2 bg-paper-raised text-ink">
               {TIMEZONES.map((tz) => (
                 <option key={tz} value={tz}>
                   {tz}

@@ -37,7 +37,7 @@ export default async function KeywordsPage({
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Type
-          <select name="type" className="rounded-md border border-border-strong p-2">
+          <select name="type" className="rounded-md border border-border-strong p-2 bg-paper-raised text-ink">
             {KEYWORD_TYPES.map((t) => (
               <option key={t} value={t}>
                 {t}

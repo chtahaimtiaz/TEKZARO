@@ -27,7 +27,7 @@ function PostBlock({ draft, onChange }: { draft: SocialPostDraft; onChange: (tex
 
   return (
     <div className="rounded-md border border-border-strong p-2">
-      <div className="mb-1.5 flex items-center justify-between">
+      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs font-semibold text-ink-soft">{draft.label}</span>
         <button type="button" onClick={copy} className="text-xs font-semibold text-accent hover:underline">
           {copied ? "Copied!" : "Copy"}
@@ -62,7 +62,7 @@ export function SocialPostPanel({ title, excerpt, categoryName, tagNames, url, p
 
   return (
     <div className="rounded-xl border border-border bg-paper-raised p-4">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-bold">Social Media</p>
         <button type="button" onClick={generate} className="text-xs font-semibold text-accent hover:underline">
           {drafts ? "Regenerate" : "Generate"}

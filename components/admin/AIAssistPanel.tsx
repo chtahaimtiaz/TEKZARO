@@ -27,7 +27,7 @@ export function AIAssistPanel({ title, buttonLabel, action }: AIAssistPanelProps
 
   return (
     <div className="rounded-lg border border-dashed border-border-strong p-4">
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-bold">{title}</p>
         <span className="rounded bg-ink px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white dark:text-paper">
           AI-assisted

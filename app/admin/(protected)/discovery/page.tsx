@@ -57,8 +57,8 @@ export default async function DiscoveryPage({ searchParams }: { searchParams: Pr
         Nothing here is published automatically — every item requires a human decision.
       </p>
 
-      <form className="mt-4 grid gap-2 rounded-xl border border-border bg-paper-raised p-4 sm:grid-cols-5">
-        <select name="status" defaultValue={sp.status ?? ""} className="rounded-md border border-border-strong p-2 text-sm">
+      <form className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-border bg-paper-raised p-4 sm:grid-cols-3 lg:grid-cols-5">
+        <select name="status" defaultValue={sp.status ?? ""} className="rounded-md border border-border-strong p-2 text-sm bg-paper-raised text-ink">
           <option value="">All except rejected</option>
           {ALL_STATUSES.map((s) => (
             <option key={s} value={s}>
@@ -66,7 +66,7 @@ export default async function DiscoveryPage({ searchParams }: { searchParams: Pr
             </option>
           ))}
         </select>
-        <select name="category" defaultValue={sp.category ?? ""} className="rounded-md border border-border-strong p-2 text-sm">
+        <select name="category" defaultValue={sp.category ?? ""} className="rounded-md border border-border-strong p-2 text-sm bg-paper-raised text-ink">
           <option value="">All categories</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
@@ -74,7 +74,7 @@ export default async function DiscoveryPage({ searchParams }: { searchParams: Pr
             </option>
           ))}
         </select>
-        <select name="tier" defaultValue={sp.tier ?? ""} className="rounded-md border border-border-strong p-2 text-sm">
+        <select name="tier" defaultValue={sp.tier ?? ""} className="rounded-md border border-border-strong p-2 text-sm bg-paper-raised text-ink">
           <option value="">All source tiers</option>
           {ALL_TIERS.map((t) => (
             <option key={t} value={t}>
@@ -82,7 +82,7 @@ export default async function DiscoveryPage({ searchParams }: { searchParams: Pr
             </option>
           ))}
         </select>
-        <select name="minRelevance" defaultValue={sp.minRelevance ?? ""} className="rounded-md border border-border-strong p-2 text-sm">
+        <select name="minRelevance" defaultValue={sp.minRelevance ?? ""} className="rounded-md border border-border-strong p-2 text-sm bg-paper-raised text-ink">
           <option value="">Any Pakistan relevance</option>
           <option value="50">50+</option>
           <option value="70">70+</option>

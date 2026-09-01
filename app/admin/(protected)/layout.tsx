@@ -129,9 +129,9 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
         </nav>
 
         <div className="mt-auto flex flex-col gap-3 border-t border-border pt-4 text-xs text-ink-soft">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="font-semibold text-ink">{user.name}</p>
+              <p className="break-all font-semibold text-ink">{user.name}</p>
               <p>{user.role}</p>
             </div>
             <form action={logoutAction}>
