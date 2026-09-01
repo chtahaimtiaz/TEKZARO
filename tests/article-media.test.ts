@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { prisma } from "../lib/prisma";
-import { getArticleSourceItemMedia } from "../lib/article-media";
+import { getArticleMediaOptions } from "../lib/article-media";
 import { getSystemUserId } from "../lib/system-actor";
 import { trackArticle, cleanupTestData } from "./helpers";
 import type { Prisma } from "@prisma/client";
@@ -78,10 +78,10 @@ async function makeArticle(): Promise<string> {
   return article.id;
 }
 
-describe("getArticleSourceItemMedia", () => {
+describe("getArticleMediaOptions", () => {
   it("returns [] for an article with no linked SourceItem (created from scratch, not discovery)", async () => {
     const articleId = await makeArticle();
-    expect(await getArticleSourceItemMedia(articleId)).toEqual([]);
+    expect(await getArticleMediaOptions(articleId)).toEqual([]);
   });
 
   it("returns [] when the article's SourceItem exists but has no acquired Media", async () => {
@@ -99,7 +99,7 @@ describe("getArticleSourceItemMedia", () => {
     });
     createdSourceItemIds.push(item.id);
 
-    expect(await getArticleSourceItemMedia(articleId)).toEqual([]);
+    expect(await getArticleMediaOptions(articleId)).toEqual([]);
   });
 
   it("returns the SourceItem's own Media rows, newest first, with full field mapping — not the whole library", async () => {
@@ -177,7 +177,7 @@ describe("getArticleSourceItemMedia", () => {
     });
     createdMediaIds.push(unrelated.id);
 
-    const result = await getArticleSourceItemMedia(articleId);
+    const result = await getArticleMediaOptions(articleId);
 
     expect(result.map((m) => m.id)).toEqual([newer.id, older.id]);
 
@@ -193,5 +193,94 @@ describe("getArticleSourceItemMedia", () => {
     expect(olderOut.reuseStatus).toBe("REQUIRES_REVIEW");
     expect(olderOut.sourceDomain).toBeNull();
     expect(olderOut.selectionReasons).toBeNull();
+  });
+
+  it("also returns Media manually tagged via articleId, even with no linked SourceItem at all", async () => {
+    await makeCategoryAuthorSource();
+    const articleId = await makeArticle();
+    const uploadedById = await getSystemUserId();
+
+    const tagged = await prisma.media.create({
+      data: {
+        url: "https://blob.example/manually-tagged.jpg",
+        altText: "Manually tagged",
+        filename: "manually-tagged.jpg",
+        mimeType: "image/jpeg",
+        sizeBytes: 1024,
+        uploadedById,
+        articleId,
+        reuseStatus: "ALLOWED",
+      },
+    });
+    createdMediaIds.push(tagged.id);
+
+    // Tagged for a DIFFERENT article — must never leak into this one.
+    const otherArticleId = await makeArticle();
+    const taggedElsewhere = await prisma.media.create({
+      data: {
+        url: "https://blob.example/tagged-elsewhere.jpg",
+        altText: "Tagged elsewhere",
+        filename: "tagged-elsewhere.jpg",
+        mimeType: "image/jpeg",
+        sizeBytes: 1024,
+        uploadedById,
+        articleId: otherArticleId,
+        reuseStatus: "ALLOWED",
+      },
+    });
+    createdMediaIds.push(taggedElsewhere.id);
+
+    const result = await getArticleMediaOptions(articleId);
+    expect(result.map((m) => m.id)).toEqual([tagged.id]);
+  });
+
+  it("combines auto-acquired (SourceItem) and manually-tagged (articleId) media for the same article", async () => {
+    await makeCategoryAuthorSource();
+    const articleId = await makeArticle();
+    const uploadedById = await getSystemUserId();
+
+    const item = await prisma.sourceItem.create({
+      data: {
+        sourceId,
+        sourceUrl: `https://example.com/combined-${Date.now()}`,
+        headline: "Combined item",
+        normalizedTitle: "combined item",
+        categoryId,
+        convertedArticleId: articleId,
+      },
+    });
+    createdSourceItemIds.push(item.id);
+
+    const acquired = await prisma.media.create({
+      data: {
+        url: "https://blob.example/acquired.jpg",
+        altText: "Acquired",
+        filename: "acquired.jpg",
+        mimeType: "image/jpeg",
+        sizeBytes: 1024,
+        uploadedById,
+        sourceItemId: item.id,
+        reuseStatus: "REQUIRES_REVIEW",
+        createdAt: new Date(Date.now() - 60_000),
+      },
+    });
+    createdMediaIds.push(acquired.id);
+
+    const manuallyTagged = await prisma.media.create({
+      data: {
+        url: "https://blob.example/manual.jpg",
+        altText: "Manual",
+        filename: "manual.jpg",
+        mimeType: "image/jpeg",
+        sizeBytes: 1024,
+        uploadedById,
+        articleId,
+        reuseStatus: "ALLOWED",
+      },
+    });
+    createdMediaIds.push(manuallyTagged.id);
+
+    const result = await getArticleMediaOptions(articleId);
+    expect(new Set(result.map((m) => m.id))).toEqual(new Set([acquired.id, manuallyTagged.id]));
   });
 });

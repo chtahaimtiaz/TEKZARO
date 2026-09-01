@@ -8,10 +8,17 @@ interface MediaUploadButtonProps {
    * and passed down — never re-derived client-side, since the guard depends
    * on server-only env vars (VERCEL, STORAGE_PROVIDER). */
   available: boolean;
+  /** When known (e.g. editing an existing article), tags the uploaded Media
+   * row with this article via Media.articleId — so it shows up in that
+   * article's own "choose from article images" picker even before the
+   * article is saved with it as the featured image. Omitted when there's no
+   * article yet (create mode) or the upload isn't tied to one at all (the
+   * Media Library's own uploader passes its own explicit choice instead). */
+  articleId?: string;
   onUploaded: (result: { id: string; url: string }) => void;
 }
 
-export function MediaUploadButton({ kind, available, onUploaded }: MediaUploadButtonProps) {
+export function MediaUploadButton({ kind, available, articleId, onUploaded }: MediaUploadButtonProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +41,7 @@ export function MediaUploadButton({ kind, available, onUploaded }: MediaUploadBu
       const formData = new FormData();
       formData.append("file", file);
       formData.append("kind", kind);
+      if (articleId) formData.append("articleId", articleId);
       const res = await fetch("/api/media/upload", { method: "POST", body: formData });
       const data = await res.json();
       if (!res.ok) {

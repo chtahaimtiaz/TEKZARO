@@ -9,6 +9,30 @@ import { deleteMediaAction, approveMediaAction, rejectMediaAction } from "@/lib/
 import { MediaLibraryUploader } from "@/components/admin/MediaLibraryUploader";
 import type { ImageReuseStatus, Prisma } from "@prisma/client";
 
+/** Resolves "which article is this for", in priority order: explicitly
+ * tagged at upload time (Media.articleId) > currently in use as an
+ * article's featured image > the discovery item it was acquired for having
+ * since become a draft. All three are real, just answering slightly
+ * different questions — this picks whichever is most direct. */
+function resolveMediaArticle(
+  media: { id: string; articleId: string | null; sourceItem: { convertedArticleId: string | null } | null },
+  featuredBy: Map<string, { id: string; title: string }>,
+  titleById: Map<string, string>,
+): { id: string; title: string } | null {
+  if (media.articleId) {
+    const title = titleById.get(media.articleId);
+    if (title) return { id: media.articleId, title };
+  }
+  const featured = featuredBy.get(media.id);
+  if (featured) return featured;
+  const convertedId = media.sourceItem?.convertedArticleId;
+  if (convertedId) {
+    const title = titleById.get(convertedId);
+    if (title) return { id: convertedId, title };
+  }
+  return null;
+}
+
 export const dynamic = "force-dynamic";
 
 const PENDING_STATUSES: ImageReuseStatus[] = ["UNKNOWN", "REQUIRES_REVIEW"];
@@ -51,8 +75,34 @@ export default async function MediaLibraryPage({ searchParams }: { searchParams:
           ? { reuseStatus: "REJECTED" }
           : {};
 
-  const media = await prisma.media.findMany({ where, orderBy: { createdAt: "desc" }, take: 100 });
+  const media = await prisma.media.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    include: { sourceItem: { select: { convertedArticleId: true } } },
+  });
   const available = isMediaUploadAvailable();
+
+  const mediaIds = media.map((m) => m.id);
+  const candidateArticleIds = new Set<string>();
+  for (const m of media) {
+    if (m.articleId) candidateArticleIds.add(m.articleId);
+    if (m.sourceItem?.convertedArticleId) candidateArticleIds.add(m.sourceItem.convertedArticleId);
+  }
+
+  const [featuredByRows, titleRows, recentArticles] = await Promise.all([
+    mediaIds.length
+      ? prisma.article.findMany({ where: { featuredMediaId: { in: mediaIds } }, select: { id: true, title: true, featuredMediaId: true } })
+      : Promise.resolve([]),
+    candidateArticleIds.size
+      ? prisma.article.findMany({ where: { id: { in: [...candidateArticleIds] } }, select: { id: true, title: true } })
+      : Promise.resolve([]),
+    // For the upload-tagging dropdown — most recently updated, capped so the
+    // select stays usable; not the definitive article list (that's /admin/articles).
+    prisma.article.findMany({ orderBy: { updatedAt: "desc" }, take: 200, select: { id: true, title: true } }),
+  ]);
+  const featuredBy = new Map(featuredByRows.filter((a) => a.featuredMediaId).map((a) => [a.featuredMediaId!, { id: a.id, title: a.title }]));
+  const titleById = new Map(titleRows.map((a) => [a.id, a.title]));
 
   return (
     <div>
@@ -65,7 +115,7 @@ export default async function MediaLibraryPage({ searchParams }: { searchParams:
 
       <div className="mt-6 rounded-xl border border-border bg-paper-raised p-5">
         <p className="mb-2 text-sm font-bold">Upload</p>
-        <MediaLibraryUploader available={available} />
+        <MediaLibraryUploader available={available} articles={recentArticles} />
       </div>
 
       <div className="mt-6 flex gap-2 border-b border-border">
@@ -85,6 +135,7 @@ export default async function MediaLibraryPage({ searchParams }: { searchParams:
       <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
         {media.map((m) => {
           const pending = PENDING_STATUSES.includes(m.reuseStatus);
+          const forArticle = resolveMediaArticle(m, featuredBy, titleById);
           return (
             <div key={m.id} className="overflow-hidden rounded-xl border border-border bg-paper-raised">
               <div className="relative aspect-video bg-paper">
@@ -101,6 +152,16 @@ export default async function MediaLibraryPage({ searchParams }: { searchParams:
                   {(m.sizeBytes / 1024).toFixed(0)} KB · {m.createdAt.toLocaleDateString()}
                 </p>
                 {m.sourceDomain && <p className="mt-0.5 text-ink-muted">Found on {m.sourceDomain}</p>}
+                {forArticle ? (
+                  <p className="mt-0.5 truncate">
+                    Article:{" "}
+                    <Link href={`/admin/articles/${forArticle.id}`} className="font-medium text-accent hover:underline" title={forArticle.title}>
+                      {forArticle.title}
+                    </Link>
+                  </p>
+                ) : (
+                  <p className="mt-0.5 text-ink-muted">Not linked to an article yet</p>
+                )}
                 <p className="mt-1 break-all text-ink-muted">{m.url}</p>
                 <div className="mt-2 flex flex-wrap gap-3">
                   {pending && (

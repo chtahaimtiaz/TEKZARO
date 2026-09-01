@@ -12,24 +12,23 @@ export interface ArticleMediaOption {
   selectionReasons: string[] | null;
 }
 
-/** Images already acquired for the SourceItem this article came from (if
- * any) — lets an editor pick from what the discovery pipeline actually
- * found for THIS story, in context, rather than only the plain
- * upload/hand-typed-URL flow. lib/images/acquire.ts stores at most one
- * Media row per SourceItem today (it stops at the first valid candidate),
- * so this is usually 0 or 1 results — still worth surfacing, since it's a
- * dedicated in-context review point for an unreviewed auto-acquired image,
- * not just a hypothetical multi-choice gallery. Returns [] for an article
- * with no linked SourceItem (created from scratch, not from discovery). */
-export async function getArticleSourceItemMedia(articleId: string): Promise<ArticleMediaOption[]> {
+/** Images available for this article's own "choose from article images"
+ * picker — either automatically acquired for the SourceItem this article
+ * came from (lib/images/acquire.ts stores at most one Media row per
+ * SourceItem, so this is usually 0 or 1 results), or manually uploaded and
+ * tagged for this specific article (Media.articleId — set from
+ * ArticleEditor's own upload button, or picked explicitly on the Media
+ * Library page). Returns [] for an article with neither. */
+export async function getArticleMediaOptions(articleId: string): Promise<ArticleMediaOption[]> {
   const sourceItem = await prisma.sourceItem.findFirst({
     where: { convertedArticleId: articleId },
     select: { id: true },
   });
-  if (!sourceItem) return [];
 
   const media = await prisma.media.findMany({
-    where: { sourceItemId: sourceItem.id },
+    where: {
+      OR: [...(sourceItem ? [{ sourceItemId: sourceItem.id }] : []), { articleId }],
+    },
     orderBy: { createdAt: "desc" },
   });
 

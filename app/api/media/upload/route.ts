@@ -39,6 +39,14 @@ export async function POST(request: Request): Promise<NextResponse> {
   const altText = String(formData.get("altText") || "");
   const kindRaw = String(formData.get("kind") || "article");
   const kind = kindRaw === "author" ? "author" : "article";
+  // Optional: which article this upload is for (see Media.articleId in the
+  // schema). Always comes from a trusted source — either ArticleEditor's own
+  // articleId prop or a real article picked from a server-fetched list on
+  // the Media Library page, never free-typed — so an invalid id is treated
+  // as a genuine bug, not a boundary to defensively message about; the
+  // Media.create call below just fails through the existing catch block.
+  const articleIdRaw = formData.get("articleId");
+  const articleId = typeof articleIdRaw === "string" && articleIdRaw.length > 0 ? articleIdRaw : null;
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "No file provided." }, { status: 400 });
@@ -56,6 +64,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         width: saved.width,
         height: saved.height,
         uploadedById: user.id,
+        articleId,
         // A human just deliberately chose to upload this file — that's real,
         // earned permission, unlike a scraped third-party image. See the
         // Non-negotiable invariant in the image-acquisition plan.

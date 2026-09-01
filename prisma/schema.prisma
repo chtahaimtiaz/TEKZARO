@@ -404,6 +404,10 @@ model Article {
   featuredMediaId String?
   featuredMedia   Media?  @relation(fields: [featuredMediaId], references: [id], onDelete: SetNull)
 
+  // Reverse of Media.articleId — every Media row a human tagged for this
+  // article, not just the current featured image.
+  taggedMedia Media[] @relation("MediaTaggedForArticle")
+
   seoTitle        String?
   metaDescription String?
   canonicalUrl    String?
@@ -684,6 +688,16 @@ model Media {
   sourceUrl        String? // the original remote image URL it was downloaded from
   sourceArticleUrl String? // the article page it was found on
   sourceDomain     String? // that page's hostname, for publication attribution
+
+  // Which article a manual upload was tagged for at upload time (set from
+  // ArticleEditor's own Featured Image panel, or picked explicitly on the
+  // Media Library page) — distinct from sourceItemId (automated-acquisition
+  // provenance) and from being any article's CURRENT featuredMediaId (which
+  // can change independently after this upload). Lets a human-sourced image
+  // surface in that specific article's "choose from article images" picker
+  // even before the article has been saved with it as the featured image.
+  articleId String?
+  article   Article? @relation("MediaTaggedForArticle", fields: [articleId], references: [id], onDelete: SetNull)
   // SHA-256 of the downloaded bytes. Nullable-unique: Postgres allows many
   // nulls (editor uploads don't compute one) but enforces uniqueness among
   // non-null values, which is what powers acquisition-time dedup.

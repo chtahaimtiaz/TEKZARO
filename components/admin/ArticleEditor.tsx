@@ -65,15 +65,19 @@ interface ArticleEditorProps {
    * (lib/verification-actions.ts) — null for every human-authored article,
    * including drafts created from discovery via createDraftFromItemAction. */
   verification?: VerificationInfo | null;
-  /** Images already acquired for this article's own SourceItem, if any —
-   * see lib/article-media.ts. Empty for a brand-new article (mode="create")
-   * or one never linked to a discovery item. */
-  articleSourceItemMedia?: ArticleMediaOption[];
+  /** Images available for this article's own "choose from article images"
+   * picker — automatically acquired for its SourceItem, or manually
+   * uploaded/tagged for it. See lib/article-media.ts. Empty for a
+   * brand-new article (mode="create") or one with neither. */
+  articleMediaOptions?: ArticleMediaOption[];
   categories: { id: string; name: string }[];
   authors: EditorAuthorOption[];
   /** Whether this session can save an article with an author ineligible
    * for its category (CAN_OVERRIDE_AUTHOR_ELIGIBILITY, ADMIN only). */
   canOverrideAuthorEligibility: boolean;
+  /** Whether this session can approve/reject a pending image directly from
+   * the article-images picker (CAN_MANAGE_MEDIA — ADMIN/EDITOR). */
+  canManageMedia: boolean;
   legalTransitions: TransitionName[];
   mediaUploadAvailable: boolean;
 }
@@ -86,10 +90,11 @@ export function ArticleEditor({
   initial,
   initialFeaturedMedia,
   verification = null,
-  articleSourceItemMedia = [],
+  articleMediaOptions = [],
   categories,
   authors,
   canOverrideAuthorEligibility,
+  canManageMedia,
   legalTransitions,
   mediaUploadAvailable,
 }: ArticleEditorProps) {
@@ -400,6 +405,7 @@ export function ArticleEditor({
                 <MediaUploadButton
                   kind="article"
                   available={mediaUploadAvailable}
+                  articleId={articleId}
                   onUploaded={(result) => {
                     // A fresh upload is real, human-vouched-for permission —
                     // the upload route sets reuseStatus:"ALLOWED" server-side;
@@ -417,7 +423,8 @@ export function ArticleEditor({
                   }}
                 />
                 <ArticleMediaPicker
-                  media={articleSourceItemMedia}
+                  media={articleMediaOptions}
+                  canManageMedia={canManageMedia}
                   onSelect={(m) => {
                     // Selecting an unreviewed image sets featuredMediaId but
                     // deliberately NOT featuredImageUrl — inherits the same

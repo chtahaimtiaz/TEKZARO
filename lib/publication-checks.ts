@@ -16,6 +16,15 @@ export function isPublishableReuseStatus(status: ImageReuseStatus): boolean {
   return PUBLISHABLE_REUSE_STATUSES.has(status);
 }
 
+// Awaiting a human decision — distinct from REJECTED, which already had one
+// (approving a rejected image would wrongly mark a dead, deleted file as
+// safe to publish; see rejectMediaAction in lib/media-actions.ts).
+const PENDING_REUSE_STATUSES: ReadonlySet<ImageReuseStatus> = new Set(["UNKNOWN", "REQUIRES_REVIEW"]);
+
+export function isPendingReuseStatus(status: ImageReuseStatus): boolean {
+  return PENDING_REUSE_STATUSES.has(status);
+}
+
 export interface PublicationCheckInput {
   title: string;
   slug: string;
