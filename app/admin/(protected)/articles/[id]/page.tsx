@@ -64,6 +64,12 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
             }
           : null
       }
+      verification={{
+        status: article.verificationStatus,
+        primarySourceUrl: article.primarySourceUrl,
+        notes: article.verificationNotes,
+        autoPublished: article.autoPublished,
+      }}
       initial={{
         title: article.title,
         slug: article.slug,

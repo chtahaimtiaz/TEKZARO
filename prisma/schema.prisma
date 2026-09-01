@@ -95,6 +95,18 @@ enum ClaimStance {
   CONTRADICTING
 }
 
+// Outcome of lib/ai/verify-and-synthesize.ts checking a discovered story
+// against a known-official (Source.tier = TIER_1) primary source before
+// TEKZARO publishes its own synthesis of it. PRIMARY_SOURCE_CONFIRMED is
+// the only status the auto-publish gate (lib/verification-actions.ts) will
+// ever act on by itself — every other value routes to human review.
+enum ArticleVerificationStatus {
+  UNVERIFIED
+  PRIMARY_SOURCE_CONFIRMED
+  PRIMARY_SOURCE_NOT_FOUND
+  CONTRADICTION_FOUND
+}
+
 enum AITask {
   SUMMARIZE
   EXTRACT_ENTITIES
@@ -103,6 +115,8 @@ enum AITask {
   HEADLINE_SUGGESTIONS
   PAKISTAN_IMPACT
   INTERNAL_LINKS
+  VERIFY_PRIMARY_SOURCE
+  SYNTHESIZE_ARTICLE
 }
 
 enum KeywordType {
@@ -189,8 +203,8 @@ model User {
   auditLogs           AuditLog[]
   versions            ArticleVersion[]
   sessions            Session[]
-  createdArticles     Article[]           @relation("ArticleCreatedBy")
-  reviewedItems       SourceItem[]        @relation("SourceItemReviewedBy")
+  createdArticles     Article[]            @relation("ArticleCreatedBy")
+  reviewedItems       SourceItem[]         @relation("SourceItemReviewedBy")
   claims              Claim[]
   aiGenerations       AIGeneration[]
   digests             Digest[]
@@ -213,9 +227,9 @@ model Session {
 }
 
 model Category {
-  id          String    @id @default(cuid())
-  name        String    @unique
-  slug        String    @unique
+  id          String       @id @default(cuid())
+  name        String       @unique
+  slug        String       @unique
   description String?
   articles    Article[]
   sourceItems SourceItem[]
@@ -242,20 +256,34 @@ model Author {
 }
 
 model Article {
-  id          String   @id @default(cuid())
-  slug        String   @unique
+  id          String  @id @default(cuid())
+  slug        String  @unique
   title       String
   subheadline String?
   excerpt     String?
   content     Json
 
-  status      ArticleStatus @default(DRAFT)
-  isBreaking  Boolean       @default(false)
-  featured    Boolean       @default(false)
+  status     ArticleStatus @default(DRAFT)
+  isBreaking Boolean       @default(false)
+  featured   Boolean       @default(false)
   // True only for seeded placeholder content (spec: demo content must be
   // clearly labeled and never presented as real current news). Real
   // newsroom-authored articles always leave this false.
-  isDemo      Boolean       @default(false)
+  isDemo     Boolean       @default(false)
+
+  // True only when lib/verification-actions.ts's processVerificationBatch
+  // published this article itself, with no human ever touching the
+  // DRAFT -> PUBLISHED transition. Admin-visible (mirrors the isDemo badge
+  // convention) so an auto-published article is never mistaken for
+  // human-vetted work.
+  autoPublished      Boolean                   @default(false)
+  verificationStatus ArticleVerificationStatus @default(UNVERIFIED)
+  // The official/primary URL verification found corroborating this story,
+  // if any — shown in the article's attribution line.
+  primarySourceUrl   String?
+  // Plain-English explanation from the verification LLM call, kept for
+  // editor transparency even when verification did not lead to publish.
+  verificationNotes  String?
 
   // Editorial priority signals (Pakistan-first strategy). 0-100. Populated
   // manually, or by the deterministic discovery scoring in lib/discovery/*.
@@ -316,14 +344,14 @@ model Article {
   // so hand-written GENERATED ALWAYS AS ... STORED column survives migrate dev.
   searchVector Unsupported("tsvector")?
 
-  sources          ArticleSource[]
-  tags             ArticleTag[]
-  versions         ArticleVersion[]
-  relatedFrom      Relation[]       @relation("from")
-  relatedTo        Relation[]       @relation("to")
-  convertedFrom    SourceItem[]     @relation("SourceItemConvertedArticle")
-  digestItems      DigestItem[]
-  pageViews        PageView[]
+  sources       ArticleSource[]
+  tags          ArticleTag[]
+  versions      ArticleVersion[]
+  relatedFrom   Relation[]       @relation("from")
+  relatedTo     Relation[]       @relation("to")
+  convertedFrom SourceItem[]     @relation("SourceItemConvertedArticle")
+  digestItems   DigestItem[]
+  pageViews     PageView[]
 
   @@index([status, publishedAt])
   @@index([categoryId, publishedAt])
@@ -362,18 +390,18 @@ model Source {
 }
 
 model SourceItem {
-  id          String @id @default(cuid())
-  sourceId    String
-  source      Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-  externalId  String?
-  sourceUrl   String
-  canonicalUrl String?
-  headline     String
+  id              String    @id @default(cuid())
+  sourceId        String
+  source          Source    @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  externalId      String?
+  sourceUrl       String
+  canonicalUrl    String?
+  headline        String
   normalizedTitle String
-  excerpt      String?
-  publishedAt  DateTime?
-  imageUrl     String?
-  rawMetadata  Json?
+  excerpt         String?
+  publishedAt     DateTime?
+  imageUrl        String?
+  rawMetadata     Json?
 
   categoryId String?
   category   Category? @relation(fields: [categoryId], references: [id])
@@ -385,7 +413,7 @@ model SourceItem {
   pakistanImpactLevel   PakistanImpactLevel?
   pakistanImpactReasons Json?
 
-  duplicateScore Float   @default(0)
+  duplicateScore Float        @default(0)
   duplicateOfId  String?
   duplicateOf    SourceItem?  @relation("SourceItemDuplicateOf", fields: [duplicateOfId], references: [id])
   duplicatesOfMe SourceItem[] @relation("SourceItemDuplicateOf")
@@ -393,8 +421,8 @@ model SourceItem {
   priorityScore   Float @default(0)
   priorityReasons Json?
 
-  status DiscoveryStatus @default(NEW)
-  aiStatus AIStatus @default(NOT_STARTED)
+  status   DiscoveryStatus @default(NEW)
+  aiStatus AIStatus        @default(NOT_STARTED)
 
   convertedArticleId String?
   convertedArticle   Article? @relation("SourceItemConvertedArticle", fields: [convertedArticleId], references: [id])
@@ -406,8 +434,8 @@ model SourceItem {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  claimSources ClaimSource[]
-  digestItems  DigestItem[]
+  claimSources  ClaimSource[]
+  digestItems   DigestItem[]
   acquiredMedia Media[]
 
   @@unique([sourceId, sourceUrl])
@@ -417,10 +445,10 @@ model SourceItem {
 }
 
 model StoryCluster {
-  id             String             @id @default(cuid())
+  id             String @id @default(cuid())
   title          String
-  importance     Float              @default(0)
-  duplicateScore Float              @default(0)
+  importance     Float  @default(0)
+  duplicateScore Float  @default(0)
 
   pakistanRelevance   Int                  @default(0)
   pakistanImpactLevel PakistanImpactLevel?
@@ -463,9 +491,9 @@ model Claim {
 
 model ClaimSource {
   claimId      String
-  claim        Claim      @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  claim        Claim       @relation(fields: [claimId], references: [id], onDelete: Cascade)
   sourceItemId String
-  sourceItem   SourceItem @relation(fields: [sourceItemId], references: [id], onDelete: Cascade)
+  sourceItem   SourceItem  @relation(fields: [sourceItemId], references: [id], onDelete: Cascade)
   stance       ClaimStance
 
   @@id([claimId, sourceItemId])
@@ -485,22 +513,22 @@ model AIGeneration {
 }
 
 model Keyword {
-  id       String      @id @default(cuid())
-  term     String      @unique
-  type     KeywordType
-  priority Boolean     @default(false)
-  active   Boolean     @default(true)
-  createdAt DateTime   @default(now())
+  id        String      @id @default(cuid())
+  term      String      @unique
+  type      KeywordType
+  priority  Boolean     @default(false)
+  active    Boolean     @default(true)
+  createdAt DateTime    @default(now())
 }
 
 model Digest {
-  id         String       @id @default(cuid())
-  digestDate DateTime     @unique
-  status     DigestStatus @default(DRAFT)
+  id          String       @id @default(cuid())
+  digestDate  DateTime     @unique
+  status      DigestStatus @default(DRAFT)
   createdById String
-  createdBy   User        @relation(fields: [createdById], references: [id])
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdBy   User         @relation(fields: [createdById], references: [id])
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
   items       DigestItem[]
 }
 
@@ -693,12 +721,12 @@ model NewsletterCampaign {
 }
 
 model SystemEvent {
-  id        String            @id @default(cuid())
+  id        String           @id @default(cuid())
   level     SystemEventLevel
   source    String
   message   String
   context   Json?
-  createdAt DateTime          @default(now())
+  createdAt DateTime         @default(now())
 
   @@index([createdAt])
   @@index([level, createdAt])

@@ -8,6 +8,9 @@ import { logSystemEvent } from "@/lib/monitoring";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
+// See app/api/cron/ingest-news/route.ts for why this is set explicitly —
+// 300s is already the Hobby-plan default/max, this just self-documents it.
+export const maxDuration = 300;
 
 /**
  * Publishes every SCHEDULED article whose scheduledAt has elapsed. Callable

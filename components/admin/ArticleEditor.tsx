@@ -20,7 +20,7 @@ import {
   type ArticleFormInput,
 } from "@/lib/article-actions";
 import { isPublishableReuseStatus } from "@/lib/publication-checks";
-import type { ArticleStatus, ImageReuseStatus } from "@prisma/client";
+import type { ArticleStatus, ArticleVerificationStatus, ImageReuseStatus } from "@prisma/client";
 import type { ContentBlock } from "@/lib/content-blocks";
 
 export interface FeaturedMediaInfo {
@@ -30,6 +30,13 @@ export interface FeaturedMediaInfo {
   sourceArticleUrl: string | null;
   createdAt: string;
   selectionReasons: string[] | null;
+}
+
+export interface VerificationInfo {
+  status: ArticleVerificationStatus;
+  primarySourceUrl: string | null;
+  notes: string | null;
+  autoPublished: boolean;
 }
 
 interface ArticleEditorProps {
@@ -42,6 +49,10 @@ interface ArticleEditorProps {
    * or null when there is none — a fresh upload / hand-typed URL flow keeps
    * this in lockstep client-side, see the featuredMedia state below. */
   initialFeaturedMedia: FeaturedMediaInfo | null;
+  /** Only set for articles created by the verify-and-publish pipeline
+   * (lib/verification-actions.ts) — null for every human-authored article,
+   * including drafts created from discovery via createDraftFromItemAction. */
+  verification?: VerificationInfo | null;
   categories: { id: string; name: string }[];
   authors: { id: string; name: string }[];
   legalTransitions: TransitionName[];
@@ -55,6 +66,7 @@ export function ArticleEditor({
   initialBlocks,
   initial,
   initialFeaturedMedia,
+  verification = null,
   categories,
   authors,
   legalTransitions,
@@ -398,6 +410,34 @@ export function ArticleEditor({
                           ))}
                         </ul>
                       </div>
+                    )}
+                  </dl>
+                </details>
+              )}
+
+              {verification && verification.status !== "UNVERIFIED" && (
+                <details className="rounded-md border border-border-strong p-2 text-xs text-ink-muted">
+                  <summary className="cursor-pointer font-semibold text-ink-soft">
+                    Verification {verification.autoPublished ? "(auto-published)" : ""}
+                  </summary>
+                  <dl className="mt-2 flex flex-col gap-1">
+                    <p>
+                      <span className="font-medium text-ink-soft">Status: </span>
+                      {verification.status.replace(/_/g, " ").toLowerCase()}
+                    </p>
+                    {verification.primarySourceUrl && (
+                      <p>
+                        <span className="font-medium text-ink-soft">Primary source: </span>
+                        <a href={verification.primarySourceUrl} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+                          {verification.primarySourceUrl}
+                        </a>
+                      </p>
+                    )}
+                    {verification.notes && (
+                      <p>
+                        <span className="font-medium text-ink-soft">Notes: </span>
+                        {verification.notes}
+                      </p>
                     )}
                   </dl>
                 </details>

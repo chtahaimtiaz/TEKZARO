@@ -11,7 +11,7 @@ export interface AITaskResult {
   error?: string;
 }
 
-async function runTask(params: {
+export async function runTask(params: {
   task: AITask;
   requestedById: string;
   inputRef: Prisma.InputJsonValue;
@@ -53,7 +53,7 @@ async function runTask(params: {
   }
 }
 
-const NEWSROOM_SYSTEM_PROMPT =
+export const NEWSROOM_SYSTEM_PROMPT =
   "You are an assistant to a technology newsroom editor. You accelerate research but never " +
   "replace editorial judgment. Never invent facts, quotes, sources, or statistics. Clearly " +
   "separate confirmed facts from claims that still need verification. If the source material " +

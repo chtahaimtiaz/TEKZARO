@@ -138,6 +138,7 @@ export default async function AdminArticlesPage({
               <th className="p-3">Author</th>
               <th className="p-3">Created by</th>
               <th className="p-3">Demo</th>
+              <th className="p-3">Verification</th>
               <th className="p-3"></th>
             </tr>
           </thead>
@@ -152,6 +153,14 @@ export default async function AdminArticlesPage({
                 <td className="p-3 text-ink-soft">{a.author.name}</td>
                 <td className="p-3 text-ink-soft">{a.createdBy?.name ?? "—"}</td>
                 <td className="p-3">{a.isDemo ? "Yes" : ""}</td>
+                <td className="p-3">
+                  {a.autoPublished && (
+                    <span className="rounded bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">Auto-published</span>
+                  )}
+                  {!a.autoPublished && a.verificationStatus !== "UNVERIFIED" && (
+                    <span className="text-xs text-ink-muted">{a.verificationStatus.replace(/_/g, " ").toLowerCase()}</span>
+                  )}
+                </td>
                 <td className="p-3 text-right">
                   <Link href={`/admin/articles/${a.id}`} className="font-semibold text-accent hover:underline">
                     Edit →
@@ -161,7 +170,7 @@ export default async function AdminArticlesPage({
             ))}
             {articles.length === 0 && (
               <tr>
-                <td colSpan={7} className="p-6 text-center text-ink-muted">
+                <td colSpan={8} className="p-6 text-center text-ink-muted">
                   No articles match these filters.
                 </td>
               </tr>

@@ -111,4 +111,34 @@ describe("GET /api/cron/ingest-news", () => {
     });
     expect(after.every((s) => s.lastError !== null)).toBe(true);
   });
+
+  it("processes more sources than the concurrency limit — proves the worker pool drains a second wave, not just up to its own size", async () => {
+    // Route's CONCURRENCY constant is 4 — 6 sources forces the pool to pick
+    // up a second batch after the first 4 finish, which a 2-source test
+    // (fitting entirely within one wave) can never exercise.
+    const labels = ["a", "b", "c", "d", "e", "f"];
+    const sources = await Promise.all(
+      labels.map((l) => makeSource(`wave-${l}`, `https://this-does-not-resolve-wave-${l}.invalid/feed.xml`)),
+    );
+
+    const res = await ingestNews(makeRequest(`Bearer ${process.env.CRON_SECRET}`));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    // >= rather than exact equality: earlier tests in this same file (e.g.
+    // "a source that fails to fetch...") create their own active sources
+    // and only clean them up in this file's afterAll, not between tests —
+    // so this run may legitimately see more than just the 6 sources created
+    // here. The property this test actually cares about — every source this
+    // test itself created gets attempted, not just the first CONCURRENCY of
+    // them — is the `after` check below, which is exact.
+    expect(body.sourcesChecked).toBeGreaterThanOrEqual(6);
+    expect(body.sourcesFailed).toBeGreaterThanOrEqual(6);
+
+    const after = await prisma.source.findMany({
+      where: { id: { in: sources.map((s) => s.id) } },
+      select: { lastError: true },
+    });
+    expect(after).toHaveLength(6);
+    expect(after.every((s) => s.lastError !== null)).toBe(true);
+  });
 });

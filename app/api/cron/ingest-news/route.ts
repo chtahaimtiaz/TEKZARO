@@ -6,6 +6,12 @@ import { logSystemEvent } from "@/lib/monitoring";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
+// Hobby plan (with Fluid Compute) caps functions at 300s — there is no
+// higher ceiling to request on this plan. Set explicitly so the real
+// constraint is visible in the file, not just riding an implicit default
+// that could silently change. See CONCURRENCY note below for how this
+// route stays well under it even as the source list grows.
+export const maxDuration = 300;
 
 /**
  * Runs ingestion for every active Source with a feed URL, once per
@@ -26,7 +32,28 @@ export const dynamic = "force-dynamic";
  * per-source failure isolation (ingestSource itself never throws), just
  * iterating every active source instead of one, and attributed to the
  * SYSTEM actor instead of a session user.
+ *
+ * Sources are processed CONCURRENCY at a time rather than one-at-a-time —
+ * a real production run with 15 active sources timed out under the old
+ * sequential loop (each source's RSS fetch + per-item image acquisition
+ * fully awaited before the next source started). Bounded concurrency
+ * keeps wall-clock roughly proportional to source-count/CONCURRENCY
+ * instead of source-count, without hammering the DB connection pool or
+ * outbound network with all sources at once.
  */
+const CONCURRENCY = 4;
+
+async function runWithConcurrency<T>(items: T[], concurrency: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const item = items[next++];
+      await fn(item);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
+}
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const authHeader = request.headers.get("authorization");
   const expected = process.env.CRON_SECRET;
@@ -54,7 +81,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   let imagesFailed = 0;
   let sourcesFailed = 0;
 
-  for (const source of sources) {
+  await runWithConcurrency(sources, CONCURRENCY, async (source) => {
     try {
       const result = await ingestSource(source.id, systemUserId);
       if (result.ok) {
@@ -72,7 +99,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       // one source must never abort the run for the rest.
       sourcesFailed++;
     }
-  }
+  });
 
   const summary = {
     sourcesChecked: sources.length,

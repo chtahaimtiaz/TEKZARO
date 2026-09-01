@@ -1,4 +1,4 @@
-name: Hourly News Ingestion
+name: Hourly News Pipeline (Ingest + Verify/Publish)
 
 on:
   schedule:
@@ -13,3 +13,11 @@ jobs:
         run: |
           curl -sf -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             https://tekzaro.vercel.app/api/cron/ingest-news
+      - name: Trigger verification and auto-publish
+        # Runs after ingestion, same job, so this always sees that hour's
+        # freshly-discovered items. Separate step (not combined into one
+        # curl) so ingestion's success/failure is independently visible in
+        # the Actions log.
+        run: |
+          curl -sf -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://tekzaro.vercel.app/api/cron/verify-and-publish
