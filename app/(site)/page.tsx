@@ -6,6 +6,7 @@ import { CategorySection } from "@/components/content/CategorySection";
 import { PakistanTechSection } from "@/components/pakistan/PakistanTechSection";
 import { TrendingPakistanModule } from "@/components/pakistan/TrendingPakistanModule";
 import { NewsletterForm } from "@/components/ui/NewsletterForm";
+import { Logo } from "@/components/ui/Logo";
 import { selectHero } from "@/lib/ranking";
 import {
   getHeroPool,
@@ -89,7 +90,8 @@ export default async function HomePage({
       ))}
 
       <section className="rounded-xl bg-ink px-6 py-12 text-center text-white sm:px-12 dark:text-paper">
-        <p className="eyebrow">Stay Ahead of Technology</p>
+        <Logo size={40} className="mx-auto" />
+        <p className="mt-4 eyebrow">Stay Ahead of Technology</p>
         <h2 className="mt-2 font-serif text-3xl font-bold">TEKZARO in your inbox</h2>
         <p className="mx-auto mt-2 max-w-md text-white/70 dark:text-paper/70">
           Pakistan technology news first, global technology in context — delivered when it matters.

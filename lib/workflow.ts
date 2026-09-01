@@ -4,6 +4,7 @@ export type TransitionName =
   | "submit"
   | "requestChanges"
   | "approve"
+  | "reject"
   | "schedule"
   | "publish"
   | "archive"
@@ -38,6 +39,14 @@ export const TRANSITIONS: Record<TransitionName, TransitionRule> = {
     to: "APPROVED",
     allowedRoles: ["ADMIN", "EDITOR"],
   },
+  reject: {
+    // Distinct from archive: a rejection never had a live publish. Reachable
+    // from CHANGES_REQUESTED too — an editor can decide the piece isn't
+    // salvageable without first bouncing it back to IN_REVIEW.
+    from: ["IN_REVIEW", "CHANGES_REQUESTED"],
+    to: "REJECTED",
+    allowedRoles: ["ADMIN", "EDITOR"],
+  },
   schedule: {
     from: ["APPROVED"],
     to: "SCHEDULED",
@@ -54,7 +63,7 @@ export const TRANSITIONS: Record<TransitionName, TransitionRule> = {
     allowedRoles: ["ADMIN", "EDITOR"],
   },
   reopen: {
-    from: ["ARCHIVED"],
+    from: ["ARCHIVED", "REJECTED"],
     to: "DRAFT",
     allowedRoles: ["ADMIN", "EDITOR"],
   },
@@ -81,6 +90,7 @@ export const TRANSITION_LABELS: Record<TransitionName, string> = {
   submit: "Submit for review",
   requestChanges: "Request changes",
   approve: "Approve",
+  reject: "Reject",
   schedule: "Schedule",
   publish: "Publish",
   archive: "Archive",

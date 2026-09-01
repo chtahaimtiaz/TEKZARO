@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { prisma } from "./prisma";
 import { isEmailConfigured, sendEmail } from "./email/provider";
+import { wrapEmailHtml } from "./email/template";
 import { checkRateLimit, getClientIp } from "./rate-limit";
 import { siteUrl } from "./constants";
 import { createConfirmationToken } from "./newsletter-confirmation";
@@ -18,7 +19,9 @@ async function sendConfirmationEmail(subscriberId: string, email: string): Promi
   await sendEmail({
     to: email,
     subject: "Confirm your TEKZARO newsletter subscription",
-    html: `<p>Confirm your subscription to TEKZARO — Pakistan-first technology journalism.</p><p><a href="${confirmUrl}">Confirm subscription</a> (link expires in 48 hours).</p><p style="color:#888;font-size:12px;">Didn't request this? Ignore this email — you won't be subscribed unless you click the link.</p>`,
+    html: wrapEmailHtml(
+      `<p>Confirm your subscription to TEKZARO — Pakistan-first technology journalism.</p><p><a href="${confirmUrl}">Confirm subscription</a> (link expires in 48 hours).</p><p style="color:#888;font-size:12px;">Didn't request this? Ignore this email — you won't be subscribed unless you click the link.</p>`,
+    ),
     text: `Confirm your subscription to TEKZARO.\n\nConfirm: ${confirmUrl}\n\n(Link expires in 48 hours. Didn't request this? Ignore this email.)`,
     relatedType: "NewsletterSubscriber",
     relatedId: subscriberId,
@@ -65,7 +68,7 @@ export async function subscribeToNewsletter(redirectTo: string, formData: FormDa
       await sendEmail({
         to: existing.email,
         subject: "You're already subscribed to TEKZARO",
-        html: `<p>This address is already subscribed to the TEKZARO newsletter — no action needed.</p>`,
+        html: wrapEmailHtml(`<p>This address is already subscribed to the TEKZARO newsletter — no action needed.</p>`),
         text: "This address is already subscribed to the TEKZARO newsletter — no action needed.",
         relatedType: "NewsletterSubscriber",
         relatedId: existing.id,

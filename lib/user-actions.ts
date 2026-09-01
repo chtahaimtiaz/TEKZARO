@@ -7,6 +7,7 @@ import { getSessionUser, requireRole, hashPassword } from "./auth";
 import { CAN_MANAGE_USERS, ASSIGNABLE_ROLES } from "./permissions";
 import { logAction } from "./audit";
 import { isEmailConfigured, sendEmail } from "./email/provider";
+import { wrapEmailHtml } from "./email/template";
 import { createPasswordResetToken } from "./password-reset";
 import { siteUrl } from "./constants";
 import type { Role } from "@prisma/client";
@@ -108,7 +109,9 @@ export async function inviteUserAction(formData: FormData): Promise<ActionResult
   const emailResult = await sendEmail({
     to: user.email,
     subject: "You've been invited to TEKZARO",
-    html: `<p>You've been invited to join the TEKZARO newsroom as ${user.role}.</p><p><a href="${siteUrl()}${link}">Set your password</a> to activate your account. This link expires in 24 hours.</p>`,
+    html: wrapEmailHtml(
+      `<p>You've been invited to join the TEKZARO newsroom as ${user.role}.</p><p><a href="${siteUrl()}${link}">Set your password</a> to activate your account. This link expires in 24 hours.</p>`,
+    ),
     text: `You've been invited to join the TEKZARO newsroom as ${user.role}.\n\nSet your password: ${siteUrl()}${link}\n\nThis link expires in 24 hours.`,
     relatedType: "User",
     relatedId: user.id,
@@ -195,7 +198,9 @@ export async function resetUserPasswordAction(userId: string): Promise<ActionRes
     const emailResult = await sendEmail({
       to: target.email,
       subject: "Reset your TEKZARO password",
-      html: `<p>A password reset was requested for your TEKZARO account.</p><p><a href="${siteUrl()}${link}">Set a new password</a>. This link expires in 2 hours. If you didn't request this, you can ignore this email.</p>`,
+      html: wrapEmailHtml(
+        `<p>A password reset was requested for your TEKZARO account.</p><p><a href="${siteUrl()}${link}">Set a new password</a>. This link expires in 2 hours. If you didn't request this, you can ignore this email.</p>`,
+      ),
       text: `A password reset was requested for your TEKZARO account.\n\nSet a new password: ${siteUrl()}${link}\n\nThis link expires in 2 hours. If you didn't request this, you can ignore this email.`,
       relatedType: "User",
       relatedId: target.id,

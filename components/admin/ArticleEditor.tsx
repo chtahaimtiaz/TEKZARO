@@ -20,6 +20,7 @@ import {
   createArticleAction,
   updateArticleAction,
   transitionArticleAction,
+  deleteArticleAction,
   type ArticleFormInput,
 } from "@/lib/article-actions";
 import { isPublishableReuseStatus } from "@/lib/publication-checks";
@@ -78,6 +79,9 @@ interface ArticleEditorProps {
   /** Whether this session can approve/reject a pending image directly from
    * the article-images picker (CAN_MANAGE_MEDIA — ADMIN/EDITOR). */
   canManageMedia: boolean;
+  /** Whether this session can permanently delete this article
+   * (CAN_DELETE_ARTICLE, ADMIN only). Irrelevant in mode="create". */
+  canDelete: boolean;
   legalTransitions: TransitionName[];
   mediaUploadAvailable: boolean;
 }
@@ -95,6 +99,7 @@ export function ArticleEditor({
   authors,
   canOverrideAuthorEligibility,
   canManageMedia,
+  canDelete,
   legalTransitions,
   mediaUploadAvailable,
 }: ArticleEditorProps) {
@@ -103,6 +108,7 @@ export function ArticleEditor({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [slugTouched, setSlugTouched] = useState(mode === "edit");
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const { blocks: initialSplitBlocks, pakistanImpact: initialImpact } = useMemo(
     () => splitPakistanImpact(initialBlocks),
@@ -205,6 +211,20 @@ export function ArticleEditor({
       }
       setNotice(`${TRANSITION_LABELS[name]} succeeded.`);
       router.refresh();
+    });
+  }
+
+  function runDelete() {
+    if (!articleId) return;
+    setError(null);
+    startTransition(async () => {
+      const result = await deleteArticleAction(articleId);
+      if (!result.ok) {
+        setError(result.error ?? "Delete failed.");
+        setDeleteConfirmOpen(false);
+        return;
+      }
+      router.push("/admin/articles");
     });
   }
 
@@ -647,6 +667,44 @@ export function ArticleEditor({
                 {TRANSITION_LABELS[name]}
               </button>
             ))}
+
+            {canDelete && mode === "edit" && (
+              <div className="mt-4 border-t border-border pt-4">
+                {!deleteConfirmOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => setDeleteConfirmOpen(true)}
+                    className="text-sm font-semibold text-red-600 hover:underline dark:text-red-400"
+                  >
+                    Delete article
+                  </button>
+                ) : (
+                  <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm dark:border-red-800 dark:bg-red-950">
+                    <p className="font-semibold text-red-800 dark:text-red-300">
+                      Permanently delete this article? This cannot be undone.
+                    </p>
+                    <div className="mt-2 flex gap-3">
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={runDelete}
+                        className="rounded-md bg-red-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-800 disabled:opacity-50 dark:bg-red-600 dark:hover:bg-red-700"
+                      >
+                        {pending ? "Deleting…" : "Yes, delete permanently"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => setDeleteConfirmOpen(false)}
+                        className="rounded-md border border-border-strong px-3 py-1.5 text-xs font-semibold hover:border-accent disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth";
 import { changePasswordAction } from "@/lib/auth-actions";
+import { Logo } from "@/components/ui/Logo";
 
 export const dynamic = "force-dynamic";
 
@@ -20,8 +21,9 @@ export default async function ChangePasswordPage({
   return (
     <div className="flex min-h-screen items-center justify-center bg-paper-sunk px-4">
       <div className="w-full max-w-sm rounded-xl border border-border bg-paper-raised p-8">
-        <p className="eyebrow">TEKZARO Newsroom</p>
-        <h1 className="mt-1 font-serif text-2xl font-bold text-ink">Change password</h1>
+        <Logo size={44} className="mx-auto" priority />
+        <p className="mt-4 eyebrow text-center">TEKZARO Newsroom</p>
+        <h1 className="mt-1 text-center font-serif text-2xl font-bold text-ink">Change password</h1>
         {user.mustChangePassword && (
           <p className="mt-2 rounded-md bg-amber-100 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-300">
             This account is using a one-time bootstrap password. Set a new password to continue.

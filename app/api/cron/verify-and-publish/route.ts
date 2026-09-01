@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { processVerificationBatch } from "@/lib/verification-actions";
+import { deduplicateArticles } from "@/lib/article-dedup";
 import { logSystemEvent } from "@/lib/monitoring";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
@@ -42,5 +43,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     context: summary as unknown as Record<string, unknown>,
   });
 
-  return NextResponse.json(summary);
+  // Runs every invocation (not just when this batch created something) —
+  // the pipeline has drafted the same widely-syndicated story more than
+  // once across separate runs before, so this is the ongoing safety net,
+  // not a one-time fix. logs its own SystemEvent only when it actually
+  // removes something.
+  const dedup = await deduplicateArticles();
+
+  return NextResponse.json({ ...summary, duplicatesRemoved: dedup.articlesDeleted });
 }

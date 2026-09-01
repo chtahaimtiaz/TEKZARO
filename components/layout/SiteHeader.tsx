@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CATEGORY_MAP, PRIMARY_NAV, OVERFLOW_NAV, SITE_NAME, categoryHref } from "@/lib/constants";
 import { MobileMenu } from "./MobileMenu";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { Logo } from "@/components/ui/Logo";
 import { getThemePreference } from "@/lib/theme";
 
 export async function SiteHeader() {
@@ -10,7 +11,8 @@ export async function SiteHeader() {
   return (
     <header className="relative border-b border-border bg-paper-raised text-ink">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-4 py-4">
-        <Link href="/" className="font-serif text-2xl font-black tracking-tight">
+        <Link href="/" className="flex items-center gap-2 font-serif text-2xl font-black tracking-tight">
+          <Logo size={36} priority />
           {SITE_NAME}
         </Link>
 

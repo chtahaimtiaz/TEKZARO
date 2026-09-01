@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "./prisma";
 import { isEmailConfigured, sendEmail } from "./email/provider";
+import { wrapEmailHtml } from "./email/template";
 import { siteUrl } from "./constants";
 
 export interface NotifyInput {
@@ -42,7 +43,7 @@ export async function notify(input: NotifyInput): Promise<void> {
   await sendEmail({
     to: user.email,
     subject: input.title,
-    html: `<p>${escapeHtml(input.body)}</p>${linkUrl ? `<p><a href="${linkUrl}">View in TEKZARO</a></p>` : ""}`,
+    html: wrapEmailHtml(`<p>${escapeHtml(input.body)}</p>${linkUrl ? `<p><a href="${linkUrl}">View in TEKZARO</a></p>` : ""}`),
     text: `${input.body}${linkUrl ? `\n\n${linkUrl}` : ""}`,
     relatedType: "Notification",
   });

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { canEditArticle, CAN_OVERRIDE_AUTHOR_ELIGIBILITY, CAN_MANAGE_MEDIA } from "@/lib/permissions";
+import { canEditArticle, CAN_OVERRIDE_AUTHOR_ELIGIBILITY, CAN_MANAGE_MEDIA, CAN_DELETE_ARTICLE } from "@/lib/permissions";
 import { getAuthorsForEditor } from "@/lib/author-eligibility";
 import { legalTransitionsFor } from "@/lib/workflow";
 import { asArticleContent } from "@/lib/content-blocks";
@@ -118,6 +118,7 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
       authors={authors}
       articleMediaOptions={articleMediaOptions}
       canManageMedia={CAN_MANAGE_MEDIA.includes(user.role)}
+      canDelete={CAN_DELETE_ARTICLE.includes(user.role)}
       legalTransitions={legalTransitions}
       mediaUploadAvailable={isMediaUploadAvailable()}
     />

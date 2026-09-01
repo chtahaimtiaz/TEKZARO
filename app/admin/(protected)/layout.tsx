@@ -5,6 +5,7 @@ import { logoutAction } from "@/lib/auth-actions";
 import { prisma } from "@/lib/prisma";
 import { getThemePreference } from "@/lib/theme";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { Logo } from "@/components/ui/Logo";
 import {
   CAN_MANAGE_USERS,
   CAN_VIEW_AUDIT_LOG,
@@ -41,7 +42,10 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
   return (
     <div className="grid min-h-screen grid-cols-1 bg-paper text-ink lg:grid-cols-[240px_1fr]">
       <aside className="flex flex-col border-b border-border bg-paper-raised p-6 text-ink lg:border-b-0 lg:border-r">
-        <p className="font-serif text-xl font-black">TEKZARO</p>
+        <div className="flex items-center gap-2">
+          <Logo size={32} priority />
+          <p className="font-serif text-xl font-black">TEKZARO</p>
+        </div>
         <div className="mt-3">
           <ThemeToggle initialPreference={themePreference} />
         </div>

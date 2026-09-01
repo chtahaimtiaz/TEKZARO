@@ -43,6 +43,24 @@ describe("assertTransition", () => {
     expect(assertTransition("publish", { status: "SCHEDULED", createdById: null }, { id: "e", role: "EDITOR" })).toBe("PUBLISHED");
     expect(() => assertTransition("publish", { status: "DRAFT", createdById: null }, { id: "e", role: "EDITOR" })).toThrow(WorkflowError);
   });
+
+  it("allows EDITOR to reject from IN_REVIEW or CHANGES_REQUESTED, never from DRAFT/PUBLISHED", () => {
+    expect(assertTransition("reject", { status: "IN_REVIEW", createdById: null }, { id: "e", role: "EDITOR" })).toBe("REJECTED");
+    expect(assertTransition("reject", { status: "CHANGES_REQUESTED", createdById: null }, { id: "e", role: "EDITOR" })).toBe("REJECTED");
+    expect(() => assertTransition("reject", { status: "DRAFT", createdById: null }, { id: "e", role: "EDITOR" })).toThrow(WorkflowError);
+    expect(() => assertTransition("reject", { status: "PUBLISHED", createdById: null }, { id: "e", role: "EDITOR" })).toThrow(WorkflowError);
+  });
+
+  it("rejects REPORTER/RESEARCHER rejecting — reject is an editorial decision, not an own-draft action", () => {
+    expect(() =>
+      assertTransition("reject", { status: "IN_REVIEW", createdById: "u1" }, { id: "u1", role: "REPORTER" }),
+    ).toThrow(WorkflowError);
+  });
+
+  it("a REJECTED article can be reopened to DRAFT, same as ARCHIVED — it's not a dead end", () => {
+    expect(assertTransition("reopen", { status: "REJECTED", createdById: null }, { id: "e", role: "EDITOR" })).toBe("DRAFT");
+    expect(assertTransition("reopen", { status: "ARCHIVED", createdById: null }, { id: "e", role: "EDITOR" })).toBe("DRAFT");
+  });
 });
 
 describe("legalTransitionsFor", () => {
@@ -54,9 +72,9 @@ describe("legalTransitionsFor", () => {
     expect(legalTransitionsFor("DRAFT", "REPORTER", false)).toEqual([]);
   });
 
-  it("gives EDITOR requestChanges + approve on IN_REVIEW", () => {
+  it("gives EDITOR requestChanges + approve + reject on IN_REVIEW", () => {
     expect(new Set(legalTransitionsFor("IN_REVIEW", "EDITOR", false))).toEqual(
-      new Set(["requestChanges", "approve"]),
+      new Set(["requestChanges", "approve", "reject"]),
     );
   });
 

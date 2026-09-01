@@ -6,6 +6,7 @@ import { getSessionUser, requireRole } from "./auth";
 import { CAN_SEND_NEWSLETTER } from "./permissions";
 import { logAction } from "./audit";
 import { sendEmail } from "./email/provider";
+import { wrapEmailHtml } from "./email/template";
 import { siteUrl } from "./constants";
 import { consumeConfirmationToken } from "./newsletter-confirmation";
 import { checkRateLimit, getClientIp } from "./rate-limit";
@@ -62,7 +63,9 @@ export async function confirmSubscriptionAction(token: string): Promise<ConfirmS
     await sendEmail({
       to: subscriber.email,
       subject: "You're subscribed to TEKZARO",
-      html: `<p>You're confirmed — thanks for subscribing to TEKZARO, Pakistan-first technology journalism.</p><p style="color:#888;font-size:12px;">Didn't mean to? <a href="${unsubscribeUrl}">Unsubscribe</a>.</p>`,
+      html: wrapEmailHtml(
+        `<p>You're confirmed — thanks for subscribing to TEKZARO, Pakistan-first technology journalism.</p><p style="color:#888;font-size:12px;">Didn't mean to? <a href="${unsubscribeUrl}">Unsubscribe</a>.</p>`,
+      ),
       text: `You're confirmed — thanks for subscribing to TEKZARO.\n\nDidn't mean to? Unsubscribe: ${unsubscribeUrl}`,
       relatedType: "NewsletterSubscriber",
       relatedId: subscriber.id,
@@ -130,7 +133,9 @@ export async function sendCampaignAction(campaignId: string): Promise<ActionResu
     const result = await sendEmail({
       to: subscriber.email,
       subject: campaign.subject,
-      html: `${campaign.bodyHtml}<p style="color:#888;font-size:12px;margin-top:24px;">You're receiving this because you subscribed to TEKZARO. <a href="${unsubscribeUrl}">Unsubscribe</a>.</p>`,
+      html: wrapEmailHtml(
+        `${campaign.bodyHtml}<p style="color:#888;font-size:12px;margin-top:24px;">You're receiving this because you subscribed to TEKZARO. <a href="${unsubscribeUrl}">Unsubscribe</a>.</p>`,
+      ),
       text: `${campaign.subject}\n\nUnsubscribe: ${unsubscribeUrl}`,
       relatedType: "NewsletterCampaign",
       relatedId: campaign.id,

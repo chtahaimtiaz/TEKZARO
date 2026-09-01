@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { CATEGORIES, SITE_NAME, SITE_DESCRIPTION, categoryHref } from "@/lib/constants";
 import { getConfiguredSocialLinks, type SocialPlatform } from "@/lib/social-links";
+import { Logo } from "@/components/ui/Logo";
 
 // Simple, hand-rolled line-icon glyphs (fill="none"/stroke="currentColor"),
 // matching this project's existing icon convention (SiteHeader.tsx,
@@ -47,7 +48,10 @@ export function SiteFooter() {
       <div className="mx-auto max-w-6xl px-4 py-12">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <p className="font-serif text-xl font-black text-ink">{SITE_NAME}</p>
+            <div className="flex items-center gap-2">
+              <Logo size={28} />
+              <p className="font-serif text-xl font-black text-ink">{SITE_NAME}</p>
+            </div>
             <p className="mt-3 max-w-xs text-sm">{SITE_DESCRIPTION}</p>
           </div>
 

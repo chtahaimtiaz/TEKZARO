@@ -43,6 +43,10 @@ export const CAN_MANAGE_AUTHORS: Role[] = ["ADMIN", "EDITOR"];
  * category — a rare, explicit bypass, deliberately narrower than
  * CAN_MANAGE_AUTHORS/CAN_WRITE. */
 export const CAN_OVERRIDE_AUTHOR_ELIGIBILITY: Role[] = ["ADMIN"];
+/** Roles allowed to permanently delete an article. Deliberately narrower
+ * than CAN_EDIT_ANY — a hard delete has no undo, unlike every other
+ * workflow transition. */
+export const CAN_DELETE_ARTICLE: Role[] = ["ADMIN"];
 
 /** SYSTEM is a real Role value but is never assignable through any admin
  * action, never shown in the user list, and can never be deactivated —

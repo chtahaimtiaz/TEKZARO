@@ -4,7 +4,7 @@ import { z } from "zod";
 import { redirect } from "next/navigation";
 import { prisma } from "./prisma";
 import { requireRole, getSessionUser, ForbiddenError } from "./auth";
-import { CAN_WRITE, CAN_OVERRIDE_AUTHOR_ELIGIBILITY, canEditArticle } from "./permissions";
+import { CAN_WRITE, CAN_OVERRIDE_AUTHOR_ELIGIBILITY, CAN_DELETE_ARTICLE, canEditArticle } from "./permissions";
 import { isAuthorEligibleForCategory } from "./author-eligibility";
 import { assertTransition, type TransitionName, WorkflowError } from "./workflow";
 import { evaluatePublicationChecks } from "./publication-checks";
@@ -493,6 +493,15 @@ async function notifyForTransition(
       link,
       email: true,
     });
+  } else if (name === "reject") {
+    await notify({
+      userId: article.createdById,
+      type: "article_rejected",
+      title: "Your article was rejected",
+      body: `"${article.title}" was rejected. It can still be reopened as a draft if the decision changes.`,
+      link,
+      email: true,
+    });
   } else if (name === "publish") {
     await notify({
       userId: article.createdById,
@@ -585,4 +594,30 @@ export async function restoreVersionAction(articleId: string, versionId: string)
   });
 
   redirect(`/admin/articles/${articleId}/versions`);
+}
+
+/** A genuine hard delete — no undo, unlike every other workflow transition
+ * (which land on ARCHIVED/REJECTED, both still visible and reversible in
+ * the admin UI). ArticleTag/ArticleVersion/ArticleSource/Relation rows
+ * cascade with it; Media.articleId, PageView.articleId, and
+ * SourceItem.convertedArticleId just lose the reference (SetNull) rather
+ * than blocking the delete or disappearing themselves. */
+export async function deleteArticleAction(articleId: string): Promise<ActionResult> {
+  const sessionUser = await getSessionUser();
+  const user = requireRole(sessionUser, CAN_DELETE_ARTICLE);
+
+  const article = await prisma.article.findUnique({ where: { id: articleId }, select: { title: true, status: true } });
+  if (!article) return { ok: false, error: "Article not found." };
+
+  await prisma.article.delete({ where: { id: articleId } });
+
+  await logAction({
+    userId: user.id,
+    action: "article_deleted",
+    entityType: "Article",
+    entityId: articleId,
+    metadata: { title: article.title, statusAtDeletion: article.status },
+  });
+
+  return { ok: true };
 }

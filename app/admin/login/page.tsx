@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { loginAction } from "@/lib/auth-actions";
+import { Logo } from "@/components/ui/Logo";
 
 export const metadata: Metadata = {
   title: "Sign in",
@@ -22,8 +23,9 @@ export default async function AdminLoginPage({
   return (
     <div className="flex min-h-screen items-center justify-center bg-paper-sunk px-4">
       <div className="w-full max-w-sm rounded-xl border border-border bg-paper-raised p-8">
-        <p className="eyebrow">TEKZARO Newsroom</p>
-        <h1 className="mt-1 font-serif text-2xl font-bold text-ink">Sign in</h1>
+        <Logo size={44} className="mx-auto" priority />
+        <p className="mt-4 eyebrow text-center">TEKZARO Newsroom</p>
+        <h1 className="mt-1 text-center font-serif text-2xl font-bold text-ink">Sign in</h1>
 
         <form action={loginAction} className="mt-6 flex flex-col gap-4">
           <input type="hidden" name="next" value={next && next.startsWith("/admin") ? next : "/admin"} />

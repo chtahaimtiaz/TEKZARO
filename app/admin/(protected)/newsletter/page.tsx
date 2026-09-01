@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { CAN_SEND_NEWSLETTER } from "@/lib/permissions";
 import { isEmailConfigured } from "@/lib/email/provider";
+import { wrapEmailHtml } from "@/lib/email/template";
 import { createCampaignAction, sendCampaignAction } from "@/lib/newsletter-actions";
 
 export const dynamic = "force-dynamic";
@@ -84,7 +85,16 @@ export default async function NewsletterAdminPage({
                 <p className="font-bold">{c.subject}</p>
                 <span className="rounded-full bg-paper px-2 py-0.5 text-xs font-semibold uppercase text-ink-muted">{c.status}</span>
               </div>
-              <div className="prose-article mt-2 max-h-40 overflow-y-auto rounded-md border border-border bg-paper p-3 text-sm" dangerouslySetInnerHTML={{ __html: c.bodyHtml }} />
+              <div className="mt-2 overflow-hidden rounded-md border border-border">
+                <p className="border-b border-border bg-paper px-3 py-1 text-xs font-semibold text-ink-muted">
+                  Preview — as recipients will see it (unsubscribe link is added per-subscriber at send time)
+                </p>
+                <iframe
+                  title={`Preview: ${c.subject}`}
+                  srcDoc={wrapEmailHtml(`${c.bodyHtml}<p style="color:#888;font-size:12px;margin-top:24px;">(Unsubscribe link)</p>`)}
+                  className="h-64 w-full"
+                />
+              </div>
               <div className="mt-3 flex items-center justify-between text-xs text-ink-muted">
                 <span>
                   {c.status === "SENT" && c.sentAt

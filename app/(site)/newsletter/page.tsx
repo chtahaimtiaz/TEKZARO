@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { NewsletterForm } from "@/components/ui/NewsletterForm";
+import { Logo } from "@/components/ui/Logo";
 
 export const metadata: Metadata = {
   title: "Newsletter",
@@ -15,7 +16,8 @@ export default async function NewsletterPage({
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
-      <p className="eyebrow">Newsletter</p>
+      <Logo size={40} priority />
+      <p className="mt-4 eyebrow">Newsletter</p>
       <h1 className="mt-1 font-serif text-4xl font-bold">Stay Ahead of Technology</h1>
       <p className="mt-3 text-ink-soft">
         The TEKZARO Pakistan Tech Briefing — the technology stories that matter most in Pakistan

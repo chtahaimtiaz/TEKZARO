@@ -2,6 +2,37 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { CAN_VIEW_MONITORING } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { isAIConfigured } from "@/lib/ai/provider";
+import { isSearchConfigured } from "@/lib/search/web-search";
+import { isMediaUploadAvailable } from "@/lib/media/storage";
+import { isEmailConfigured } from "@/lib/email/provider";
+
+const INTEGRATIONS = [
+  {
+    name: "AI assistance",
+    detail: "Claims summaries, Pakistan-impact drafts, verify-and-synthesize, discovery drafts",
+    envVar: "AI_API_KEY",
+    check: isAIConfigured,
+  },
+  {
+    name: "Web search",
+    detail: "Primary/secondary source lookup for the verify-and-publish pipeline",
+    envVar: "SEARCH_API_KEY",
+    check: isSearchConfigured,
+  },
+  {
+    name: "Media uploads",
+    detail: "Editor image uploads and automated image acquisition storage",
+    envVar: "STORAGE_PROVIDER + BLOB_READ_WRITE_TOKEN (or local disk in dev)",
+    check: isMediaUploadAvailable,
+  },
+  {
+    name: "Email delivery",
+    detail: "Invites, password resets, notifications, newsletter confirmations & campaigns",
+    envVar: "SMTP_HOST / PORT / USER / PASS",
+    check: isEmailConfigured,
+  },
+] as const;
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +66,36 @@ export default async function MonitoringPage({
       <p className="eyebrow">Newsroom</p>
       <h1 className="mt-1 font-serif text-3xl font-bold">Monitoring</h1>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <section className="mt-6">
+        <h2 className="text-lg font-bold">Integration status</h2>
+        <p className="mt-1 text-sm text-ink-muted">
+          Whether each optional integration is actually configured in this environment right now — not whether
+          the code path exists.
+        </p>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {INTEGRATIONS.map((integration) => {
+            const configured = integration.check();
+            return (
+              <div key={integration.name} className="rounded-xl border border-border bg-paper-raised p-5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-bold">{integration.name}</p>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      configured ? "bg-pakistan-soft text-pakistan" : "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                    }`}
+                  >
+                    {configured ? "Configured" : "Not configured"}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs text-ink-muted">{integration.detail}</p>
+                {!configured && <p className="mt-2 text-xs text-ink-muted">Requires: {integration.envVar}</p>}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div className="rounded-xl border border-border bg-paper-raised p-5">
           <p className="text-sm text-ink-muted">Database</p>
           <p className={`mt-1 font-serif text-xl font-bold ${dbStatus === "ok" ? "text-pakistan" : "text-red-600 dark:text-red-400"}`}>

@@ -34,6 +34,7 @@ export default async function NewArticlePage({
       initialFeaturedMedia={null}
       canOverrideAuthorEligibility={CAN_OVERRIDE_AUTHOR_ELIGIBILITY.includes(user.role)}
       canManageMedia={CAN_MANAGE_MEDIA.includes(user.role)}
+      canDelete={false}
       initial={{
         title: "",
         slug: "",

@@ -34,6 +34,9 @@ enum ArticleStatus {
   SCHEDULED
   PUBLISHED
   ARCHIVED
+  // Distinct from ARCHIVED (published, then pulled) — reachable only from
+  // IN_REVIEW/CHANGES_REQUESTED, meaning it never had a live publish.
+  REJECTED
 }
 
 enum SourceType {
@@ -502,7 +505,7 @@ model SourceItem {
   aiStatus AIStatus        @default(NOT_STARTED)
 
   convertedArticleId String?
-  convertedArticle   Article? @relation("SourceItemConvertedArticle", fields: [convertedArticleId], references: [id])
+  convertedArticle   Article? @relation("SourceItemConvertedArticle", fields: [convertedArticleId], references: [id], onDelete: SetNull)
 
   reviewedById String?
   reviewedBy   User?   @relation("SourceItemReviewedBy", fields: [reviewedById], references: [id])
@@ -618,7 +621,7 @@ model DigestItem {
   sourceItemId String?
   sourceItem   SourceItem?   @relation(fields: [sourceItemId], references: [id])
   articleId    String?
-  article      Article?      @relation(fields: [articleId], references: [id])
+  article      Article?      @relation(fields: [articleId], references: [id], onDelete: SetNull)
   section      DigestSection
   order        Int           @default(0)
   addedById    String

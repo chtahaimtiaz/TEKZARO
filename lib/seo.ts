@@ -10,7 +10,10 @@ export function buildArticleMetadata(article: ArticleWithRelations): Metadata {
   const title = article.seoTitle || article.title;
   const description = article.metaDescription || article.excerpt || SITE_DESCRIPTION;
   const url = absoluteUrl(`/article/${article.slug}`);
-  const image = article.ogImage || article.featuredImageUrl || undefined;
+  // Falls back to the logo (rather than no image at all) for the rare
+  // article with neither an explicit ogImage nor a featured image — a
+  // branded card beats a blank one on social platforms.
+  const image = article.ogImage || article.featuredImageUrl || absoluteUrl("/logo.png");
 
   return {
     title: `${title} | ${SITE_NAME}`,
