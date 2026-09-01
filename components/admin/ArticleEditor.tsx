@@ -230,7 +230,7 @@ export function ArticleEditor({
       {notice && <p role="status" className="mb-4 rounded-md bg-pakistan-soft p-3 text-sm font-medium text-pakistan">{notice}</p>}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        <div className="flex flex-col gap-4">
+        <div className="flex min-w-0 flex-col gap-4">
           <input
             value={form.title}
             onChange={(e) => handleTitleChange(e.target.value)}
@@ -281,7 +281,7 @@ export function ArticleEditor({
           </div>
         </div>
 
-        <div className="flex flex-col gap-5">
+        <div className="flex min-w-0 flex-col gap-5">
           <div className="rounded-xl border border-border bg-paper-raised p-4">
             <p className="mb-2 text-sm font-bold">Publication checklist</p>
             <PublicationChecklist checks={checks} />
