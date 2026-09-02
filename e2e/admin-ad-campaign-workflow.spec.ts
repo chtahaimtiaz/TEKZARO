@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import path from "node:path";
-import { createE2EUser, deleteE2EUsers, loginViaSession, uniqueLabel } from "./helpers";
+import { createE2EUser, deleteE2EUsers, loginViaUI, uniqueLabel } from "./helpers";
 import { prisma } from "../lib/prisma";
 
 const IMG_PATH = path.join(__dirname, "fixtures", "test-creative.png");
@@ -20,13 +20,13 @@ test.describe("Admin — full ad campaign workflow, end to end", () => {
     await deleteE2EUsers([admin.id]);
   });
 
-  test("create advertiser -> campaign -> upload creative -> submit -> approve -> live on homepage -> pause", async ({ page, context, baseURL }) => {
+  test("create advertiser -> campaign -> upload creative -> submit -> approve -> live on homepage -> pause", async ({ page }) => {
     // The full journey walks through several dev-mode cold-compiled routes
     // in sequence (new campaign, the upload API route, the campaign detail
     // page) — each pays its own one-time compile cost, so this needs more
     // headroom than the global per-test timeout.
     test.setTimeout(120_000);
-    await loginViaSession(context, admin.id, baseURL!);
+    await loginViaUI(page, admin.email, admin.password);
 
     const advertiserName = uniqueLabel("Advertiser");
     const campaignName = uniqueLabel("Campaign");

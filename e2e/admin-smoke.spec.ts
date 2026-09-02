@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { createE2EUser, deleteE2EUsers, loginViaUI, loginViaSession, clearLoginRateLimit } from "./helpers";
+import { createE2EUser, deleteE2EUsers, loginViaUI, establishSessionCookie, injectSessionCookie, clearLoginRateLimit } from "./helpers";
 import { prisma } from "../lib/prisma";
 
 // Renders every major admin page with a real logged-in session. This is
@@ -12,10 +12,12 @@ import { prisma } from "../lib/prisma";
 // crashed on real render).
 test.describe("Admin — render smoke test across every major page", () => {
   let admin: Awaited<ReturnType<typeof createE2EUser>>;
+  let sessionToken: string;
 
-  test.beforeAll(async () => {
+  test.beforeAll(async ({ browser, baseURL }) => {
     await clearLoginRateLimit();
     admin = await createE2EUser("ADMIN", "admin-smoke");
+    sessionToken = await establishSessionCookie(browser, baseURL!, admin.email, admin.password);
   });
 
   test.afterAll(async () => {
@@ -54,9 +56,10 @@ test.describe("Admin — render smoke test across every major page", () => {
 
   for (const path of pages) {
     test(`${path} renders without a server-error boundary`, async ({ page, context, baseURL }) => {
-      await loginViaSession(context, admin.id, baseURL!);
+      await injectSessionCookie(context, baseURL!, sessionToken);
       const response = await page.goto(path);
       expect(response?.status(), `${path} returned a non-OK status`).toBeLessThan(500);
+      expect(page.url(), `${path} unexpectedly redirected to the login page`).not.toContain("/admin/login");
       await expect(page.locator("text=Something went wrong")).not.toBeVisible();
       await expect(page.locator("text=hit an unexpected error")).not.toBeVisible();
     });
@@ -67,9 +70,10 @@ test.describe("Admin — render smoke test across every major page", () => {
     test.skip(!article, "No published article exists to check.");
     if (!article) return;
 
-    await loginViaSession(context, admin.id, baseURL!);
+    await injectSessionCookie(context, baseURL!, sessionToken);
     const response = await page.goto(`/admin/articles/${article.id}`);
     expect(response?.status()).toBeLessThan(500);
+    expect(page.url()).not.toContain("/admin/login");
     await expect(page.locator("text=Something went wrong")).not.toBeVisible();
     await expect(page.locator("text=Archive")).toBeVisible();
   });

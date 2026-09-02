@@ -1,5 +1,5 @@
-import type { Page, BrowserContext } from "@playwright/test";
-import { randomBytes, createHmac } from "node:crypto";
+import type { Page, BrowserContext, Browser } from "@playwright/test";
+import { randomBytes } from "node:crypto";
 import { prisma } from "../lib/prisma";
 // lib/password.ts, not lib/auth.ts — the latter is marked "server-only"
 // and throws when imported outside Next's own bundler pipeline (which
@@ -55,21 +55,41 @@ export async function loginViaUI(page: Page, email: string, password: string): P
 const SESSION_COOKIE = "tekzaro_session";
 
 /**
- * Creates a real Session row and drops its cookie into the browser
- * context directly — same trick tests/helpers.ts's loginAs() uses against
- * vitest's mocked cookie store, applied here to a real browser context.
- * Every subsequent request still goes through real server-side session
- * validation; this only skips re-exercising the login FORM POST itself,
- * which is real-tested once in admin-smoke's dedicated "login works" test.
- * Necessary, not just faster: loginAction rate-limits at 10 attempts per
- * 10 minutes per IP (lib/auth-actions.ts) — a suite that logs in via the
- * real form before every one of 20+ page checks blows through that budget
- * on its own and starts failing on the rate limit, not on anything real.
+ * Logs in once via the real form and hands back the raw session-cookie
+ * value, so a whole spec file can inject that SAME server-issued session
+ * into as many fresh per-test browser contexts as it needs via
+ * injectSessionCookie() below, instead of logging in through the real
+ * form on every single page check (loginAction rate-limits at 10 attempts
+ * per 10 minutes per IP — a suite doing that before each of 20+ page
+ * checks blows through that budget on its own).
+ *
+ * This replaces an earlier loginViaSession() that built its own Session
+ * row locally, hashing the token with HMAC-SHA256(process.env.AUTH_SECRET)
+ * to match lib/password.ts's hashOpaqueToken(). That's only correct when
+ * the E2E runner's local AUTH_SECRET is byte-for-byte the same value the
+ * target deployment has configured — true for a local dev server sharing
+ * one .env, false for a real Vercel deployment with its own env vars.
+ * On a secret mismatch the locally-computed hash matches no real Session
+ * row, so the app quietly treats every request as logged out — proven
+ * live: it silently redirected every "renders without a server-error
+ * boundary" check in admin-smoke.spec.ts to /admin/login, and only the
+ * two tests with assertions specific enough to notice (checking for the
+ * Archive button, checking for the advertiser form's own input) actually
+ * failed. Reusing a real, server-issued cookie sidesteps the whole class
+ * of bug — there's no hash to get wrong, because nothing is computed.
  */
-export async function loginViaSession(context: BrowserContext, userId: string, baseURL: string): Promise<void> {
-  const token = randomBytes(32).toString("hex");
-  const tokenHash = createHmac("sha256", process.env.AUTH_SECRET!).update(token).digest("hex");
-  await prisma.session.create({ data: { tokenHash, userId, expiresAt: new Date(Date.now() + 60 * 60 * 1000) } });
+export async function establishSessionCookie(browser: Browser, baseURL: string, email: string, password: string): Promise<string> {
+  const context = await browser.newContext({ baseURL });
+  const page = await context.newPage();
+  await loginViaUI(page, email, password);
+  const cookies = await context.cookies();
+  const token = cookies.find((c) => c.name === SESSION_COOKIE)?.value;
+  await context.close();
+  if (!token) throw new Error("Real login did not set a session cookie.");
+  return token;
+}
+
+export async function injectSessionCookie(context: BrowserContext, baseURL: string, token: string): Promise<void> {
   await context.addCookies([{ name: SESSION_COOKIE, value: token, url: baseURL }]);
 }
 
