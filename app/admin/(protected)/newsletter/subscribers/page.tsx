@@ -3,26 +3,16 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { CAN_SEND_NEWSLETTER } from "@/lib/permissions";
-import type { NewsletterSubscriberStatus, Prisma } from "@prisma/client";
+import { NEWSLETTER_SUBSCRIBER_STATUSES, buildSubscriberWhere } from "@/lib/newsletter-subscribers";
 
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 50;
-const STATUSES: NewsletterSubscriberStatus[] = ["CONFIRMED", "PENDING", "UNSUBSCRIBED"];
 
 interface SearchParams {
   q?: string;
   status?: string;
   page?: string;
-}
-
-function buildWhere(sp: SearchParams): Prisma.NewsletterSubscriberWhereInput {
-  const where: Prisma.NewsletterSubscriberWhereInput = {};
-  if (sp.q) where.email = { contains: sp.q, mode: "insensitive" };
-  if (sp.status && STATUSES.includes(sp.status as NewsletterSubscriberStatus)) {
-    where.status = sp.status as NewsletterSubscriberStatus;
-  }
-  return where;
 }
 
 function queryString(sp: SearchParams, overrides: Partial<SearchParams>): string {
@@ -44,7 +34,7 @@ export default async function NewsletterSubscribersPage({
   if (!CAN_SEND_NEWSLETTER.includes(user.role)) redirect("/admin");
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page) || 1);
-  const where = buildWhere(sp);
+  const where = buildSubscriberWhere(sp);
 
   const [subscribers, total] = await Promise.all([
     prisma.newsletterSubscriber.findMany({
@@ -90,7 +80,7 @@ export default async function NewsletterSubscribersPage({
           Status
           <select name="status" defaultValue={sp.status ?? ""} className="rounded-md border border-border-strong bg-paper-raised p-2 text-ink">
             <option value="">All</option>
-            {STATUSES.map((s) => (
+            {NEWSLETTER_SUBSCRIBER_STATUSES.map((s) => (
               <option key={s} value={s}>
                 {s}
               </option>

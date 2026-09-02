@@ -3,9 +3,7 @@ import { getSessionUser } from "@/lib/auth";
 import { CAN_SEND_NEWSLETTER } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/audit";
-import type { NewsletterSubscriberStatus, Prisma } from "@prisma/client";
-
-const STATUSES: NewsletterSubscriberStatus[] = ["CONFIRMED", "PENDING", "UNSUBSCRIBED"];
+import { buildSubscriberWhere } from "@/lib/newsletter-subscribers";
 
 function csvEscape(value: string): string {
   return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
@@ -23,12 +21,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q");
   const status = searchParams.get("status");
-
-  const where: Prisma.NewsletterSubscriberWhereInput = {};
-  if (q) where.email = { contains: q, mode: "insensitive" };
-  if (status && STATUSES.includes(status as NewsletterSubscriberStatus)) {
-    where.status = status as NewsletterSubscriberStatus;
-  }
+  const where = buildSubscriberWhere({ q, status });
 
   const subscribers = await prisma.newsletterSubscriber.findMany({
     where,

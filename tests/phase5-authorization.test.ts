@@ -3,7 +3,7 @@ import { prisma } from "../lib/prisma";
 import { ForbiddenError } from "../lib/auth";
 import { resetUserPasswordAction, inviteUserAction } from "../lib/user-actions";
 import { deleteMediaAction } from "../lib/media-actions";
-import { createCampaignAction, sendCampaignAction } from "../lib/newsletter-actions";
+import { createCampaignAction, sendCampaignAction, sendTestCampaignAction } from "../lib/newsletter-actions";
 import { markNotificationReadAction } from "../lib/notification-actions";
 import { createTestUser, loginAs, clearSession, trackUser, cleanupTestData } from "./helpers";
 
@@ -54,6 +54,7 @@ describe("unauthorized access — media, newsletter, user administration", () =>
     form.set("bodyHtml", "<p>Nope</p>");
     await expect(createCampaignAction(form)).rejects.toThrow(ForbiddenError);
     await expect(sendCampaignAction("does-not-matter")).rejects.toThrow(ForbiddenError);
+    await expect(sendTestCampaignAction("does-not-matter")).rejects.toThrow(ForbiddenError);
     clearSession();
   });
 

@@ -71,12 +71,12 @@ export default async function AnalyticsPage() {
         <h2 className="text-lg font-bold">Daily page views (last 14 days)</h2>
         <div className="mt-4 flex items-end gap-1.5" style={{ height: 120 }}>
           {Object.entries(dayBuckets).map(([day, count]) => (
-            <div key={day} className="flex flex-1 flex-col items-center gap-1" title={`${day}: ${count}`}>
+            <div key={day} className="flex min-w-0 flex-1 flex-col items-center gap-1" title={`${day}: ${count}`}>
               <div
                 className="w-full rounded-t bg-accent"
                 style={{ height: `${Math.max(2, (count / maxDay) * 100)}%` }}
               />
-              <span className="text-[9px] text-ink-muted">{day.slice(5)}</span>
+              <span className="hidden text-[9px] text-ink-muted sm:block">{day.slice(5)}</span>
             </div>
           ))}
         </div>
