@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { CAN_MANAGE_ADS } from "@/lib/permissions";
 import { isMediaUploadAvailable } from "@/lib/media/storage";
 import { computeAdRuntimeStatus, AD_RUNTIME_STATUS_LABELS, getAdCampaignStats } from "@/lib/ads";
-import { legalAdTransitionsFor, AD_TRANSITION_LABELS, type AdTransitionName } from "@/lib/ad-workflow";
+import { legalAdTransitionsFor, AD_TRANSITION_LABELS } from "@/lib/ad-workflow";
 import {
   updateAdCampaignAction,
   upsertAdCreativeAction,
@@ -53,12 +53,17 @@ export default async function AdCampaignDetailPage({
   const transitions = legalAdTransitionsFor(campaign.status, user.role);
   const uploadAvailable = isMediaUploadAvailable();
 
-  const transitionActions: Record<AdTransitionName, (formData: FormData) => Promise<void>> = {
-    submit: async () => submitAdCampaignAction(campaign.id),
-    approve: async () => approveAdCampaignAction(campaign.id),
-    reject: async (formData: FormData) => rejectAdCampaignAction(campaign.id, formData),
-    pause: async () => pauseAdCampaignAction(campaign.id),
-    resume: async () => resumeAdCampaignAction(campaign.id),
+  // .bind() directly on the real "use server" action — not a wrapper arrow
+  // function. A fresh closure defined here isn't a valid Server Reference
+  // and fails RSC serialization at render time (confirmed live: crashed
+  // this page's whole client render with React error #441 the moment any
+  // transition button existed).
+  const boundTransitionActions = {
+    submit: submitAdCampaignAction.bind(null, campaign.id),
+    approve: approveAdCampaignAction.bind(null, campaign.id),
+    reject: rejectAdCampaignAction.bind(null, campaign.id),
+    pause: pauseAdCampaignAction.bind(null, campaign.id),
+    resume: resumeAdCampaignAction.bind(null, campaign.id),
   };
 
   return (
@@ -101,7 +106,7 @@ export default async function AdCampaignDetailPage({
           {transitions
             .filter((t) => t !== "reject")
             .map((t) => (
-              <form key={t} action={transitionActions[t]}>
+              <form key={t} action={boundTransitionActions[t]}>
                 <button
                   type="submit"
                   className={`rounded-md px-3 py-1.5 text-sm font-semibold ${
@@ -115,7 +120,7 @@ export default async function AdCampaignDetailPage({
               </form>
             ))}
           {transitions.includes("reject") && (
-            <form action={transitionActions.reject} className="flex flex-wrap items-center gap-2">
+            <form action={boundTransitionActions.reject} className="flex flex-wrap items-center gap-2">
               <input name="rejectionReason" placeholder="Reason (optional)" className="rounded-md border border-border-strong p-1.5 text-sm" />
               <button type="submit" className="rounded-md border border-border-strong px-3 py-1.5 text-sm font-semibold text-red-600 hover:border-red-400 dark:text-red-400">
                 Reject
