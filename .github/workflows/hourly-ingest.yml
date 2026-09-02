@@ -1,8 +1,15 @@
-name: Hourly News Pipeline (Ingest + Verify/Publish)
+name: News Pipeline (Ingest + Verify/Publish)
 
 on:
+  # A tight fixed poll — the actual ingestion/verify cadence is
+  # admin-controlled via PipelineSchedule (see lib/pipeline-schedule.ts and
+  # the "Pipeline schedule" panel on /admin/monitoring): both cron routes
+  # no-op when their configured interval hasn't elapsed, so lowering either
+  # interval there takes effect on the next poll with no workflow change.
+  # 15 minutes matches MIN_INTERVAL_MINUTES, the tightest interval the admin
+  # panel allows.
   schedule:
-    - cron: "0 * * * *"
+    - cron: "*/15 * * * *"
   workflow_dispatch: {}
 
 jobs:
@@ -14,7 +21,7 @@ jobs:
           curl -sf -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             https://tekzaro.vercel.app/api/cron/ingest-news
       - name: Trigger verification and auto-publish
-        # Runs after ingestion, same job, so this always sees that hour's
+        # Runs after ingestion, same job, so this always sees that run's
         # freshly-discovered items. Separate step (not combined into one
         # curl) so ingestion's success/failure is independently visible in
         # the Actions log.
