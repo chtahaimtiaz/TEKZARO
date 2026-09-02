@@ -11,6 +11,7 @@ import { ArticleMediaPicker } from "./ArticleMediaPicker";
 import { SocialPostPanel } from "./SocialPostPanel";
 import type { ArticleMediaOption } from "@/lib/article-media";
 import { evaluatePublicationChecks, allChecksPassed } from "@/lib/publication-checks";
+import { ORIGINALITY_BLOCK_THRESHOLD } from "@/lib/ai/originality-check";
 import { absoluteUrl } from "@/lib/seo";
 import { slugify } from "@/lib/slugify";
 import { splitPakistanImpact } from "@/lib/content-blocks";
@@ -50,6 +51,7 @@ export interface VerificationInfo {
   claimsChecked: string[];
   notes: string | null;
   autoPublished: boolean;
+  originalityScore: number | null;
 }
 
 interface ArticleEditorProps {
@@ -555,6 +557,15 @@ export function ArticleEditor({
                       <p>
                         <span className="font-medium text-ink-soft">AI-reported confidence: </span>
                         {verification.confidence}/100 (editorial signal only — never used to gate publishing)
+                      </p>
+                    )}
+                    {verification.originalityScore !== null && (
+                      <p>
+                        <span className="font-medium text-ink-soft">Similarity to source: </span>
+                        {(verification.originalityScore * 100).toFixed(0)}%
+                        {verification.originalityScore >= ORIGINALITY_BLOCK_THRESHOLD
+                          ? " — too close to publish; rewrite the affected passages"
+                          : ""}
                       </p>
                     )}
                     {verification.claimsChecked.length > 0 && (

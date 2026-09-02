@@ -394,6 +394,12 @@ model Article {
   // The specific factual claims the AI compared against the source(s), for
   // editor transparency — not itself treated as proof of anything.
   claimsChecked            Json?
+  // 0-1 max word-shingle similarity between the draft and the actual
+  // verification source text (lib/ai/originality-check.ts) — the
+  // mechanical, code-enforced backstop for the "never copy verbatim"
+  // prompt rule. Unlike verificationConfidence, THIS field does gate
+  // auto-publish: see the "originality" check in lib/publication-checks.ts.
+  originalityScore         Float?
   verifiedAt               DateTime?
   // Links back to the exact AIGeneration row (model, prompt, raw output)
   // that produced this article's verification/synthesis — full audit

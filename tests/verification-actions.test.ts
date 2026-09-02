@@ -229,6 +229,43 @@ describe("processVerificationBatch — the auto-publish gate", () => {
     expect(audit).not.toBeNull();
   });
 
+  it("does NOT auto-publish when verificationStatus is PRIMARY_SOURCE_CONFIRMED and other checks pass, but the draft is too textually similar to its source (originality gate)", async () => {
+    const category = await getUsableCategory();
+    await ensureAuthorExists();
+    process.env.AUTO_PUBLISH_CATEGORY_SLUGS = category.slug; // allowlisted — proves originality is what blocks this
+    const item = await makeSourceItem();
+    const generationId = await makeGeneration();
+
+    verifyAndSynthesizeMock.mockResolvedValue({
+      verificationStatus: "PRIMARY_SOURCE_CONFIRMED",
+      primarySourceUrl: "https://official-newsroom.test/press-release-originality",
+      secondarySourceUrl: null,
+      verificationConfidence: 90,
+      claimsChecked: ["The product was announced."],
+      notes: "Confirmed, but the draft copied too closely from the source.",
+      draft: { ...confirmedDraft, headline: `${confirmedDraft.headline} (near-verbatim)` },
+      generationId,
+      originalityScore: 0.9, // well above ORIGINALITY_BLOCK_THRESHOLD (0.35)
+    });
+
+    const summary = await claimOnly(item.id, 1);
+
+    const updatedItem = await prisma.sourceItem.findUnique({ where: { id: item.id } });
+    if (!updatedItem || updatedItem.status !== "CONVERTED_TO_DRAFT" || !updatedItem.convertedArticleId) {
+      throw new Error(
+        "Test setup assumption failed: this SourceItem was not the one claimed by processVerificationBatch(1).",
+      );
+    }
+    createdArticleIds.push(updatedItem.convertedArticleId);
+
+    const article = await prisma.article.findUniqueOrThrow({ where: { id: updatedItem.convertedArticleId } });
+    expect(article.status).toBe("IN_REVIEW");
+    expect(article.autoPublished).toBe(false);
+    expect(article.originalityScore).toBe(0.9);
+    expect(summary.autoPublished).toBe(0);
+    expect(summary.sentToReview).toBe(1);
+  });
+
   it("does NOT auto-publish when verificationStatus is PRIMARY_SOURCE_CONFIRMED and checks pass, but the category is NOT allowlisted (kill switch)", async () => {
     const category = await getUsableCategory();
     await ensureAuthorExists();

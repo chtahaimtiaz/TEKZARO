@@ -1,4 +1,5 @@
 import type { ContentBlock } from "./content-blocks";
+import { ORIGINALITY_BLOCK_THRESHOLD } from "./ai/originality-check";
 import type { ImageReuseStatus } from "@prisma/client";
 
 // Public accessibility is never interpreted as reuse permission — see the
@@ -48,6 +49,12 @@ export interface PublicationCheckInput {
    * slugAvailable. */
   authorEligible?: boolean;
   authorEligibilityOverridden?: boolean;
+  /** 0-1 max word-shingle similarity against the verification source text
+   * (lib/ai/originality-check.ts) — omit when unavailable (e.g. a manually
+   * authored article never ran verifyAndSynthesize, or no source text was
+   * fetched to compare against). Undefined never blocks, same convention
+   * as slugAvailable/authorEligible. */
+  originalityScore?: number;
 }
 
 export interface PublicationCheckResult {
@@ -161,6 +168,16 @@ export function evaluatePublicationChecks(input: PublicationCheckInput): Publica
     reason: authorEligibilityOk
       ? undefined
       : "This author isn't eligible for the selected category. Choose an eligible author, or have an admin override it.",
+  });
+
+  const originalityOk = input.originalityScore === undefined || input.originalityScore < ORIGINALITY_BLOCK_THRESHOLD;
+  results.push({
+    id: "originality",
+    label: "Not substantially copied from source material",
+    passed: originalityOk,
+    reason: originalityOk
+      ? undefined
+      : "This draft is too textually similar to a source it was verified against — rewrite the affected passages before publishing.",
   });
 
   return results;

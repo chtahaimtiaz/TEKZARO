@@ -134,6 +134,7 @@ export async function processVerificationBatch(
           verificationConfidence: result.verificationConfidence,
           claimsChecked: result.claimsChecked,
           verificationNotes: result.notes,
+          originalityScore: result.originalityScore,
           verifiedAt: new Date(),
           verificationGenerationId: result.generationId,
           ...imageFields,
@@ -169,6 +170,7 @@ export async function processVerificationBatch(
           // blocks" default, so this stays correct if the code is ever
           // reordered.
           authorEligible: true,
+          originalityScore: result.originalityScore ?? undefined,
         });
 
         if (allChecksPassed(checks) && isCategoryAllowedForAutoPublish(category.slug)) {

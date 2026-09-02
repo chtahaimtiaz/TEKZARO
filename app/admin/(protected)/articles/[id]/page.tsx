@@ -83,6 +83,7 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
         claimsChecked: (article.claimsChecked as string[] | null) ?? [],
         notes: article.verificationNotes,
         autoPublished: article.autoPublished,
+        originalityScore: article.originalityScore,
       }}
       initial={{
         title: article.title,

@@ -20,7 +20,7 @@ describe("evaluatePublicationChecks", () => {
   it("passes every check for a well-formed article", () => {
     const checks = evaluatePublicationChecks(baseInput);
     expect(allChecksPassed(checks)).toBe(true);
-    expect(checks).toHaveLength(9);
+    expect(checks).toHaveLength(10);
   });
 
   it("fails the title check when too short", () => {

@@ -4,6 +4,7 @@ import { runTask, NEWSROOM_SYSTEM_PROMPT } from "./tasks";
 import { isSearchConfigured, searchWeb } from "../search/web-search";
 import { safeFetch } from "../security/safe-fetch";
 import { isSynthesizableBlock } from "./synthesizable-blocks";
+import { checkOriginality } from "./originality-check";
 import type { ContentBlock } from "../content-blocks";
 import type { ArticleVerificationStatus, SourceItem, Source } from "@prisma/client";
 
@@ -21,6 +22,12 @@ export interface VerifyAndSynthesizeResult {
   claimsChecked: string[];
   notes: string;
   draft: { headline: string; excerpt: string; blocks: ContentBlock[] } | null;
+  /** 0-1 max word-shingle similarity between the draft and the actual
+   * primary/secondary source text fetched below — the mechanical backstop
+   * for the "never copy verbatim" prompt rule (see originality-check.ts).
+   * Null when no draft was produced (nothing to compare) or no source text
+   * was fetched to compare against. */
+  originalityScore: number | null;
   /** Null when no AI call was ever attempted (e.g. search not configured) —
    * distinct from a call that was attempted and failed, which still gets a
    * generationId via runTask's own audit logging. */
@@ -36,6 +43,7 @@ function emptyResult(notes: string, generationId: string | null = null): VerifyA
     claimsChecked: [],
     notes,
     draft: null,
+    originalityScore: null,
     generationId,
   };
 }
@@ -260,6 +268,12 @@ export async function verifyAndSynthesize(params: {
   // source never unlocks CONFIRMED by itself — see RESPONSE_SCHEMA_INSTRUCTIONS.
   const verificationStatus: ArticleVerificationStatus = primaryFetched ? parsed.verificationStatus : "PRIMARY_SOURCE_NOT_FOUND";
 
+  const sourceTexts = [
+    primaryFetched ? { label: "primary" as const, text: primaryFetched.text } : null,
+    secondaryFetched ? { label: "secondary" as const, text: secondaryFetched.text } : null,
+  ].filter((s): s is { label: "primary" | "secondary"; text: string } => s !== null);
+  const originalityScore = parsed.draft && sourceTexts.length > 0 ? checkOriginality(parsed.draft.blocks, sourceTexts).score : null;
+
   return {
     verificationStatus,
     primarySourceUrl: primaryFetched?.finalUrl ?? null,
@@ -268,6 +282,7 @@ export async function verifyAndSynthesize(params: {
     claimsChecked: parsed.claimsChecked,
     notes: parsed.notes,
     draft: parsed.draft,
+    originalityScore,
     generationId: result.generationId,
   };
 }
