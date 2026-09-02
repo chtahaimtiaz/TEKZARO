@@ -183,6 +183,35 @@ enum ImageReuseStatus {
   REJECTED
 }
 
+enum AdvertiserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+// Only the human-driven part of the lifecycle is persisted. SCHEDULED /
+// ACTIVE / EXPIRED are never stored — they're computed live from an
+// APPROVED campaign's startDate/endDate against the current time (see
+// lib/ads.ts's computeAdRuntimeStatus), same "compute at render, no cron"
+// philosophy as the Daily Editorial Checklist. PAUSED is the one manual
+// override: an editor can halt delivery mid-flight without losing the
+// campaign's date range or needing to re-approve it afterward.
+enum AdCampaignStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  PAUSED
+}
+
+// A small, fixed set of slots that already exist in the real page
+// layouts — not a generic placement system. Add a new value here only
+// when a real slot is added to a real page.
+enum AdPlacement {
+  HOMEPAGE_FEED
+  CATEGORY_TOP
+  ARTICLE_END
+}
+
 model User {
   id                  String    @id @default(cuid())
   name                String
@@ -216,6 +245,8 @@ model User {
   notifications       Notification[]
   uploadedMedia       Media[]
   newsletterCampaigns NewsletterCampaign[]
+  createdAdCampaigns  AdCampaign[]         @relation("AdCampaignCreatedBy")
+  reviewedAdCampaigns AdCampaign[]         @relation("AdCampaignReviewedBy")
 }
 
 model Session {
@@ -237,6 +268,7 @@ model Category {
   articles    Article[]
   sourceItems SourceItem[]
   sources     Source[]
+  adCampaigns AdCampaign[]
 
   // General editorial-use toggle (mirrors Source.active/Keyword.active) —
   // separate from participatesInQuota so a real, active category can opt
@@ -699,12 +731,12 @@ model Media {
   // can change independently after this upload). Lets a human-sourced image
   // surface in that specific article's "choose from article images" picker
   // even before the article has been saved with it as the featured image.
-  articleId String?
-  article   Article? @relation("MediaTaggedForArticle", fields: [articleId], references: [id], onDelete: SetNull)
+  articleId   String?
+  article     Article? @relation("MediaTaggedForArticle", fields: [articleId], references: [id], onDelete: SetNull)
   // SHA-256 of the downloaded bytes. Nullable-unique: Postgres allows many
   // nulls (editor uploads don't compute one) but enforces uniqueness among
   // non-null values, which is what powers acquisition-time dedup.
-  contentHash      String?     @unique
+  contentHash String?  @unique
 
   // The safety-critical field — see the Non-negotiable invariant. Defaults
   // to UNKNOWN (non-publishable); the manual-upload route explicitly sets
@@ -858,4 +890,95 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// TEKZARO sells ad placements by direct arrangement (see app/(site)/advertise
+// — "email us for rates and placements"), not self-serve checkout, so there
+// is deliberately no payment/billing model here: an Advertiser and its
+// AdCampaigns are entered by staff once a deal is agreed, mirroring how
+// NewsletterCampaign is staff-authored rather than self-service.
+model Advertiser {
+  id           String           @id @default(cuid())
+  name         String
+  contactName  String?
+  contactEmail String?
+  notes        String?
+  status       AdvertiserStatus @default(ACTIVE)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  campaigns AdCampaign[]
+}
+
+model AdCampaign {
+  id           String     @id @default(cuid())
+  name         String
+  advertiserId String
+  advertiser   Advertiser @relation(fields: [advertiserId], references: [id])
+
+  status     AdCampaignStatus @default(DRAFT)
+  placement  AdPlacement
+  // null = eligible on every category's CATEGORY_TOP/ARTICLE_END slots, not
+  // just one — mirrors Author.categories' "empty = unrestricted" convention.
+  categoryId String?
+  category   Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  startDate DateTime
+  endDate   DateTime
+  // Higher wins when more than one APPROVED, in-range campaign competes for
+  // the same slot; ties are rotated across requests, not always the same
+  // winner — see resolveActiveCampaigns in lib/ads.ts.
+  priority  Int      @default(0)
+
+  createdById     String
+  createdBy       User    @relation("AdCampaignCreatedBy", fields: [createdById], references: [id])
+  reviewedById    String?
+  reviewedBy      User?   @relation("AdCampaignReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  rejectionReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  creative    AdCreative?
+  impressions AdImpression[]
+  clicks      AdClick[]
+
+  @@index([status, placement])
+  @@index([categoryId])
+}
+
+// One creative per campaign — a real advertiser swaps creative by editing
+// this row (a new upload replaces the old URL); TEKZARO doesn't run
+// multi-variant creative rotation within a single campaign today, so
+// modeling a many-creatives relation now would be speculative.
+model AdCreative {
+  id         String     @id @default(cuid())
+  campaignId String     @unique
+  campaign   AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  imageUrl   String
+  altText    String
+  targetUrl  String
+  createdAt  DateTime   @default(now())
+}
+
+// Raw delivery-event log, same shape/philosophy as PageView — counted live
+// via groupBy/count (lib/ads.ts), not pre-aggregated into a rollup table.
+model AdImpression {
+  id         String     @id @default(cuid())
+  campaignId String
+  campaign   AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  path       String
+  createdAt  DateTime   @default(now())
+
+  @@index([campaignId, createdAt])
+}
+
+model AdClick {
+  id         String     @id @default(cuid())
+  campaignId String
+  campaign   AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  path       String
+  createdAt  DateTime   @default(now())
+
+  @@index([campaignId, createdAt])
 }

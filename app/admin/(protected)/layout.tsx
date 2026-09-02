@@ -19,6 +19,7 @@ import {
   CAN_VIEW_ANALYTICS,
   CAN_VIEW_MONITORING,
   CAN_MANAGE_BACKUPS,
+  CAN_MANAGE_ADS,
 } from "@/lib/permissions";
 
 const CORE_NAV = [
@@ -104,6 +105,11 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
           {CAN_VIEW_ANALYTICS.includes(user.role) && (
             <Link href="/admin/analytics" className="rounded-md px-2 py-1.5 text-ink-soft hover:bg-paper-sunk hover:text-ink">
               Analytics
+            </Link>
+          )}
+          {CAN_MANAGE_ADS.includes(user.role) && (
+            <Link href="/admin/advertisers" className="rounded-md px-2 py-1.5 text-ink-soft hover:bg-paper-sunk hover:text-ink">
+              Advertising
             </Link>
           )}
           {CAN_VIEW_AUDIT_LOG.includes(user.role) && (

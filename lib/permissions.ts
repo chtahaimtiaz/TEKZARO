@@ -47,6 +47,10 @@ export const CAN_OVERRIDE_AUTHOR_ELIGIBILITY: Role[] = ["ADMIN"];
  * than CAN_EDIT_ANY — a hard delete has no undo, unlike every other
  * workflow transition. */
 export const CAN_DELETE_ARTICLE: Role[] = ["ADMIN"];
+/** Roles allowed to manage advertisers, ad campaigns and creatives —
+ * mirrors CAN_MANAGE_AUTHORS/CAN_SEND_NEWSLETTER, day-to-day ad-ops work
+ * that doesn't need a narrower carve-out the way delete/override do. */
+export const CAN_MANAGE_ADS: Role[] = ["ADMIN", "EDITOR"];
 
 /** SYSTEM is a real Role value but is never assignable through any admin
  * action, never shown in the user list, and can never be deactivated —

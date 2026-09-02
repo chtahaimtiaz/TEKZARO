@@ -13,6 +13,7 @@ import { ShareButtons } from "@/components/content/ShareButtons";
 import { RelatedArticles } from "@/components/content/RelatedArticles";
 import { PrevNextArticle } from "@/components/content/PrevNextArticle";
 import { ArticleJsonLd } from "@/components/article/ArticleJsonLd";
+import { AdSlot } from "@/components/ads/AdSlot";
 import { getArticleBySlug, getRelatedArticles, getAdjacentArticles, incrementArticleViews } from "@/lib/articles";
 import { asArticleContent } from "@/lib/content-blocks";
 import { buildArticleMetadata, absoluteUrl } from "@/lib/seo";
@@ -99,6 +100,8 @@ export default async function ArticlePage({ params }: Props) {
       <div className="mt-8">
         <ArticleBody blocks={content.blocks} />
       </div>
+
+      <AdSlot placement="ARTICLE_END" categoryId={article.category.id} path={`/article/${slug}`} className="mt-8" />
 
       {article.sources.length > 0 && (
         <section className="mt-8 rounded-lg border border-border bg-paper-raised p-4">

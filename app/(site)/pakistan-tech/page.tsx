@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { ArticleCard } from "@/components/content/ArticleCard";
 import { SectionHeader } from "@/components/content/SectionHeader";
 import { Pagination } from "@/components/content/Pagination";
-import { getPakistanTechArticles, getTrendingInPakistan } from "@/lib/articles";
+import { getPakistanTechArticles, getTrendingInPakistan, getCategoryBySlug } from "@/lib/articles";
+import { AdSlot } from "@/components/ads/AdSlot";
 
 export const dynamic = "force-dynamic";
 
@@ -20,9 +21,10 @@ export default async function PakistanTechPage({
   const { page: pageParam } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
 
-  const [{ articles, total, pageSize }, trending] = await Promise.all([
+  const [{ articles, total, pageSize }, trending, pakistanCategory] = await Promise.all([
     getPakistanTechArticles(page),
     getTrendingInPakistan(3),
+    getCategoryBySlug("pakistan-tech"),
   ]);
 
   const [featured, ...rest] = articles;
@@ -35,6 +37,10 @@ export default async function PakistanTechPage({
         Pakistan First, Regional Second, Global Third — TEKZARO&apos;s coverage of Pakistan&apos;s startups,
         telecom, policy, cybersecurity, IT exports and the people building the country&apos;s digital economy.
       </p>
+
+      {page === 1 && pakistanCategory && (
+        <AdSlot placement="CATEGORY_TOP" categoryId={pakistanCategory.id} path="/pakistan-tech" className="mt-6" />
+      )}
 
       {page === 1 && featured && (
         <div className="mt-8">

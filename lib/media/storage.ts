@@ -132,7 +132,7 @@ async function deleteUploadVercelBlob(url: string): Promise<void> {
  * app/api/media/upload/route.ts) depends on and needs no changes when the
  * provider changes.
  */
-export async function saveUpload(file: File, _kind: "article" | "author"): Promise<SavedUpload> {
+export async function saveUpload(file: File, _kind: "article" | "author" | "ad"): Promise<SavedUpload> {
   if (!isMediaUploadAvailable()) {
     throw new StorageNotAvailableError(
       "Media uploads require durable object storage in production. STORAGE_PROVIDER is not set to a durable, correctly-configured provider, and this is running on Vercel's ephemeral filesystem.",

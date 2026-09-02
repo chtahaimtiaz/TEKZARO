@@ -7,6 +7,7 @@ import { PakistanTechSection } from "@/components/pakistan/PakistanTechSection";
 import { TrendingPakistanModule } from "@/components/pakistan/TrendingPakistanModule";
 import { NewsletterForm } from "@/components/ui/NewsletterForm";
 import { Logo } from "@/components/ui/Logo";
+import { AdSlot } from "@/components/ads/AdSlot";
 import { selectHero } from "@/lib/ranking";
 import {
   getHeroPool,
@@ -67,6 +68,8 @@ export default async function HomePage({
           </div>
         </section>
       )}
+
+      <AdSlot placement="HOMEPAGE_FEED" path="/" />
 
       {trending.length > 0 && (
         <section>
