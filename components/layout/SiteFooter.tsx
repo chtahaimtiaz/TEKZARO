@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { CATEGORIES, SITE_NAME, SITE_DESCRIPTION, categoryHref } from "@/lib/constants";
+import { SITE_NAME, SITE_DESCRIPTION } from "@/lib/constants";
+import { getAllNavCategories } from "@/lib/categories";
+import { navCategoryHref } from "@/lib/category-nav-href";
 import { getConfiguredSocialLinks, type SocialPlatform } from "@/lib/social-links";
 import { Logo } from "@/components/ui/Logo";
 
@@ -40,8 +42,9 @@ const LEGAL_LINKS = [
   ["Cookie Policy", "/cookie-policy"],
 ];
 
-export function SiteFooter() {
+export async function SiteFooter() {
   const socialLinks = getConfiguredSocialLinks();
+  const categories = await getAllNavCategories();
 
   return (
     <footer className="mt-16 border-t border-border bg-paper-raised text-ink-soft">
@@ -58,9 +61,9 @@ export function SiteFooter() {
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-ink-muted">Sections</p>
             <ul className="mt-3 space-y-2 text-sm">
-              {CATEGORIES.map((c) => (
+              {categories.map((c) => (
                 <li key={c.slug}>
-                  <Link href={categoryHref(c.slug)} className="hover:text-accent">
+                  <Link href={navCategoryHref(c)} className="hover:text-accent">
                     {c.name}
                   </Link>
                 </li>

@@ -49,12 +49,14 @@ describe("createCategoryAction", () => {
 describe("updateCategoryAction", () => {
   it("persists the quota/checklist fields and writes an audit log entry", async () => {
     await asEditor();
+    const categoryName = `Quota Test Category ${Date.now()}`;
     const category = await prisma.category.create({
-      data: { name: `Quota Test Category ${Date.now()}`, slug: `quota-test-category-${Date.now()}` },
+      data: { name: categoryName, slug: `quota-test-category-${Date.now()}` },
     });
     createdCategoryIds.push(category.id);
 
     const fd = formData({
+      name: categoryName,
       dailyTarget: "3",
       minQualityNote: "Prefer hands-on reviews over press-release rewrites.",
     });
@@ -77,6 +79,51 @@ describe("updateCategoryAction", () => {
     });
     expect(audit).not.toBeNull();
     expect((audit?.metadata as { dailyTarget?: number } | null)?.dailyTarget).toBe(3);
+  });
+
+  it("renames the display name and persists nav placement, but the slug never changes", async () => {
+    await asEditor();
+    const originalSlug = `rename-test-category-${Date.now()}`;
+    const category = await prisma.category.create({
+      data: { name: `Rename Test Category ${Date.now()}`, slug: originalSlug },
+    });
+    createdCategoryIds.push(category.id);
+
+    const renamedTo = `Renamed Category ${Date.now()}`;
+    const fd = formData({
+      name: renamedTo,
+      dailyTarget: "2",
+      showInPrimaryNav: "on",
+      navPriority: "5",
+      customRoute: "/renamed-hub",
+    });
+    fd.set("showInPrimaryNav", "on");
+
+    await captureRedirect(() => updateCategoryAction(category.id, fd));
+
+    const updated = await prisma.category.findUniqueOrThrow({ where: { id: category.id } });
+    expect(updated.name).toBe(renamedTo);
+    expect(updated.slug).toBe(originalSlug);
+    expect(updated.showInPrimaryNav).toBe(true);
+    expect(updated.navPriority).toBe(5);
+    expect(updated.customRoute).toBe("/renamed-hub");
+  });
+
+  it("rejects a rename that collides with another category's name", async () => {
+    await asEditor();
+    const takenName = `Taken Name ${Date.now()}`;
+    const taken = await prisma.category.create({ data: { name: takenName, slug: `taken-name-${Date.now()}` } });
+    const other = await prisma.category.create({
+      data: { name: `Other Category ${Date.now()}`, slug: `other-category-${Date.now()}` },
+    });
+    createdCategoryIds.push(taken.id, other.id);
+
+    const fd = formData({ name: takenName, dailyTarget: "2" });
+    const url = await captureRedirect(() => updateCategoryAction(other.id, fd));
+    expect(url).toContain("/admin/categories?error=");
+
+    const unchanged = await prisma.category.findUniqueOrThrow({ where: { id: other.id } });
+    expect(unchanged.name).not.toBe(takenName);
   });
 });
 

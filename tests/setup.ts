@@ -47,3 +47,15 @@ vi.mock("next/navigation", () => ({
     throw new Error("NEXT_NOT_FOUND");
   },
 }));
+
+// updateTag/revalidateTag check for a real Next.js Server Action/request
+// context and throw outside one — no-op here, same reasoning as the
+// next/headers mocks above. unstable_cache just calls straight through
+// (no caching in tests), matching every test's expectation of seeing its
+// own writes immediately.
+vi.mock("next/cache", () => ({
+  updateTag: () => {},
+  revalidateTag: () => {},
+  revalidatePath: () => {},
+  unstable_cache: <T extends (...args: never[]) => unknown>(fn: T) => fn,
+}));

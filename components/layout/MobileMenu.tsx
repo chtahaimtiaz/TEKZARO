@@ -2,19 +2,20 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CATEGORIES } from "@/lib/constants";
-import { categoryHref } from "@/lib/constants";
+import { navCategoryHref } from "@/lib/category-nav-href";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import type { ThemePreference } from "@/lib/theme";
+import type { Category } from "@prisma/client";
 
 interface MobileMenuProps {
   /** Rendered inside this dropdown instead of the header row — see the note
    * on ThemeToggle for why it doesn't live in the always-visible header
    * below the xl breakpoint. */
   themePreference: ThemePreference;
+  categories: Pick<Category, "slug" | "name" | "customRoute">[];
 }
 
-export function MobileMenu({ themePreference }: MobileMenuProps) {
+export function MobileMenu({ themePreference, categories }: MobileMenuProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -55,9 +56,9 @@ export function MobileMenu({ themePreference }: MobileMenuProps) {
                 Latest
               </Link>
             </li>
-            {CATEGORIES.map((c) => (
+            {categories.map((c) => (
               <li key={c.slug}>
-                <Link href={categoryHref(c.slug)} className="block py-3 font-semibold" onClick={() => setOpen(false)}>
+                <Link href={navCategoryHref(c)} className="block py-3 font-semibold" onClick={() => setOpen(false)}>
                   {c.name}
                 </Link>
               </li>

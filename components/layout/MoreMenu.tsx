@@ -3,16 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { CATEGORY_MAP, categoryHref, type CategorySlug } from "@/lib/constants";
+import { navCategoryHref } from "@/lib/category-nav-href";
+import type { Category } from "@prisma/client";
 
 interface MoreMenuProps {
-  slugs: CategorySlug[];
+  categories: Pick<Category, "slug" | "name" | "customRoute">[];
 }
 
 /** Replaces a native <details>/<summary> — that closed on outside click only
  * inconsistently across browsers, never on Escape, and never on client-side
  * navigation (its `open` attribute is DOM state, not tied to the route). */
-export function MoreMenu({ slugs }: MoreMenuProps) {
+export function MoreMenu({ categories }: MoreMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
@@ -50,14 +51,14 @@ export function MoreMenu({ slugs }: MoreMenuProps) {
       </button>
       {open && (
         <div className="absolute left-0 top-full z-40 mt-2 w-48 rounded-lg border border-border bg-paper-raised p-2 shadow-xl">
-          {slugs.map((slug) => (
+          {categories.map((c) => (
             <Link
-              key={slug}
-              href={categoryHref(slug)}
+              key={c.slug}
+              href={navCategoryHref(c)}
               onClick={() => setOpen(false)}
               className="block rounded-md px-3 py-2 text-sm hover:bg-paper-sunk hover:text-accent"
             >
-              {CATEGORY_MAP[slug].name}
+              {c.name}
             </Link>
           ))}
         </div>

@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { CATEGORY_MAP, PRIMARY_NAV, OVERFLOW_NAV, SITE_NAME, categoryHref } from "@/lib/constants";
+import { SITE_NAME } from "@/lib/constants";
+import { getAllNavCategories } from "@/lib/categories";
+import { navCategoryHref } from "@/lib/category-nav-href";
 import { MobileMenu } from "./MobileMenu";
 import { MoreMenu } from "./MoreMenu";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
@@ -7,7 +9,9 @@ import { Logo } from "@/components/ui/Logo";
 import { getThemePreference } from "@/lib/theme";
 
 export async function SiteHeader() {
-  const themePreference = await getThemePreference();
+  const [themePreference, navCategories] = await Promise.all([getThemePreference(), getAllNavCategories()]);
+  const primaryNav = navCategories.filter((c) => c.showInPrimaryNav);
+  const overflowNav = navCategories.filter((c) => !c.showInPrimaryNav);
 
   return (
     <header className="relative border-b border-border bg-paper-raised text-ink">
@@ -24,12 +28,12 @@ export async function SiteHeader() {
           <Link href="/latest" className="hover:text-accent">
             Latest
           </Link>
-          {PRIMARY_NAV.map((slug) => (
-            <Link key={slug} href={categoryHref(slug)} className="hover:text-accent">
-              {CATEGORY_MAP[slug].name}
+          {primaryNav.map((c) => (
+            <Link key={c.slug} href={navCategoryHref(c)} className="hover:text-accent">
+              {c.name}
             </Link>
           ))}
-          <MoreMenu slugs={OVERFLOW_NAV} />
+          {overflowNav.length > 0 && <MoreMenu categories={overflowNav} />}
         </nav>
 
         <div className="flex items-center gap-3">
@@ -52,7 +56,7 @@ export async function SiteHeader() {
           >
             Newsletter
           </Link>
-          <MobileMenu themePreference={themePreference} />
+          <MobileMenu themePreference={themePreference} categories={navCategories} />
         </div>
       </div>
     </header>

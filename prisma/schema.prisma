@@ -291,6 +291,18 @@ model Category {
   minQualityNote                   String?
 
   eligibleAuthors Author[] @relation("AuthorCategoryEligibility")
+
+  // Public-site navigation, replacing the formerly-hardcoded CATEGORIES/
+  // PRIMARY_NAV/OVERFLOW_NAV arrays in lib/constants.ts — see lib/categories.ts.
+  // null navPriority / showInPrimaryNav=false = not shown in primary nav at
+  // all (a category can exist for internal/quota purposes without being
+  // publicly navigable); lower navPriority sorts earlier.
+  navPriority      Int?
+  showInPrimaryNav Boolean @default(false)
+  // Distinguishes a category with its own dedicated hub route (e.g.
+  // Pakistan Tech's /pakistan-tech) from the generic /category/:slug path,
+  // without hardcoding the specific slug anywhere in nav-building code.
+  customRoute      String?
 }
 
 // Singleton — nothing like a site-settings model exists elsewhere in this

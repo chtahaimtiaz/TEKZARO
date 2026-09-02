@@ -80,6 +80,7 @@ export default async function CategoriesPage({
               <th className="p-3">Articles</th>
               <th className="p-3">Sources</th>
               <th className="p-3">Daily target</th>
+              <th className="p-3">Public nav</th>
               <th className="p-3"></th>
             </tr>
           </thead>
@@ -92,6 +93,9 @@ export default async function CategoriesPage({
                 <td className="p-3">{c._count.articles}</td>
                 <td className="p-3">{c._count.sources}</td>
                 <td className="p-3">{c.participatesInQuota ? c.dailyTarget : "—"}</td>
+                <td className="p-3 text-ink-soft">
+                  {c.showInPrimaryNav ? "Primary" : c.navPriority !== null ? "More menu" : "Hidden"}
+                </td>
                 <td className="p-3 text-right">
                   <form action={deleteCategoryAction.bind(null, c.id)}>
                     <button type="submit" className="text-xs font-semibold text-ink-muted hover:text-red-600 dark:hover:text-red-400">
@@ -103,7 +107,7 @@ export default async function CategoriesPage({
             ))}
             {categories.length === 0 && (
               <tr>
-                <td colSpan={7} className="p-6 text-center text-ink-muted">
+                <td colSpan={8} className="p-6 text-center text-ink-muted">
                   No categories yet.
                 </td>
               </tr>
@@ -115,8 +119,32 @@ export default async function CategoriesPage({
       <div className="mt-4 flex flex-col gap-3">
         {categories.map((c) => (
           <details key={c.id} className="rounded-xl border border-border bg-paper-raised p-4 text-sm">
-            <summary className="cursor-pointer font-semibold text-ink-soft">{c.name} — quota &amp; checklist settings</summary>
+            <summary className="cursor-pointer font-semibold text-ink-soft">{c.name} — name, nav, quota &amp; checklist settings</summary>
             <form action={updateCategoryAction.bind(null, c.id)} className="mt-3 flex flex-col gap-3">
+              <label className="flex flex-col gap-1">
+                Name
+                <input name="name" defaultValue={c.name} required className="rounded-md border border-border-strong p-2" />
+              </label>
+              <p className="text-xs text-ink-muted">
+                Slug (/category/{c.slug}) is permanent once created — renaming only changes the display name above.
+              </p>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" name="showInPrimaryNav" defaultChecked={c.showInPrimaryNav} />
+                Show in the header&apos;s primary navigation
+              </label>
+              <label className="flex flex-col gap-1">
+                Nav priority (lower = earlier; blank = hidden from public nav entirely, still usable for filing/quota)
+                <input
+                  type="number"
+                  name="navPriority"
+                  defaultValue={c.navPriority ?? ""}
+                  className="w-24 rounded-md border border-border-strong p-2"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                Custom route (optional — e.g. /pakistan-tech for a dedicated hub page instead of /category/{c.slug})
+                <input name="customRoute" defaultValue={c.customRoute ?? ""} placeholder={`/category/${c.slug}`} className="rounded-md border border-border-strong p-2" />
+              </label>
               <label className="flex flex-col gap-1">
                 Daily target
                 <input

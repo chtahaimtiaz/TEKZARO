@@ -122,6 +122,14 @@ export function siteUrl(): string {
 
 // Pakistan Tech is canonically hosted at /pakistan-tech (its own prominent hub),
 // not /category/pakistan-tech — see components/pakistan for why.
+//
+// The header/footer/mobile nav read this same routing live from
+// Category.customRoute instead (lib/category-nav-href.ts's
+// navCategoryHref) now that the Category table is the source of truth for
+// public nav — this slug-based version stays in use everywhere else
+// (ArticleCard, HeroSection, breadcrumbs, RSS, sitemap) since those call
+// sites only have a bare slug on hand, not a full Category row. Migrating
+// them to the DB-driven version is real follow-up work, not done here.
 export function categoryHref(slug: string): string {
   return slug === "pakistan-tech" ? "/pakistan-tech" : `/category/${slug}`;
 }
