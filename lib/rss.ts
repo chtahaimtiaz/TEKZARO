@@ -23,8 +23,11 @@ export function buildRssFeed(options: {
   link: string;
   selfLink: string;
   items: RssItem[];
+  /** RFC 3066 language code for the <language> element. Defaults to
+   * "en-us" — existing English feeds are unaffected by this option. */
+  language?: string;
 }): string {
-  const { title, description, link, selfLink, items } = options;
+  const { title, description, link, selfLink, items, language = "en-us" } = options;
 
   const itemsXml = items
     .map(
@@ -46,7 +49,7 @@ export function buildRssFeed(options: {
     <title>${escapeXml(title)}</title>
     <link>${escapeXml(link)}</link>
     <description>${escapeXml(description)}</description>
-    <language>en-us</language>
+    <language>${escapeXml(language)}</language>
     <atom:link href="${escapeXml(selfLink)}" rel="self" type="application/rss+xml" />
 ${itemsXml}
   </channel>

@@ -19,8 +19,12 @@ export interface SearchResult {
 /**
  * Real relevance-ranked full-text search against the Postgres-generated
  * `searchVector` column (title/subheadline/excerpt weighted), unioned with
- * category/author/tag name matches so those surface even without a body hit.
- * Never returns random/unranked results.
+ * category/author/tag name matches so those surface even without a body hit,
+ * and unioned again with any PUBLISHED Urdu translation's own
+ * `searchVector` (ArticleTranslation, 'simple' text-search config — see its
+ * schema comment for why 'english' isn't appropriate there) — a matching
+ * Urdu title/body surfaces the same underlying Article, never a second,
+ * unrelated record. Never returns random/unranked results.
  */
 export async function searchArticles(query: string, page = 1): Promise<SearchResult> {
   const q = query.trim();
@@ -42,6 +46,12 @@ export async function searchArticles(query: string, page = 1): Promise<SearchRes
       LEFT JOIN "Tag" t ON t.id = at."tagId"
       WHERE a.status = 'PUBLISHED' AND a."isDemo" = false
         AND (c.name ILIKE ${"%" + q + "%"} OR au.name ILIKE ${"%" + q + "%"} OR t.name ILIKE ${"%" + q + "%"})
+      UNION
+      SELECT a."id", ts_rank_cd(tr."searchVector", websearch_to_tsquery('simple', ${q})) AS rank
+      FROM "ArticleTranslation" tr
+      JOIN "Article" a ON a."id" = tr."articleId"
+      WHERE tr.status = 'PUBLISHED' AND a.status = 'PUBLISHED' AND a."isDemo" = false
+        AND tr."searchVector" @@ websearch_to_tsquery('simple', ${q})
     ) matches
     ORDER BY rank DESC
     LIMIT ${PAGE_SIZE} OFFSET ${offset};
@@ -54,12 +64,14 @@ export async function searchArticles(query: string, page = 1): Promise<SearchRes
     LEFT JOIN "Author" au ON au.id = a."authorId"
     LEFT JOIN "ArticleTag" at ON at."articleId" = a.id
     LEFT JOIN "Tag" t ON t.id = at."tagId"
+    LEFT JOIN "ArticleTranslation" tr ON tr."articleId" = a."id" AND tr.status = 'PUBLISHED'
     WHERE a.status = 'PUBLISHED' AND a."isDemo" = false
       AND (
         a."searchVector" @@ websearch_to_tsquery('english', ${q})
         OR c.name ILIKE ${"%" + q + "%"}
         OR au.name ILIKE ${"%" + q + "%"}
         OR t.name ILIKE ${"%" + q + "%"}
+        OR (tr."searchVector" IS NOT NULL AND tr."searchVector" @@ websearch_to_tsquery('simple', ${q}))
       );
   `;
 

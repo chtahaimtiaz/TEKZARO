@@ -6,8 +6,10 @@ import { getAuthorsForEditor } from "@/lib/author-eligibility";
 import { legalTransitionsFor } from "@/lib/workflow";
 import { asArticleContent } from "@/lib/content-blocks";
 import { ArticleEditor } from "@/components/admin/ArticleEditor";
+import { UrduTranslationPanel } from "@/components/admin/UrduTranslationPanel";
 import { isMediaUploadAvailable } from "@/lib/media/storage";
 import { getArticleMediaOptions } from "@/lib/article-media";
+import { getUrduTranslation } from "@/lib/urdu-translation";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +31,7 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
   // getAuthorsForEditor(article.authorId) needs the article's own authorId,
   // so this can't join the article fetch above in one Promise.all — but it
   // still runs in parallel with the category fetch.
-  const [categories, authors, articleMediaOptions] = await Promise.all([
+  const [categories, authors, articleMediaOptions, urduTranslation] = await Promise.all([
     prisma.category.findMany({
       where: { OR: [{ active: true }, { id: article.categoryId }] },
       orderBy: { name: "asc" },
@@ -37,6 +39,7 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
     }),
     getAuthorsForEditor(article.authorId),
     getArticleMediaOptions(article.id),
+    getUrduTranslation(article.id),
   ]);
 
   const canEdit = canEditArticle(user.role, article, user.id);
@@ -57,6 +60,7 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
   }
 
   return (
+    <>
     <ArticleEditor
       mode="edit"
       articleId={article.id}
@@ -123,5 +127,27 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
       legalTransitions={legalTransitions}
       mediaUploadAvailable={isMediaUploadAvailable()}
     />
+    <UrduTranslationPanel
+      articleId={article.id}
+      articleSlug={article.slug}
+      articleStatus={article.status}
+      initial={{
+        status: urduTranslation?.status ?? "NOT_REQUESTED",
+        title: urduTranslation?.title ?? null,
+        dek: urduTranslation?.dek ?? null,
+        content: urduTranslation?.content ?? [],
+        seoTitle: urduTranslation?.seoTitle ?? null,
+        metaDescription: urduTranslation?.metaDescription ?? null,
+        socialTitle: urduTranslation?.socialTitle ?? null,
+        socialDescription: urduTranslation?.socialDescription ?? null,
+        generatedAt: urduTranslation?.generatedAt?.toISOString() ?? null,
+        publishedAt: urduTranslation?.publishedAt?.toISOString() ?? null,
+        manuallyEdited: urduTranslation?.manuallyEdited ?? false,
+        lastEditedAt: urduTranslation?.lastEditedAt?.toISOString() ?? null,
+        failureReason: urduTranslation?.failureReason ?? null,
+        outdated: urduTranslation?.outdated ?? false,
+      }}
+    />
+    </>
   );
 }
