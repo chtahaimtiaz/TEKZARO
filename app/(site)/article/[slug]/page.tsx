@@ -19,8 +19,6 @@ import { asArticleContent } from "@/lib/content-blocks";
 import { buildArticleMetadata, absoluteUrl } from "@/lib/seo";
 import { categoryHref } from "@/lib/constants";
 import { isOptimizableImageSrc } from "@/lib/image-src";
-import { prisma } from "@/lib/prisma";
-import { LanguageSwitcher } from "@/components/article/LanguageSwitcher";
 
 export const dynamic = "force-dynamic";
 
@@ -28,17 +26,11 @@ interface Props {
   params: Promise<{ slug: string }>;
 }
 
-async function hasPublishedUrduTranslation(articleId: string): Promise<boolean> {
-  const translation = await prisma.articleTranslation.findUnique({ where: { articleId }, select: { status: true } });
-  return translation?.status === "PUBLISHED";
-}
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const article = await getArticleBySlug(slug);
   if (!article || article.status !== "PUBLISHED" || article.isDemo) return {};
-  const hasUrduTranslation = await hasPublishedUrduTranslation(article.id);
-  return buildArticleMetadata(article, { hasUrduTranslation });
+  return buildArticleMetadata(article);
 }
 
 export default async function ArticlePage({ params }: Props) {
@@ -46,8 +38,6 @@ export default async function ArticlePage({ params }: Props) {
   const article = await getArticleBySlug(slug);
 
   if (!article || article.status !== "PUBLISHED" || article.isDemo) notFound();
-
-  const urduAvailable = await hasPublishedUrduTranslation(article.id);
 
   const referrer = (await headers()).get("referer");
   after(() => incrementArticleViews(article.id, `/article/${slug}`, referrer));
@@ -64,20 +54,17 @@ export default async function ArticlePage({ params }: Props) {
     <article className="mx-auto max-w-3xl px-4 py-10">
       <ArticleJsonLd article={article} />
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <nav aria-label="Breadcrumb" className="text-xs text-ink-muted">
-          <Link href="/" className="hover:text-accent">
-            Home
-          </Link>
-          <span aria-hidden> / </span>
-          <Link href={categoryHref(article.category.slug)} className="hover:text-accent">
-            {article.category.name}
-          </Link>
-        </nav>
-        <LanguageSwitcher slug={article.slug} current="en" urduAvailable={urduAvailable} />
-      </div>
+      <nav aria-label="Breadcrumb" className="mb-3 text-xs text-ink-muted">
+        <Link href="/" className="hover:text-accent">
+          Home
+        </Link>
+        <span aria-hidden> / </span>
+        <Link href={categoryHref(article.category.slug)} className="hover:text-accent">
+          {article.category.name}
+        </Link>
+      </nav>
 
-      <div className="mt-3 flex items-center gap-2">
+      <div className="flex items-center gap-2">
         <p className={`eyebrow ${isPakistan ? "eyebrow-pakistan" : ""}`}>{article.category.name}</p>
       </div>
       <h1 className="mt-2 text-balance font-serif text-3xl font-bold leading-tight sm:text-4xl md:text-5xl">{article.title}</h1>

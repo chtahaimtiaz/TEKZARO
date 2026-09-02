@@ -24,19 +24,13 @@ const STATIC_ROUTES = [
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = siteUrl();
 
-  const [articles, authors, urduTranslations] = await Promise.all([
+  const [articles, authors] = await Promise.all([
     prisma.article.findMany({
       where: { status: "PUBLISHED", isDemo: false },
       select: { slug: true, updatedAt: true },
       orderBy: { publishedAt: "desc" },
     }),
     prisma.author.findMany({ select: { slug: true } }),
-    // Only PUBLISHED translations — an unpublished/failed/draft Urdu
-    // translation must never appear in the sitemap, same bar as English.
-    prisma.articleTranslation.findMany({
-      where: { status: "PUBLISHED", article: { status: "PUBLISHED", isDemo: false } },
-      select: { slug: true, updatedAt: true },
-    }),
   ]);
 
   return [
@@ -47,6 +41,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })),
     ...authors.map((a) => ({ url: `${base}/author/${a.slug}`, lastModified: new Date() })),
     ...articles.map((a) => ({ url: `${base}/article/${a.slug}`, lastModified: a.updatedAt })),
-    ...urduTranslations.filter((t): t is typeof t & { slug: string } => t.slug !== null).map((t) => ({ url: `${base}/ur/${t.slug}`, lastModified: t.updatedAt })),
   ];
 }

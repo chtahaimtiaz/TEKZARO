@@ -125,7 +125,6 @@ enum AITask {
   INTERNAL_LINKS
   VERIFY_PRIMARY_SOURCE
   SYNTHESIZE_ARTICLE
-  TRANSLATE_URDU
 }
 
 enum KeywordType {
@@ -253,7 +252,6 @@ model User {
   newsletterCampaigns NewsletterCampaign[]
   createdAdCampaigns  AdCampaign[]         @relation("AdCampaignCreatedBy")
   reviewedAdCampaigns AdCampaign[]         @relation("AdCampaignReviewedBy")
-  urduTranslationEdits ArticleTranslation[] @relation("ArticleTranslationLastEditedBy")
 }
 
 model Session {
@@ -507,84 +505,9 @@ model Article {
   digestItems   DigestItem[]
   pageViews     PageView[]
 
-  // Urdu translation of this article, if any — see ArticleTranslation.
-  // Optional 1:1 (the FK lives on ArticleTranslation.articleId @unique).
-  translation ArticleTranslation?
-
   @@index([status, publishedAt])
   @@index([categoryId, publishedAt])
   @@index([pakistanRelevance, publishedAt])
-}
-
-enum TranslationStatus {
-  NOT_REQUESTED
-  QUEUED
-  GENERATING
-  READY
-  PUBLISHED
-  FAILED
-  OUTDATED
-}
-
-// One editorial article, one Urdu translation — never a second, unrelated
-// Article record for the same story (see Stage 7's bilingual architecture:
-// the English Article stays the single source of truth for identity,
-// StoryCluster, claims, sources, verification, Pakistan relevance,
-// originality, media, and provenance; only the fields that are genuinely
-// language-specific — title/slug/dek/content/SEO/social — live here).
-model ArticleTranslation {
-  id        String  @id @default(cuid())
-  articleId String  @unique
-  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
-
-  // Forward-compatible field name in case a third language is ever added —
-  // fixed to "ur" for now, not modeled as an enum, since Prisma enums are
-  // awkward to extend later and this is the only value that exists today.
-  language String @default("ur")
-
-  status TranslationStatus @default(NOT_REQUESTED)
-
-  title             String?
-  slug              String? @unique
-  dek               String?
-  content           Json?
-  seoTitle          String?
-  metaDescription   String?
-  socialTitle       String?
-  socialDescription String?
-
-  // Postgres-generated tsvector for Urdu search (see prisma/migrations
-  // follow-up SQL) — 'simple' config, not 'english': Postgres has no stock
-  // Urdu text-search configuration, and 'simple' (tokenize + lowercase,
-  // no stemming) is the honest, correct choice for non-English content
-  // rather than silently mis-stemming it under the English config. Same
-  // hand-managed-generated-column pattern as Article.searchVector.
-  searchVector Unsupported("tsvector")?
-
-  // Full audit trail of the generation call that produced this translation
-  // (or the most recent regeneration) — same pattern as
-  // Article.verificationGenerationId.
-  generationId String?       @unique
-  generation   AIGeneration? @relation(fields: [generationId], references: [id], onDelete: SetNull)
-  generatedAt  DateTime?
-
-  publishedAt DateTime?
-
-  // True once a human has manually edited the generated content —
-  // regenerateUrduTranslationAction (lib/urdu-translation.ts) requires an
-  // explicit confirmation before overwriting a translation with this set,
-  // rather than silently discarding an editor's manual work.
-  manuallyEdited Boolean   @default(false)
-  lastEditedAt   DateTime?
-  lastEditedById String?
-  lastEditedBy   User?     @relation("ArticleTranslationLastEditedBy", fields: [lastEditedById], references: [id])
-
-  failureReason String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([status])
 }
 
 model ArticleTag {
@@ -741,7 +664,6 @@ model AIGeneration {
   createdAt     DateTime @default(now())
 
   verifiedArticle Article?
-  urduTranslation ArticleTranslation?
 }
 
 model Keyword {
