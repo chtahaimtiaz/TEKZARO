@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { CAN_VIEW_DISCOVERY } from "@/lib/permissions";
+import { formatRelativeTime } from "@/lib/format-relative-time";
 import type { DiscoveryStatus, Prisma, SourceTier } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -13,11 +14,22 @@ const ALL_STATUSES: DiscoveryStatus[] = [
 ];
 const ALL_TIERS: SourceTier[] = ["TIER_1", "TIER_2", "TIER_3"];
 
+const SINCE_OPTIONS: Record<string, number> = {
+  "15m": 15 * 60_000,
+  "1h": 60 * 60_000,
+  "6h": 6 * 60 * 60_000,
+  "24h": 24 * 60 * 60_000,
+  "3d": 3 * 24 * 60 * 60_000,
+  "7d": 7 * 24 * 60 * 60_000,
+};
+
 interface SearchParams {
   status?: string;
   category?: string;
   tier?: string;
   minRelevance?: string;
+  sort?: string;
+  since?: string;
   page?: string;
 }
 
@@ -35,11 +47,19 @@ export default async function DiscoveryPage({ searchParams }: { searchParams: Pr
   if (sp.category) where.categoryId = sp.category;
   if (sp.tier && ALL_TIERS.includes(sp.tier as SourceTier)) where.source = { tier: sp.tier as SourceTier };
   if (sp.minRelevance) where.pakistanRelevance = { gte: Number(sp.minRelevance) };
+  if (sp.since && sp.since in SINCE_OPTIONS) where.publishedAt = { gte: new Date(Date.now() - SINCE_OPTIONS[sp.since]) };
+
+  // Newest-first by original publication time is the default — createdAt
+  // (when TEKZARO discovered it) is a different, less editorially useful
+  // signal. Priority-score sort stays available as an alternate view.
+  const sort = sp.sort === "priority" ? "priority" : "published";
+  const orderBy: Prisma.SourceItemOrderByWithRelationInput[] =
+    sort === "priority" ? [{ priorityScore: "desc" }] : [{ publishedAt: "desc" }, { id: "desc" }];
 
   const [items, total] = await Promise.all([
     prisma.sourceItem.findMany({
       where,
-      orderBy: { priorityScore: "desc" },
+      orderBy,
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       include: { source: true, category: true, cluster: { include: { _count: { select: { items: true } } } } },
@@ -87,6 +107,19 @@ export default async function DiscoveryPage({ searchParams }: { searchParams: Pr
           <option value="50">50+</option>
           <option value="70">70+</option>
         </select>
+        <select name="since" defaultValue={sp.since ?? ""} className="rounded-md border border-border-strong p-2 text-sm bg-paper-raised text-ink">
+          <option value="">Any time</option>
+          <option value="15m">Last 15 minutes</option>
+          <option value="1h">Last hour</option>
+          <option value="6h">Last 6 hours</option>
+          <option value="24h">Last 24 hours</option>
+          <option value="3d">Last 3 days</option>
+          <option value="7d">Last 7 days</option>
+        </select>
+        <select name="sort" defaultValue={sort} className="rounded-md border border-border-strong p-2 text-sm bg-paper-raised text-ink">
+          <option value="published">Newest published first</option>
+          <option value="priority">Priority score</option>
+        </select>
         <button type="submit" className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-ink-soft dark:text-paper">
           Apply
         </button>
@@ -126,7 +159,15 @@ export default async function DiscoveryPage({ searchParams }: { searchParams: Pr
                   {item.source.name} <span className="text-xs text-ink-muted">({item.source.tier.replace("_", " ")})</span>
                 </td>
                 <td className="p-3 text-ink-soft">{item.category?.name ?? "—"}</td>
-                <td className="p-3 text-ink-muted">{item.publishedAt ? item.publishedAt.toLocaleDateString() : "—"}</td>
+                <td className="p-3 text-ink-muted">
+                  {item.publishedAt ? (
+                    <time dateTime={item.publishedAt.toISOString()} title={item.publishedAt.toLocaleString()}>
+                      {formatRelativeTime(item.publishedAt)}
+                    </time>
+                  ) : (
+                    "—"
+                  )}
+                </td>
                 <td className="p-3">{item.priorityScore.toFixed(0)}</td>
                 <td className="p-3">{item.pakistanRelevance > 0 ? `${item.pakistanRelevance} (${item.pakistanImpactLevel})` : "—"}</td>
                 <td className="p-3">{item.duplicateScore > 0 ? item.duplicateScore.toFixed(2) : "—"}</td>
