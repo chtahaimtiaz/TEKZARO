@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth";
 import { changePasswordAction } from "@/lib/auth-actions";
 import { Logo } from "@/components/ui/Logo";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 
 export const dynamic = "force-dynamic";
 
@@ -35,27 +36,25 @@ export default async function ChangePasswordPage({
             <label htmlFor="currentPassword" className="mb-1 block text-sm font-medium text-ink-soft">
               Current password
             </label>
-            <input
+            <PasswordInput
               id="currentPassword"
               name="currentPassword"
-              type="password"
               required
               autoComplete="current-password"
-              className="w-full rounded-md border border-border-strong px-3 py-2.5 text-sm focus:border-accent"
+              className="rounded-md border border-border-strong px-3 py-2.5 text-sm focus:border-accent"
             />
           </div>
           <div>
             <label htmlFor="newPassword" className="mb-1 block text-sm font-medium text-ink-soft">
               New password
             </label>
-            <input
+            <PasswordInput
               id="newPassword"
               name="newPassword"
-              type="password"
               required
               minLength={12}
               autoComplete="new-password"
-              className="w-full rounded-md border border-border-strong px-3 py-2.5 text-sm focus:border-accent"
+              className="rounded-md border border-border-strong px-3 py-2.5 text-sm focus:border-accent"
             />
             <p className="mt-1 text-xs text-ink-muted">At least 12 characters.</p>
           </div>
@@ -63,14 +62,13 @@ export default async function ChangePasswordPage({
             <label htmlFor="confirmPassword" className="mb-1 block text-sm font-medium text-ink-soft">
               Confirm new password
             </label>
-            <input
+            <PasswordInput
               id="confirmPassword"
               name="confirmPassword"
-              type="password"
               required
               minLength={12}
               autoComplete="new-password"
-              className="w-full rounded-md border border-border-strong px-3 py-2.5 text-sm focus:border-accent"
+              className="rounded-md border border-border-strong px-3 py-2.5 text-sm focus:border-accent"
             />
           </div>
 

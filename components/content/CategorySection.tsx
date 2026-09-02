@@ -15,9 +15,11 @@ export function CategorySection({ title, slug, articles }: CategorySectionProps)
   return (
     <section>
       <SectionHeader title={title} href={categoryHref(slug)} />
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        {articles.map((article) => (
-          <ArticleCard key={article.id} article={article} />
+      <div className="grid gap-5 sm:grid-cols-3">
+        {articles.map((article, i) => (
+          <div key={article.id} className={i > 0 ? "hidden sm:block" : ""}>
+            <ArticleCard article={article} />
+          </div>
         ))}
       </div>
     </section>

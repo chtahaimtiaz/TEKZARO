@@ -10,6 +10,7 @@ import {
   setUserActiveAction,
   resetUserPasswordAction,
 } from "@/lib/user-actions";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -198,9 +199,8 @@ export default async function AdminUsersPage({
           <input name="name" placeholder="Full name" required className="rounded-md border border-border-strong p-2 text-sm" />
           <input name="email" type="email" placeholder="Email" required className="rounded-md border border-border-strong p-2 text-sm" />
           {!emailConfigured && (
-            <input
+            <PasswordInput
               name="password"
-              type="password"
               placeholder="Temporary password (12+ chars)"
               required
               minLength={12}

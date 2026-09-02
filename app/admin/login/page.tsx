@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { loginAction } from "@/lib/auth-actions";
 import { Logo } from "@/components/ui/Logo";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 
 export const metadata: Metadata = {
   title: "Sign in",
@@ -46,13 +47,12 @@ export default async function AdminLoginPage({
             <label htmlFor="password" className="mb-1 block text-sm font-medium text-ink-soft">
               Password
             </label>
-            <input
+            <PasswordInput
               id="password"
               name="password"
-              type="password"
               required
               autoComplete="current-password"
-              className="w-full rounded-md border border-border-strong px-3 py-2.5 text-sm focus:border-accent"
+              className="rounded-md border border-border-strong px-3 py-2.5 text-sm focus:border-accent"
             />
           </div>
 

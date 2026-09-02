@@ -42,11 +42,11 @@ export default async function HomePage({
 
   const [heroPool, pakistanTech, latest, trending, trendingPk, categorySections] = await Promise.all([
     getHeroPool(),
-    getPakistanTechArticles(1, 4),
+    getPakistanTechArticles(1, 3),
     getLatestPreview(8),
     getTrendingArticles(6),
     getTrendingInPakistan(5),
-    Promise.all(HOMEPAGE_CATEGORIES.map(([, slug]) => getCategoryArticles(slug, 1, 4))),
+    Promise.all(HOMEPAGE_CATEGORIES.map(([, slug]) => getCategoryArticles(slug, 1, 3))),
   ]);
 
   const { main, secondary } = selectHero(heroPool);

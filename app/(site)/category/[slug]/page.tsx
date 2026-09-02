@@ -59,8 +59,10 @@ export default async function CategoryPage({ params, searchParams }: Props) {
         <section className="mt-10">
           <SectionHeader title={`Trending in ${def.name}`} />
           <div className="grid gap-5 sm:grid-cols-3">
-            {trending.map((article) => (
-              <ArticleCard key={article.id} article={article} />
+            {trending.map((article, i) => (
+              <div key={article.id} className={i > 0 ? "hidden sm:block" : ""}>
+                <ArticleCard article={article} />
+              </div>
             ))}
           </div>
         </section>

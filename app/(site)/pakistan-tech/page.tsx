@@ -46,8 +46,10 @@ export default async function PakistanTechPage({
         <section className="mt-10">
           <SectionHeader title="Trending in Pakistan" accent="pakistan" />
           <div className="grid gap-5 sm:grid-cols-3">
-            {trending.map((article) => (
-              <ArticleCard key={article.id} article={article} />
+            {trending.map((article, i) => (
+              <div key={article.id} className={i > 0 ? "hidden sm:block" : ""}>
+                <ArticleCard article={article} />
+              </div>
             ))}
           </div>
         </section>
