@@ -16,6 +16,7 @@ import {
   deleteAdCampaignAction,
 } from "@/lib/ad-actions";
 import { AdCreativeForm } from "@/components/admin/AdCreativeForm";
+import { DeleteAdCampaignButton } from "@/components/admin/DeleteAdCampaignButton";
 import type { AdPlacement } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -202,13 +203,9 @@ export default async function AdCampaignDetailPage({
         </form>
       </section>
 
-      {campaign.status === "DRAFT" && (
-        <form action={deleteAdCampaignAction.bind(null, campaign.id)} className="mt-6">
-          <button type="submit" className="text-sm font-semibold text-red-600 hover:underline dark:text-red-400">
-            Delete draft campaign
-          </button>
-        </form>
-      )}
+      <form action={deleteAdCampaignAction.bind(null, campaign.id)} className="mt-6">
+        <DeleteAdCampaignButton campaignName={campaign.name} live={runtime === "ACTIVE"} />
+      </form>
     </div>
   );
 }

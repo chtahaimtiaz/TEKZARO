@@ -196,14 +196,14 @@ export async function deleteAdCampaignAction(campaignId: string): Promise<void> 
 
   const campaign = await prisma.adCampaign.findUnique({ where: { id: campaignId } });
   if (!campaign) redirect("/admin/ad-campaigns");
-  // Only a DRAFT — never reviewed, never delivered — can be hard-deleted.
-  // Anything further along keeps a permanent record via reject/pause instead.
-  if (campaign!.status !== "DRAFT") {
-    redirect(`/admin/ad-campaigns/${campaignId}?error=${encodeURIComponent("Only a draft campaign can be deleted.")}`);
-  }
 
+  // Deletable at any status, including live/reviewed campaigns — the
+  // creative and impression/click history cascade-delete with it
+  // (AdCreative/AdImpression/AdClick all onDelete: Cascade), so this is a
+  // full, permanent removal, not just a status change. The AuditLog row
+  // this writes is the only record left behind afterward.
   await prisma.adCampaign.delete({ where: { id: campaignId } });
-  await logAction({ userId: user.id, action: "ad_campaign_deleted", entityType: "AdCampaign", entityId: campaignId, metadata: { name: campaign!.name } });
+  await logAction({ userId: user.id, action: "ad_campaign_deleted", entityType: "AdCampaign", entityId: campaignId, metadata: { name: campaign!.name, status: campaign!.status } });
   redirect("/admin/ad-campaigns");
 }
 

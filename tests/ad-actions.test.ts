@@ -159,7 +159,7 @@ describe("AdCampaign CRUD", () => {
     clearSession();
   });
 
-  it("only a DRAFT campaign can be deleted", async () => {
+  it("a campaign can be deleted regardless of status", async () => {
     const admin = await createTestUser("ADMIN", "ads-campaign-delete");
     trackUser(admin.id);
     await loginAs(admin.id);
@@ -170,11 +170,6 @@ describe("AdCampaign CRUD", () => {
     campaignIds.push(campaignId);
 
     await prisma.adCampaign.update({ where: { id: campaignId }, data: { status: "PENDING_REVIEW" } });
-    const blockedUrl = await captureRedirect(() => deleteAdCampaignAction(campaignId));
-    expect(blockedUrl).toContain(`/admin/ad-campaigns/${campaignId}?error=`);
-    expect(await prisma.adCampaign.findUnique({ where: { id: campaignId } })).not.toBeNull();
-
-    await prisma.adCampaign.update({ where: { id: campaignId }, data: { status: "DRAFT" } });
     const okUrl = await captureRedirect(() => deleteAdCampaignAction(campaignId));
     expect(okUrl).toBe("/admin/ad-campaigns");
     expect(await prisma.adCampaign.findUnique({ where: { id: campaignId } })).toBeNull();
