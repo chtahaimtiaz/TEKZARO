@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { CAN_DELETE_ARTICLE } from "@/lib/permissions";
+import { DeleteAllArticlesButton } from "@/components/admin/DeleteAllArticlesButton";
 import type { ArticleStatus, Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -68,6 +70,8 @@ export default async function AdminArticlesPage({
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const canDeleteAll = CAN_DELETE_ARTICLE.includes(user.role);
+  const totalArticleCount = canDeleteAll ? await prisma.article.count() : 0;
   const qs = (overrides: Partial<SearchParams>) => {
     const merged: Record<string, string> = {};
     for (const [k, v] of Object.entries({ ...sp, ...overrides })) {
@@ -83,9 +87,12 @@ export default async function AdminArticlesPage({
           <p className="eyebrow">Newsroom</p>
           <h1 className="mt-1 font-serif text-3xl font-bold">Articles</h1>
         </div>
-        <Link href="/admin/articles/new" className="rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-dark">
-          + New article
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {canDeleteAll && <DeleteAllArticlesButton articleCount={totalArticleCount} />}
+          <Link href="/admin/articles/new" className="rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-dark">
+            + New article
+          </Link>
+        </div>
       </div>
 
       <form className="mb-4 grid grid-cols-2 gap-2 rounded-xl border border-border bg-paper-raised p-4 sm:grid-cols-3 lg:grid-cols-5">

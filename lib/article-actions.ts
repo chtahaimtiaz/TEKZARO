@@ -621,3 +621,42 @@ export async function deleteArticleAction(articleId: string): Promise<ActionResu
 
   return { ok: true };
 }
+
+/**
+ * Wipes every Article — every status, published included. Deliberately a
+ * distinct, explicit action rather than a bulk "select rows, click Delete"
+ * flow: there is no per-item confirmation possible at this scale, so the
+ * one confirmation this has (the caller must pass the exact literal
+ * "DELETE ALL ARTICLES", enforced server-side, not just a disabled button)
+ * has to carry the whole weight. Same ADMIN-only bar as the single-article
+ * delete. Verified against the schema's own onDelete clauses: ArticleTag/
+ * ArticleVersion/ArticleSource/Relation cascade; DigestItem.article,
+ * PageView.article, Media's tagged-for-article link, and
+ * SourceItem.convertedArticleId all set null instead — a discovery record,
+ * a digest entry, a page-view log row, or an uploaded image never
+ * disappears just because the article it pointed to did. Category, Author,
+ * Source, SourceItem, StoryCluster, and Claim rows themselves are
+ * completely untouched either way.
+ */
+export async function deleteAllArticlesAction(confirmationPhrase: string): Promise<ActionResult<{ count: number }>> {
+  const sessionUser = await getSessionUser();
+  const user = requireRole(sessionUser, CAN_DELETE_ARTICLE);
+
+  if (confirmationPhrase !== "DELETE ALL ARTICLES") {
+    return { ok: false, error: 'Type the exact phrase "DELETE ALL ARTICLES" to confirm.' };
+  }
+
+  const articles = await prisma.article.findMany({ select: { id: true, title: true, status: true } });
+  if (articles.length === 0) return { ok: true, data: { count: 0 } };
+
+  await prisma.article.deleteMany({});
+
+  await logAction({
+    userId: user.id,
+    action: "all_articles_deleted",
+    entityType: "Article",
+    metadata: { count: articles.length, titles: articles.map((a) => a.title).slice(0, 200) },
+  });
+
+  return { ok: true, data: { count: articles.length } };
+}
