@@ -44,6 +44,12 @@ export default async function DiscoveryPage({ searchParams }: { searchParams: Pr
   const where: Prisma.SourceItemWhereInput = {};
   if (sp.status && ALL_STATUSES.includes(sp.status as DiscoveryStatus)) where.status = sp.status as DiscoveryStatus;
   else where.status = { notIn: ["REJECTED"] }; // default view hides rejected noise
+  // Published items are removed from Discovery by the periodic cleanup
+  // sweep (lib/discovery/cleanup.ts) — this excludes them from the very
+  // next page load too, closing the gap before that sweep next runs,
+  // rather than showing a story that's already live as if it still needed
+  // a decision.
+  where.NOT = { convertedArticle: { status: "PUBLISHED" } };
   if (sp.category) where.categoryId = sp.category;
   if (sp.tier && ALL_TIERS.includes(sp.tier as SourceTier)) where.source = { tier: sp.tier as SourceTier };
   if (sp.minRelevance) where.pakistanRelevance = { gte: Number(sp.minRelevance) };
@@ -62,7 +68,12 @@ export default async function DiscoveryPage({ searchParams }: { searchParams: Pr
       orderBy,
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
-      include: { source: true, category: true, cluster: { include: { _count: { select: { items: true } } } } },
+      include: {
+        source: true,
+        category: true,
+        cluster: { include: { _count: { select: { items: true } } } },
+        convertedArticle: { select: { status: true } },
+      },
     }),
     prisma.sourceItem.count({ where }),
   ]);
@@ -173,6 +184,11 @@ export default async function DiscoveryPage({ searchParams }: { searchParams: Pr
                 <td className="p-3">{item.duplicateScore > 0 ? item.duplicateScore.toFixed(2) : "—"}</td>
                 <td className="p-3">
                   <span className="rounded bg-paper px-2 py-0.5 text-xs font-semibold">{item.status.replace(/_/g, " ")}</span>
+                  {item.convertedArticle?.status === "SCHEDULED" && (
+                    <span className="ml-1 rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                      Scheduled
+                    </span>
+                  )}
                 </td>
                 <td className="p-3 text-right">
                   <Link href={`/admin/discovery/${item.id}`} className="font-semibold text-accent hover:underline">

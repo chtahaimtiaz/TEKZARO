@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { processVerificationBatch } from "@/lib/verification-actions";
 import { deduplicateArticles } from "@/lib/article-dedup";
+import { cleanupExpiredDiscoveryItems } from "@/lib/discovery/cleanup";
 import { logSystemEvent } from "@/lib/monitoring";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { getPipelineSchedule, shouldRunVerify, recordVerifyRun } from "@/lib/pipeline-schedule";
@@ -57,7 +58,23 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // not a one-time fix. logs its own SystemEvent only when it actually
   // removes something.
   const dedup = await deduplicateArticles();
+
+  // News Discovery cleanup — see lib/discovery/cleanup.ts for the full
+  // retention/protection rules. Runs on this same cadence rather than a
+  // separate cron: it's the same kind of "sweep every cycle" maintenance
+  // as the dedup pass above, and this codebase has no job queue to hook a
+  // truly synchronous per-publish removal into.
+  const discoveryCleanup = await cleanupExpiredDiscoveryItems();
+  if (discoveryCleanup.removed > 0 || discoveryCleanup.failed > 0) {
+    await logSystemEvent({
+      level: discoveryCleanup.failed > 0 ? "WARN" : "INFO",
+      source: "discovery.cleanup",
+      message: `Checked ${discoveryCleanup.checked} discovery item(s): ${discoveryCleanup.removed} removed (${discoveryCleanup.publishedRemoved} published), ${discoveryCleanup.scheduledProtected} scheduled protected, ${discoveryCleanup.failed} failed.`,
+      context: discoveryCleanup as unknown as Record<string, unknown>,
+    });
+  }
+
   await recordVerifyRun();
 
-  return NextResponse.json({ ...summary, duplicatesRemoved: dedup.articlesDeleted });
+  return NextResponse.json({ ...summary, duplicatesRemoved: dedup.articlesDeleted, discoveryCleanup });
 }
