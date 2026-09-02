@@ -12,7 +12,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
     "create-admin": "tsx scripts/create-admin.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@neondatabase/serverless": "1.1.0",
@@ -31,6 +32,7 @@
     "zod": "latest"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "latest",
     "@types/node": "latest",
     "@types/nodemailer": "^8.0.1",
