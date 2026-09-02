@@ -3,6 +3,7 @@ import { processVerificationBatch } from "@/lib/verification-actions";
 import { deduplicateArticles } from "@/lib/article-dedup";
 import { logSystemEvent } from "@/lib/monitoring";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { getPipelineSchedule, shouldRunVerify, recordVerifyRun } from "@/lib/pipeline-schedule";
 
 export const dynamic = "force-dynamic";
 // See app/api/cron/ingest-news/route.ts for why this is set explicitly —
@@ -34,6 +35,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
+  // Same admin-controlled-cadence no-op pattern as
+  // app/api/cron/ingest-news/route.ts — see PipelineSchedule.verifyIntervalMinutes.
+  const schedule = await getPipelineSchedule();
+  if (!shouldRunVerify(schedule)) {
+    return NextResponse.json({ skipped: true, reason: "interval not elapsed" });
+  }
+
   const summary = await processVerificationBatch();
 
   await logSystemEvent({
@@ -49,6 +57,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // not a one-time fix. logs its own SystemEvent only when it actually
   // removes something.
   const dedup = await deduplicateArticles();
+  await recordVerifyRun();
 
   return NextResponse.json({ ...summary, duplicatesRemoved: dedup.articlesDeleted });
 }

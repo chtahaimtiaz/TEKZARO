@@ -4,6 +4,7 @@ import { getSystemUserId } from "@/lib/system-actor";
 import { ingestSource } from "@/lib/ingestion/ingest";
 import { logSystemEvent } from "@/lib/monitoring";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { getPipelineSchedule, shouldRunIngestion, recordIngestionRun } from "@/lib/pipeline-schedule";
 
 export const dynamic = "force-dynamic";
 // Hobby plan (with Fluid Compute) caps functions at 300s — there is no
@@ -67,6 +68,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
+  // The GitHub Actions workflow polls this endpoint on a tight fixed
+  // schedule; the actual ingestion cadence is admin-controlled via
+  // PipelineSchedule.ingestionIntervalMinutes (app/admin/(protected)/monitoring)
+  // so a poll that arrives before the configured interval has elapsed is a
+  // cheap no-op rather than a real ingestion run.
+  const schedule = await getPipelineSchedule();
+  if (!shouldRunIngestion(schedule)) {
+    return NextResponse.json({ skipped: true, reason: "interval not elapsed" });
+  }
+
   const systemUserId = await getSystemUserId();
   const sources = await prisma.source.findMany({
     where: { active: true, feedUrl: { not: null } },
@@ -118,6 +129,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     message: `Checked ${sources.length} source(s): ${itemsCreated} new item(s), ${itemsSkippedExisting} already existed, ${sourcesFailed} source failure(s).`,
     context: summary,
   });
+  await recordIngestionRun();
 
   return NextResponse.json(summary);
 }

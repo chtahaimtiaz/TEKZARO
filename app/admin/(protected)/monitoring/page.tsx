@@ -6,6 +6,8 @@ import { isAIConfigured } from "@/lib/ai/provider";
 import { isSearchConfigured } from "@/lib/search/web-search";
 import { isMediaUploadAvailable } from "@/lib/media/storage";
 import { isEmailConfigured } from "@/lib/email/provider";
+import { getPipelineSchedule, updatePipelineScheduleAction, MIN_INTERVAL_MINUTES } from "@/lib/pipeline-schedule";
+import { formatRelativeTime } from "@/lib/format-relative-time";
 
 const INTEGRATIONS = [
   {
@@ -39,11 +41,11 @@ export const dynamic = "force-dynamic";
 export default async function MonitoringPage({
   searchParams,
 }: {
-  searchParams: Promise<{ level?: string }>;
+  searchParams: Promise<{ level?: string; error?: string }>;
 }) {
   const user = await requireUser();
   if (!CAN_VIEW_MONITORING.includes(user.role)) redirect("/admin");
-  const { level } = await searchParams;
+  const { level, error } = await searchParams;
 
   let dbStatus: "ok" | "error" = "ok";
   try {
@@ -53,18 +55,73 @@ export default async function MonitoringPage({
   }
 
   const where = level && ["INFO", "WARN", "ERROR"].includes(level) ? { level: level as "INFO" | "WARN" | "ERROR" } : {};
-  const [events, lastCronRun, lastIngestRun, lastVerifyRun, lastEmail] = await Promise.all([
+  const [events, lastCronRun, lastIngestRun, lastVerifyRun, lastEmail, pipelineSchedule] = await Promise.all([
     prisma.systemEvent.findMany({ where, orderBy: { createdAt: "desc" }, take: 50 }),
     prisma.systemEvent.findFirst({ where: { source: "cron.publish-scheduled" }, orderBy: { createdAt: "desc" } }),
     prisma.systemEvent.findFirst({ where: { source: "cron.ingest-news" }, orderBy: { createdAt: "desc" } }),
     prisma.systemEvent.findFirst({ where: { source: "cron.verify-publish" }, orderBy: { createdAt: "desc" } }),
     prisma.emailLog.findFirst({ orderBy: { createdAt: "desc" } }),
+    getPipelineSchedule(),
   ]);
 
   return (
     <div>
       <p className="eyebrow">Newsroom</p>
       <h1 className="mt-1 font-serif text-3xl font-bold">Monitoring</h1>
+
+      {error && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-medium text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>}
+
+      <section className="mt-6">
+        <h2 className="text-lg font-bold">Pipeline schedule</h2>
+        <p className="mt-1 text-sm text-ink-muted">
+          How often the ingestion and verify-and-publish cron endpoints actually do work when polled — the GitHub
+          Actions workflow polls on a tight fixed schedule, but a poll that arrives before the interval below has
+          elapsed is a cheap no-op.
+        </p>
+        <form action={updatePipelineScheduleAction} className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border border-border bg-paper-raised p-5">
+            <label htmlFor="ingestionIntervalMinutes" className="text-sm text-ink-muted">
+              Ingestion interval (minutes)
+            </label>
+            <input
+              id="ingestionIntervalMinutes"
+              name="ingestionIntervalMinutes"
+              type="number"
+              min={MIN_INTERVAL_MINUTES}
+              step={1}
+              defaultValue={pipelineSchedule.ingestionIntervalMinutes}
+              required
+              className="mt-2 w-full rounded-md border border-border-strong bg-paper p-2 text-ink"
+            />
+            <p className="mt-2 text-xs text-ink-muted">
+              Last run: {pipelineSchedule.lastIngestionRunAt ? formatRelativeTime(pipelineSchedule.lastIngestionRunAt) : "Never"}
+            </p>
+          </div>
+          <div className="rounded-xl border border-border bg-paper-raised p-5">
+            <label htmlFor="verifyIntervalMinutes" className="text-sm text-ink-muted">
+              Verify &amp; publish interval (minutes)
+            </label>
+            <input
+              id="verifyIntervalMinutes"
+              name="verifyIntervalMinutes"
+              type="number"
+              min={MIN_INTERVAL_MINUTES}
+              step={1}
+              defaultValue={pipelineSchedule.verifyIntervalMinutes}
+              required
+              className="mt-2 w-full rounded-md border border-border-strong bg-paper p-2 text-ink"
+            />
+            <p className="mt-2 text-xs text-ink-muted">
+              Last run: {pipelineSchedule.lastVerifyRunAt ? formatRelativeTime(pipelineSchedule.lastVerifyRunAt) : "Never"}
+            </p>
+          </div>
+          <div className="flex items-end sm:col-span-2 lg:col-span-2">
+            <button type="submit" className="rounded-md bg-accent px-4 py-2 font-semibold text-white hover:bg-accent-dark">
+              Save schedule
+            </button>
+          </div>
+        </form>
+      </section>
 
       <section className="mt-6">
         <h2 className="text-lg font-bold">Integration status</h2>

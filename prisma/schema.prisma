@@ -317,6 +317,22 @@ model EditorialSettings {
   updatedAt DateTime @updatedAt
 }
 
+// Singleton, same shape/rationale as EditorialSettings above. Separate model
+// rather than adding fields there — EditorialSettings is documented as
+// scoped to display-timezone only, and these two intervals have distinct
+// cost profiles (ingestion is free, verify-and-publish spends a paid Tavily
+// search credit per item) that warrant independently tunable cadences. See
+// lib/pipeline-schedule.ts (lazy-default reads) / the cron routes' no-op
+// fast-paths in app/api/cron/{ingest-news,verify-and-publish}/route.ts.
+model PipelineSchedule {
+  id                       String    @id @default("singleton")
+  ingestionIntervalMinutes Int       @default(60)
+  verifyIntervalMinutes    Int       @default(60)
+  lastIngestionRunAt       DateTime?
+  lastVerifyRunAt          DateTime?
+  updatedAt                DateTime  @updatedAt
+}
+
 model Tag {
   id       String       @id @default(cuid())
   name     String       @unique

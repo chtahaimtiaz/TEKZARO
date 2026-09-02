@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { NextRequest } from "next/server";
 import { prisma } from "../lib/prisma";
 import { GET as ingestNews } from "../app/api/cron/ingest-news/route";
@@ -35,6 +35,23 @@ function makeRequest(auth: string | null): NextRequest {
   return new NextRequest("http://localhost/api/cron/ingest-news", { headers });
 }
 
+// This file makes several real GET calls to the route in quick succession
+// and (mostly) expects every one of them to actually run, not the
+// PipelineSchedule no-op fast-path. lastIngestionRunAt is what actually
+// gates that — a null value always means "run", regardless of whatever
+// ingestionIntervalMinutes another test FILE running concurrently in a
+// different vitest worker happens to have set on this same shared singleton
+// row (tests/pipeline-schedule.test.ts also writes to it) — so this resets
+// only that field, immediately before every test, rather than pinning the
+// interval itself, which would still be racy against a concurrent writer.
+async function resetForAlwaysRun() {
+  await prisma.pipelineSchedule.upsert({
+    where: { id: "singleton" },
+    update: { lastIngestionRunAt: null },
+    create: { id: "singleton", lastIngestionRunAt: null },
+  });
+}
+
 beforeAll(async () => {
   // getClientIp() resolves to "unknown" outside a real request in tests —
   // same reasoning as tests/cron-publish-scheduled.test.ts.
@@ -49,6 +66,8 @@ beforeAll(async () => {
     await prisma.source.updateMany({ where: { id: { in: deactivatedSourceIds } }, data: { active: false } });
   }
 });
+
+beforeEach(resetForAlwaysRun);
 
 afterAll(async () => {
   if (createdSourceIds.length) {
@@ -140,5 +159,26 @@ describe("GET /api/cron/ingest-news", () => {
     });
     expect(after).toHaveLength(6);
     expect(after.every((s) => s.lastError !== null)).toBe(true);
+  });
+
+  it("returns {skipped:true} without touching any source when the configured interval hasn't elapsed yet", async () => {
+    // Deliberately the opposite of this file's beforeEach reset (which
+    // always sets lastIngestionRunAt to null so every other test's call
+    // actually runs) — proves the PipelineSchedule gate actually blocks a
+    // too-soon call, not just that the un-gated path still works. Setting
+    // both fields together, immediately before the call, keeps this
+    // deterministic even against a concurrently-running test file that may
+    // be writing ingestionIntervalMinutes on this same shared singleton row
+    // at the same time (any positive interval combined with a just-now
+    // lastIngestionRunAt still yields "not elapsed").
+    await prisma.pipelineSchedule.update({
+      where: { id: "singleton" },
+      data: { ingestionIntervalMinutes: 60, lastIngestionRunAt: new Date() },
+    });
+
+    const res = await ingestNews(makeRequest(`Bearer ${process.env.CRON_SECRET}`));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({ skipped: true, reason: "interval not elapsed" });
   });
 });
