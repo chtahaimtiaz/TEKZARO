@@ -130,7 +130,7 @@ export async function sendTestCampaignAction(campaignId: string): Promise<Action
   });
 
   if (!result.ok) {
-    return { ok: false, error: "notConfigured" in result ? "SMTP isn't configured." : result.error };
+    return { ok: false, error: "notConfigured" in result ? "Email isn't configured." : result.error };
   }
 
   await logAction({

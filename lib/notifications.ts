@@ -12,7 +12,7 @@ export interface NotifyInput {
   link?: string;
   /** Set true only for the small set of high-value events worth an email
    * (submitted-for-review, changes-requested, approved, published) — most
-   * notifications are in-app only. No-op when SMTP isn't configured. */
+   * notifications are in-app only. No-op when email isn't configured. */
   email?: boolean;
 }
 

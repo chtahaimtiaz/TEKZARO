@@ -1,10 +1,22 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { isEmailConfigured, sendEmail } from "../lib/email/provider";
 import { prisma } from "../lib/prisma";
 
-// Real environment: SMTP_HOST/PORT/USER/PASS are genuinely unset here (see
-// .env) — same honest-gating pattern as Phase 4's AI provider tests.
-describe("email provider (real, unconfigured environment)", () => {
+// Explicitly unset here rather than relying on ambient .env being blank —
+// this project's real .env now legitimately carries live Brevo credentials
+// (BREVO_API_KEY, SMTP_*), so "unconfigured" has to be forced rather than
+// assumed. Each vitest file runs in its own worker with its own process.env
+// copy (see email-provider-mocked.test.ts's same pattern), so this can't
+// leak into other test files.
+delete process.env.BREVO_API_KEY;
+delete process.env.SMTP_HOST;
+delete process.env.SMTP_PORT;
+delete process.env.SMTP_USER;
+delete process.env.SMTP_PASS;
+
+const { isEmailConfigured, sendEmail } = await import("../lib/email/provider");
+
+// Same honest-gating pattern as Phase 4's AI provider tests.
+describe("email provider (forced-unconfigured environment)", () => {
   const createdLogIds: string[] = [];
 
   afterEach(async () => {

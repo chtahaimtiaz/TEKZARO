@@ -11,6 +11,11 @@ vi.mock("nodemailer", () => ({
   },
 }));
 
+// Cleared explicitly — real .env now carries a live BREVO_API_KEY, which
+// would otherwise take priority over SMTP and route this test's sends
+// through the (unmocked) Brevo API branch instead of the mocked
+// transporter this file exists to exercise.
+delete process.env.BREVO_API_KEY;
 process.env.SMTP_HOST = "smtp.example.test";
 process.env.SMTP_PORT = "587";
 process.env.SMTP_USER = "test-user";
@@ -19,7 +24,7 @@ process.env.SMTP_FROM = "TEKZARO <noreply@tekzaro.test>";
 
 const { isEmailConfigured, sendEmail } = await import("../lib/email/provider");
 
-describe("email provider — configured (mocked SMTP, no real network call)", () => {
+describe("email provider — configured (mocked SMTP fallback, no real network call)", () => {
   const createdLogIds: string[] = [];
 
   afterEach(async () => {

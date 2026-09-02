@@ -13,6 +13,11 @@ vi.mock("nodemailer", () => ({
   default: { createTransport: () => ({ sendMail: sendMailMock }) },
 }));
 
+// Cleared explicitly — the real .env carries a live BREVO_API_KEY, which
+// takes priority over SMTP in lib/email/provider and would route these
+// sends through the unmocked Brevo API branch instead of the mocked
+// transporter above.
+delete process.env.BREVO_API_KEY;
 process.env.SMTP_HOST = "smtp.example.test";
 process.env.SMTP_PORT = "587";
 process.env.SMTP_USER = "test-user";
@@ -130,7 +135,7 @@ describe("sendTestCampaignAction — self-send only, never touches subscribers o
     try {
       const result = await sendTestCampaignAction(created.data!.id);
       expect(result.ok).toBe(false);
-      expect(result.error).toBe("SMTP isn't configured.");
+      expect(result.error).toBe("Email isn't configured.");
     } finally {
       process.env.SMTP_HOST = savedHost;
     }
