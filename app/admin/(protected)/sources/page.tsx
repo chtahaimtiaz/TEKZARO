@@ -5,6 +5,8 @@ import { requireUser } from "@/lib/auth";
 import { CAN_MANAGE_SOURCES } from "@/lib/permissions";
 import { setSourceActiveAction } from "@/lib/source-actions";
 import { FetchNowButton } from "@/components/admin/FetchNowButton";
+import { FetchAllButton } from "@/components/admin/FetchAllButton";
+import { DeleteSourceButton } from "@/components/admin/DeleteSourceButton";
 
 export const dynamic = "force-dynamic";
 
@@ -24,9 +26,12 @@ export default async function SourcesPage() {
           <p className="eyebrow">Newsroom</p>
           <h1 className="mt-1 font-serif text-3xl font-bold">Sources</h1>
         </div>
-        <Link href="/admin/sources/new" className="rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-dark">
-          + Add source
-        </Link>
+        <div className="flex flex-wrap items-start gap-2">
+          <FetchAllButton />
+          <Link href="/admin/sources/new" className="rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-dark">
+            + Add source
+          </Link>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-border bg-paper-raised">
@@ -40,6 +45,7 @@ export default async function SourcesPage() {
               <th className="p-3">Last success</th>
               <th className="p-3">Last error</th>
               <th className="p-3">Status</th>
+              <th className="p-3"></th>
               <th className="p-3"></th>
             </tr>
           </thead>
@@ -64,12 +70,15 @@ export default async function SourcesPage() {
                     </button>
                   </form>
                 </td>
-                <td className="p-3 text-right">{s.feedUrl && <FetchNowButton sourceId={s.id} />}</td>
+                <td className="p-3 text-right">{(s.feedUrl || s.type === "GOOGLE_NEWS") && <FetchNowButton sourceId={s.id} />}</td>
+                <td className="p-3 text-right">
+                  <DeleteSourceButton sourceId={s.id} sourceName={s.name} />
+                </td>
               </tr>
             ))}
             {sources.length === 0 && (
               <tr>
-                <td colSpan={8} className="p-6 text-center text-ink-muted">
+                <td colSpan={9} className="p-6 text-center text-ink-muted">
                   No sources configured yet.
                 </td>
               </tr>

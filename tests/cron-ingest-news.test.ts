@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { NextRequest } from "next/server";
 import { prisma } from "../lib/prisma";
 import { GET as ingestNews } from "../app/api/cron/ingest-news/route";
+import { getEligibleActiveSources } from "../lib/ingestion/batch-fetch";
 import { cleanupRateLimitKey } from "./helpers";
 
 const createdSourceIds: string[] = [];
@@ -57,10 +58,14 @@ beforeAll(async () => {
   // same reasoning as tests/cron-publish-scheduled.test.ts.
   await cleanupRateLimitKey("cron-ingest-news:unknown");
 
-  const otherActiveSources = await prisma.source.findMany({
-    where: { active: true, feedUrl: { not: null } },
-    select: { id: true },
-  });
+  // Same eligibility criteria the route itself uses (lib/ingestion/batch-fetch.ts)
+  // — GOOGLE_NEWS sources have no feedUrl but are still eligible, and
+  // production now has several real, permanent ones (Stage 6B). Missing
+  // that OR clause here left them active and got them really fetched by
+  // every test run in this file, each one a real, possibly slow
+  // news.google.com round trip — a real, deterministic multi-minute hang,
+  // not flakiness.
+  const otherActiveSources = await getEligibleActiveSources();
   deactivatedSourceIds = otherActiveSources.map((s) => s.id);
   if (deactivatedSourceIds.length) {
     await prisma.source.updateMany({ where: { id: { in: deactivatedSourceIds } }, data: { active: false } });

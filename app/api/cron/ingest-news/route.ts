@@ -1,8 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { getSystemUserId } from "@/lib/system-actor";
-import { ingestSource } from "@/lib/ingestion/ingest";
-import { ingestGoogleNewsSource } from "@/lib/ingestion/google-news";
+import { getEligibleActiveSources, runBatchIngestion } from "@/lib/ingestion/batch-fetch";
 import { logSystemEvent } from "@/lib/monitoring";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { getPipelineSchedule, shouldRunIngestion, recordIngestionRun } from "@/lib/pipeline-schedule";
@@ -35,27 +33,14 @@ export const maxDuration = 300;
  * iterating every active source instead of one, and attributed to the
  * SYSTEM actor instead of a session user.
  *
- * Sources are processed CONCURRENCY at a time rather than one-at-a-time —
- * a real production run with 15 active sources timed out under the old
- * sequential loop (each source's RSS fetch + per-item image acquisition
- * fully awaited before the next source started). Bounded concurrency
- * keeps wall-clock roughly proportional to source-count/CONCURRENCY
- * instead of source-count, without hammering the DB connection pool or
- * outbound network with all sources at once.
+ * Sources are processed with bounded concurrency (lib/ingestion/batch-fetch.ts)
+ * rather than one-at-a-time — a real production run with 15 active sources
+ * timed out under the old sequential loop (each source's RSS fetch +
+ * per-item image acquisition fully awaited before the next source
+ * started). The same batch helper backs the admin "Fetch All" action
+ * (lib/source-actions.ts's fetchAllSourcesAction) — one implementation,
+ * not two.
  */
-const CONCURRENCY = 4;
-
-async function runWithConcurrency<T>(items: T[], concurrency: number, fn: (item: T) => Promise<void>): Promise<void> {
-  let next = 0;
-  async function worker() {
-    while (next < items.length) {
-      const item = items[next++];
-      await fn(item);
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
-}
-
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const authHeader = request.headers.get("authorization");
   const expected = process.env.CRON_SECRET;
@@ -80,55 +65,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   const systemUserId = await getSystemUserId();
-  const sources = await prisma.source.findMany({
-    where: { active: true, OR: [{ feedUrl: { not: null } }, { type: "GOOGLE_NEWS" }] },
-    select: { id: true, name: true, type: true },
-  });
-
-  let itemsCreated = 0;
-  let itemsSkippedExisting = 0;
-  let itemsDeprioritizedNonTech = 0;
-  let imagesAcquired = 0;
-  let imagesNeedingReview = 0;
-  let imagesFailed = 0;
-  let sourcesFailed = 0;
-
-  await runWithConcurrency(sources, CONCURRENCY, async (source) => {
-    try {
-      const result =
-        source.type === "GOOGLE_NEWS" ? await ingestGoogleNewsSource(source.id, systemUserId) : await ingestSource(source.id, systemUserId);
-      if (result.ok) {
-        itemsCreated += result.itemsCreated;
-        itemsSkippedExisting += result.itemsSkippedExisting;
-        itemsDeprioritizedNonTech += result.itemsDeprioritizedNonTech;
-        imagesAcquired += result.imagesAcquired;
-        imagesNeedingReview += result.imagesNeedingReview;
-        imagesFailed += result.imagesFailed;
-      } else {
-        sourcesFailed++;
-      }
-    } catch {
-      // Defense-in-depth beyond ingestSource's own never-throws guarantee —
-      // one source must never abort the run for the rest.
-      sourcesFailed++;
-    }
-  });
-
-  const summary = {
-    sourcesChecked: sources.length,
-    sourcesFailed,
-    itemsCreated,
-    itemsSkippedExisting,
-    itemsDeprioritizedNonTech,
-    imagesAcquired,
-    imagesNeedingReview,
-    imagesFailed,
-  };
+  const sources = await getEligibleActiveSources();
+  const { perSource, ...summary } = await runBatchIngestion(sources, systemUserId);
 
   await logSystemEvent({
-    level: sourcesFailed > 0 ? "WARN" : "INFO",
+    level: summary.sourcesFailed > 0 ? "WARN" : "INFO",
     source: "cron.ingest-news",
-    message: `Checked ${sources.length} source(s): ${itemsCreated} new item(s), ${itemsSkippedExisting} already existed, ${sourcesFailed} source failure(s).`,
+    message: `Checked ${summary.sourcesChecked} source(s): ${summary.itemsCreated} new item(s), ${summary.itemsSkippedExisting} already existed, ${summary.sourcesFailed} source failure(s).`,
     context: summary,
   });
   await recordIngestionRun();
