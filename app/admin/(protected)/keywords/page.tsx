@@ -17,7 +17,10 @@ export default async function KeywordsPage({
   if (!CAN_MANAGE_KEYWORDS.includes(user.role)) redirect("/admin");
   const { error } = await searchParams;
 
-  const keywords = await prisma.keyword.findMany({ orderBy: [{ type: "asc" }, { term: "asc" }] });
+  const [keywords, categories] = await Promise.all([
+    prisma.keyword.findMany({ orderBy: [{ type: "asc" }, { term: "asc" }], include: { category: { select: { name: true } } } }),
+    prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+  ]);
 
   return (
     <div className="max-w-3xl">
@@ -49,10 +52,26 @@ export default async function KeywordsPage({
           <input type="checkbox" name="priority" />
           Priority
         </label>
+        <label className="flex flex-col gap-1 text-sm">
+          Category (Topic keywords only)
+          <select name="categoryId" className="rounded-md border border-border-strong p-2 bg-paper-raised text-ink">
+            <option value="">None</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </label>
         <button type="submit" className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-dark">
           Add
         </button>
       </form>
+      <p className="mt-2 text-xs text-ink-muted">
+        A Topic keyword scoped to a category becomes part of that category&apos;s Google News query (OR-joined with
+        its other scoped Topic keywords) — see /admin/sources/new. Unscoped Topic keywords still contribute to
+        tech-relevance scoring as before.
+      </p>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-paper-raised">
         <table className="w-full text-sm">
@@ -60,6 +79,7 @@ export default async function KeywordsPage({
             <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-muted">
               <th className="p-3">Term</th>
               <th className="p-3">Type</th>
+              <th className="p-3">Category</th>
               <th className="p-3">Priority</th>
               <th className="p-3">Status</th>
               <th className="p-3"></th>
@@ -70,6 +90,7 @@ export default async function KeywordsPage({
               <tr key={k.id} className="border-b border-border last:border-b-0">
                 <td className="p-3 font-medium">{k.term}</td>
                 <td className="p-3 text-ink-soft">{k.type}</td>
+                <td className="p-3 text-ink-soft">{k.category?.name ?? ""}</td>
                 <td className="p-3">{k.priority ? "Yes" : ""}</td>
                 <td className="p-3">
                   <form action={setKeywordActiveAction.bind(null, k.id, !k.active)}>
@@ -89,7 +110,7 @@ export default async function KeywordsPage({
             ))}
             {keywords.length === 0 && (
               <tr>
-                <td colSpan={5} className="p-6 text-center text-ink-muted">
+                <td colSpan={6} className="p-6 text-center text-ink-muted">
                   No configured keywords yet.
                 </td>
               </tr>

@@ -46,6 +46,11 @@ enum SourceType {
   OFFICIAL_BLOG
   API
   OTHER
+  // A Source of this type stores no feedUrl — its query is computed live
+  // at ingest time from its Category's active TOPIC-type Keyword rows (see
+  // lib/ingestion/google-news.ts's buildGoogleNewsQuery), not a stored feed
+  // URL, since the query composition can change as keywords are edited.
+  GOOGLE_NEWS
 }
 
 enum VerificationStatus {
@@ -269,6 +274,7 @@ model Category {
   sourceItems SourceItem[]
   sources     Source[]
   adCampaigns AdCampaign[]
+  keywords    Keyword[]
 
   // General editorial-use toggle (mirrors Source.active/Keyword.active) —
   // separate from participatesInQuota so a real, active category can opt
@@ -667,6 +673,13 @@ model Keyword {
   priority  Boolean     @default(false)
   active    Boolean     @default(true)
   createdAt DateTime    @default(now())
+
+  // Scopes a TOPIC-type keyword to one category's Google News query
+  // (lib/ingestion/google-news.ts's buildGoogleNewsQuery) — irrelevant to
+  // PAKISTAN/COMPANY-type keywords, which keep their existing global
+  // relevance-scoring role regardless of this field.
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
 }
 
 model Digest {

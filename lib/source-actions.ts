@@ -7,9 +7,10 @@ import { getSessionUser, requireRole } from "./auth";
 import { CAN_MANAGE_SOURCES } from "./permissions";
 import { logAction } from "./audit";
 import { ingestSource, type IngestResult } from "./ingestion/ingest";
+import { ingestGoogleNewsSource } from "./ingestion/google-news";
 import type { SourceTier, SourceType } from "@prisma/client";
 
-const SOURCE_TYPES: SourceType[] = ["RSS", "ATOM", "COMPANY_NEWSROOM", "OFFICIAL_BLOG", "API", "OTHER"];
+const SOURCE_TYPES: SourceType[] = ["RSS", "ATOM", "COMPANY_NEWSROOM", "OFFICIAL_BLOG", "API", "OTHER", "GOOGLE_NEWS"];
 const SOURCE_TIERS: SourceTier[] = ["TIER_1", "TIER_2", "TIER_3"];
 
 const sourceSchema = z.object({
@@ -102,5 +103,7 @@ export async function setSourceActiveAction(sourceId: string, active: boolean): 
 export async function fetchSourceAction(sourceId: string): Promise<IngestResult> {
   const sessionUser = await getSessionUser();
   const user = requireRole(sessionUser, CAN_MANAGE_SOURCES);
+  const source = await prisma.source.findUnique({ where: { id: sourceId }, select: { type: true } });
+  if (source?.type === "GOOGLE_NEWS") return ingestGoogleNewsSource(sourceId, user.id);
   return ingestSource(sourceId, user.id);
 }

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSystemUserId } from "@/lib/system-actor";
 import { ingestSource } from "@/lib/ingestion/ingest";
+import { ingestGoogleNewsSource } from "@/lib/ingestion/google-news";
 import { logSystemEvent } from "@/lib/monitoring";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { getPipelineSchedule, shouldRunIngestion, recordIngestionRun } from "@/lib/pipeline-schedule";
@@ -80,8 +81,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const systemUserId = await getSystemUserId();
   const sources = await prisma.source.findMany({
-    where: { active: true, feedUrl: { not: null } },
-    select: { id: true, name: true },
+    where: { active: true, OR: [{ feedUrl: { not: null } }, { type: "GOOGLE_NEWS" }] },
+    select: { id: true, name: true, type: true },
   });
 
   let itemsCreated = 0;
@@ -94,7 +95,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   await runWithConcurrency(sources, CONCURRENCY, async (source) => {
     try {
-      const result = await ingestSource(source.id, systemUserId);
+      const result =
+        source.type === "GOOGLE_NEWS" ? await ingestGoogleNewsSource(source.id, systemUserId) : await ingestSource(source.id, systemUserId);
       if (result.ok) {
         itemsCreated += result.itemsCreated;
         itemsSkippedExisting += result.itemsSkippedExisting;

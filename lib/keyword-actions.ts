@@ -14,7 +14,12 @@ const keywordSchema = z.object({
   term: z.string().trim().min(1),
   type: z.enum(KEYWORD_TYPES as [KeywordType, ...KeywordType[]]),
   priority: z.union([z.literal("on"), z.literal(null)]).optional(),
+  categoryId: z.string().trim().optional().or(z.literal("")),
 });
+
+function nullable(v?: string): string | null {
+  return v && v.trim() ? v.trim() : null;
+}
 
 export async function createKeywordAction(formData: FormData): Promise<void> {
   const sessionUser = await getSessionUser();
@@ -24,14 +29,22 @@ export async function createKeywordAction(formData: FormData): Promise<void> {
     term: formData.get("term"),
     type: formData.get("type"),
     priority: formData.get("priority"),
+    categoryId: formData.get("categoryId"),
   });
   if (!parsed.success) redirect(`/admin/keywords?error=${encodeURIComponent(parsed.error.issues[0]?.message ?? "Invalid input.")}`);
 
   const existing = await prisma.keyword.findUnique({ where: { term: parsed.data.term } });
   if (existing) redirect("/admin/keywords?error=" + encodeURIComponent("That keyword already exists."));
 
+  // categoryId only means anything for a TOPIC-type keyword (it scopes a
+  // Google News query, lib/ingestion/google-news.ts's buildGoogleNewsQuery)
+  // — silently dropped for PAKISTAN/COMPANY types rather than rejected, so
+  // switching a keyword's type later doesn't require also clearing a
+  // now-irrelevant field.
+  const categoryId = parsed.data.type === "TOPIC" ? nullable(parsed.data.categoryId) : null;
+
   const keyword = await prisma.keyword.create({
-    data: { term: parsed.data.term, type: parsed.data.type, priority: parsed.data.priority === "on" },
+    data: { term: parsed.data.term, type: parsed.data.type, priority: parsed.data.priority === "on", categoryId },
   });
   await logAction({ userId: user.id, action: "keyword_created", entityType: "Keyword", entityId: keyword.id });
   redirect("/admin/keywords");

@@ -6,7 +6,7 @@ import { createSourceAction } from "@/lib/source-actions";
 
 export const dynamic = "force-dynamic";
 
-const SOURCE_TYPES = ["RSS", "ATOM", "COMPANY_NEWSROOM", "OFFICIAL_BLOG", "API", "OTHER"] as const;
+const SOURCE_TYPES = ["RSS", "ATOM", "COMPANY_NEWSROOM", "OFFICIAL_BLOG", "API", "OTHER", "GOOGLE_NEWS"] as const;
 const SOURCE_TIERS = ["TIER_1", "TIER_2", "TIER_3"] as const;
 
 export default async function NewSourcePage({
@@ -43,6 +43,10 @@ export default async function NewSourcePage({
         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
           Feed URL (RSS/Atom)
           <input name="feedUrl" type="url" placeholder="https://example.com/feed" className="rounded-md border border-border-strong p-2" />
+          <span className="text-xs text-ink-muted">
+            Leave blank for a Google News source — its query is built automatically at fetch time from the
+            selected category&apos;s active Topic keywords (see /admin/keywords), not a stored feed URL.
+          </span>
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Type
@@ -74,6 +78,7 @@ export default async function NewSourcePage({
               </option>
             ))}
           </select>
+          <span className="text-xs text-ink-muted">Required for a Google News source — this is the category whose Topic keywords build its query.</span>
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Language

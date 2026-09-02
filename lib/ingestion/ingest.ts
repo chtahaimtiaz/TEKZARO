@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "../prisma";
 import { safeFetch } from "../security/safe-fetch";
 import { isFetchAllowed } from "./robots";
-import { parseFeed } from "./feed-parser";
+import { parseFeed, type ParsedFeedItem } from "./feed-parser";
 import { normalizeTitle } from "./normalize";
 import { findBestDuplicateMatch, AUTO_MERGE_THRESHOLD, type DuplicateCandidate } from "../discovery/duplicates";
 import { classifyPakistanRelevance, relevanceScoreToPercent } from "../discovery/pakistan-relevance";
@@ -11,7 +11,7 @@ import { computePriorityScore } from "../discovery/priority";
 import { logAction } from "../audit";
 import { logSystemEvent } from "../monitoring";
 import { acquireImageForSourceItem } from "../images/acquire";
-import type { Prisma } from "@prisma/client";
+import type { Prisma, Source } from "@prisma/client";
 
 const RECENT_CANDIDATE_WINDOW_DAYS = 14;
 const RECENT_CANDIDATE_LIMIT = 300;
@@ -56,6 +56,168 @@ async function getRecentCandidates(): Promise<DuplicateCandidate[]> {
   return rows;
 }
 
+export interface ProcessedItemsStats {
+  created: number;
+  skippedExisting: number;
+  deprioritizedNonTech: number;
+  imagesAcquired: number;
+  imagesNeedingReview: number;
+  imagesFailed: number;
+}
+
+/**
+ * The per-item core shared by every ingestion path (RSS/Atom via
+ * ingestSource below, Google News via lib/ingestion/google-news.ts's
+ * ingestGoogleNewsSource): dedup/clustering against recent candidates,
+ * Pakistan-relevance and tech-relevance scoring, priority scoring, the
+ * SourceItem write, and automated image acquisition. Kept as one function
+ * so these two ingestion paths can never drift apart on this logic —
+ * whichever feed format an item came from, it goes through identical
+ * classification once parsed into a ParsedFeedItem.
+ */
+export async function processIngestedItems(source: Source, items: ParsedFeedItem[]): Promise<ProcessedItemsStats> {
+  const sourceId = source.id;
+  const [activeKeywords, priorityKeywords, topicKeywords] = await Promise.all([
+    prisma.keyword.findMany({ where: { active: true, type: { in: ["PAKISTAN", "COMPANY"] } } }),
+    prisma.keyword.findMany({ where: { active: true, priority: true } }),
+    prisma.keyword.findMany({ where: { active: true, type: "TOPIC" } }),
+  ]);
+  const candidates = await getRecentCandidates();
+
+  let created = 0;
+  let skippedExisting = 0;
+  let deprioritizedNonTech = 0;
+  let imagesAcquired = 0;
+  let imagesNeedingReview = 0;
+  let imagesFailed = 0;
+
+  for (const item of items) {
+    const existing = await prisma.sourceItem.findUnique({
+      where: { sourceId_sourceUrl: { sourceId, sourceUrl: item.link } },
+    });
+    if (existing) {
+      skippedExisting++;
+      continue;
+    }
+
+    const normalizedTitle = normalizeTitle(item.title);
+    const text = `${item.title} ${item.excerpt}`;
+    const relevance = classifyPakistanRelevance(text, activeKeywords);
+    const techRelevance = classifyTechRelevance(text, topicKeywords);
+    const matchedPriorityKeywords = priorityKeywords
+      .filter((k) => text.toLowerCase().includes(k.term.toLowerCase()))
+      .map((k) => k.term);
+
+    const match = findBestDuplicateMatch(
+      { sourceUrl: item.link, canonicalUrl: item.canonicalUrl, normalizedTitle, sourceId, publishedAt: item.publishedAt },
+      candidates,
+    );
+
+    const isExactDuplicate = match !== null && match.score >= 0.999;
+    const isCorroboration = match !== null && !isExactDuplicate && match.score >= AUTO_MERGE_THRESHOLD;
+    const isPossibleDuplicate = match !== null && !isExactDuplicate && !isCorroboration;
+
+    let clusterId: string;
+    if ((isExactDuplicate || isCorroboration) && match!.candidate.clusterId) {
+      clusterId = match!.candidate.clusterId;
+    } else {
+      const cluster = await prisma.storyCluster.create({
+        data: { title: item.title, duplicateScore: match?.score ?? 0 },
+      });
+      clusterId = cluster.id;
+    }
+
+    const corroboratingCount = await prisma.sourceItem.count({ where: { clusterId } });
+    const priority = computePriorityScore({
+      sourceTier: source.tier,
+      publishedAt: item.publishedAt,
+      pakistanRelevance: relevanceScoreToPercent(relevance.score),
+      corroboratingSourceCount: corroboratingCount,
+      headline: item.title,
+      matchedPriorityKeywords,
+      techRelevance,
+    });
+    if (techRelevance.score === 0) deprioritizedNonTech++;
+
+    const createdItem = await prisma.sourceItem.create({
+      data: {
+        sourceId,
+        externalId: item.externalId,
+        sourceUrl: item.link,
+        canonicalUrl: item.canonicalUrl,
+        headline: item.title,
+        normalizedTitle,
+        excerpt: item.excerpt,
+        publishedAt: item.publishedAt,
+        imageUrl: item.imageUrl,
+        categoryId: source.categoryId,
+        clusterId,
+        pakistanRelevance: relevanceScoreToPercent(relevance.score),
+        pakistanImpactLevel: relevance.level,
+        pakistanImpactReasons: relevance.reasons as unknown as Prisma.InputJsonValue,
+        duplicateScore: match?.score ?? 0,
+        duplicateOfId: isExactDuplicate || isPossibleDuplicate ? match!.candidate.id : undefined,
+        priorityScore: priority.score,
+        priorityReasons: priority.reasons as unknown as Prisma.InputJsonValue,
+        status: isExactDuplicate ? "DUPLICATE" : isPossibleDuplicate ? "POSSIBLE_DUPLICATE" : "NEW",
+      },
+    });
+
+    // Isolated on purpose: an image problem (bad HTML, unreachable host,
+    // no usable candidate, storage failure) must never abort ingestion of
+    // this item or the batch — acquireImageForSourceItem itself already
+    // never throws, this try/catch is defense-in-depth on top of that.
+    try {
+      const acquisition = await acquireImageForSourceItem({
+        id: createdItem.id,
+        sourceUrl: createdItem.sourceUrl,
+        headline: createdItem.headline,
+      });
+      if (acquisition.ok) {
+        if (acquisition.reuseStatus === "REQUIRES_REVIEW" || acquisition.reuseStatus === "UNKNOWN") {
+          imagesNeedingReview++;
+        } else {
+          imagesAcquired++;
+        }
+      } else {
+        imagesFailed++;
+        await logSystemEvent({
+          level: "INFO",
+          source: "images.acquire",
+          message: `No image acquired for source item ${createdItem.id}: ${acquisition.reason}`,
+          context: { sourceItemId: createdItem.id, sourceUrl: createdItem.sourceUrl },
+        });
+      }
+    } catch (err) {
+      imagesFailed++;
+      const message = err instanceof Error ? err.message : String(err);
+      await logSystemEvent({
+        level: "WARN",
+        source: "images.acquire",
+        message: `Image acquisition threw unexpectedly for source item ${createdItem.id}: ${message}`,
+        context: { sourceItemId: createdItem.id, sourceUrl: createdItem.sourceUrl },
+      });
+    }
+
+    const clusterBefore = await prisma.storyCluster.findUniqueOrThrow({
+      where: { id: clusterId },
+      select: { importance: true, pakistanRelevance: true },
+    });
+    await prisma.storyCluster.update({
+      where: { id: clusterId },
+      data: {
+        importance: Math.max(priority.score, clusterBefore.importance),
+        pakistanRelevance: Math.max(relevanceScoreToPercent(relevance.score), clusterBefore.pakistanRelevance),
+        pakistanImpactLevel: relevance.level === "NONE" ? undefined : relevance.level,
+      },
+    });
+
+    created++;
+  }
+
+  return { created, skippedExisting, deprioritizedNonTech, imagesAcquired, imagesNeedingReview, imagesFailed };
+}
+
 /**
  * Fetches and ingests one source's feed. Never throws to the caller — every
  * failure mode (robots disallow, network/timeout, malformed feed, DB error)
@@ -96,143 +258,7 @@ export async function ingestSource(sourceId: string, requestedById: string): Pro
       // still updates below.
     }
 
-    const [activeKeywords, priorityKeywords, topicKeywords] = await Promise.all([
-      prisma.keyword.findMany({ where: { active: true, type: { in: ["PAKISTAN", "COMPANY"] } } }),
-      prisma.keyword.findMany({ where: { active: true, priority: true } }),
-      prisma.keyword.findMany({ where: { active: true, type: "TOPIC" } }),
-    ]);
-    const candidates = await getRecentCandidates();
-
-    let created = 0;
-    let skippedExisting = 0;
-    let deprioritizedNonTech = 0;
-    let imagesAcquired = 0;
-    let imagesNeedingReview = 0;
-    let imagesFailed = 0;
-
-    for (const item of items) {
-      const existing = await prisma.sourceItem.findUnique({
-        where: { sourceId_sourceUrl: { sourceId, sourceUrl: item.link } },
-      });
-      if (existing) {
-        skippedExisting++;
-        continue;
-      }
-
-      const normalizedTitle = normalizeTitle(item.title);
-      const text = `${item.title} ${item.excerpt}`;
-      const relevance = classifyPakistanRelevance(text, activeKeywords);
-      const techRelevance = classifyTechRelevance(text, topicKeywords);
-      const matchedPriorityKeywords = priorityKeywords
-        .filter((k) => text.toLowerCase().includes(k.term.toLowerCase()))
-        .map((k) => k.term);
-
-      const match = findBestDuplicateMatch(
-        { sourceUrl: item.link, canonicalUrl: item.canonicalUrl, normalizedTitle, sourceId, publishedAt: item.publishedAt },
-        candidates,
-      );
-
-      const isExactDuplicate = match !== null && match.score >= 0.999;
-      const isCorroboration = match !== null && !isExactDuplicate && match.score >= AUTO_MERGE_THRESHOLD;
-      const isPossibleDuplicate = match !== null && !isExactDuplicate && !isCorroboration;
-
-      let clusterId: string;
-      if ((isExactDuplicate || isCorroboration) && match!.candidate.clusterId) {
-        clusterId = match!.candidate.clusterId;
-      } else {
-        const cluster = await prisma.storyCluster.create({
-          data: { title: item.title, duplicateScore: match?.score ?? 0 },
-        });
-        clusterId = cluster.id;
-      }
-
-      const corroboratingCount = await prisma.sourceItem.count({ where: { clusterId } });
-      const priority = computePriorityScore({
-        sourceTier: source.tier,
-        publishedAt: item.publishedAt,
-        pakistanRelevance: relevanceScoreToPercent(relevance.score),
-        corroboratingSourceCount: corroboratingCount,
-        headline: item.title,
-        matchedPriorityKeywords,
-        techRelevance,
-      });
-      if (techRelevance.score === 0) deprioritizedNonTech++;
-
-      const createdItem = await prisma.sourceItem.create({
-        data: {
-          sourceId,
-          externalId: item.externalId,
-          sourceUrl: item.link,
-          canonicalUrl: item.canonicalUrl,
-          headline: item.title,
-          normalizedTitle,
-          excerpt: item.excerpt,
-          publishedAt: item.publishedAt,
-          imageUrl: item.imageUrl,
-          categoryId: source.categoryId,
-          clusterId,
-          pakistanRelevance: relevanceScoreToPercent(relevance.score),
-          pakistanImpactLevel: relevance.level,
-          pakistanImpactReasons: relevance.reasons as unknown as Prisma.InputJsonValue,
-          duplicateScore: match?.score ?? 0,
-          duplicateOfId: isExactDuplicate || isPossibleDuplicate ? match!.candidate.id : undefined,
-          priorityScore: priority.score,
-          priorityReasons: priority.reasons as unknown as Prisma.InputJsonValue,
-          status: isExactDuplicate ? "DUPLICATE" : isPossibleDuplicate ? "POSSIBLE_DUPLICATE" : "NEW",
-        },
-      });
-
-      // Isolated on purpose: an image problem (bad HTML, unreachable host,
-      // no usable candidate, storage failure) must never abort ingestion of
-      // this item or the batch — acquireImageForSourceItem itself already
-      // never throws, this try/catch is defense-in-depth on top of that.
-      try {
-        const acquisition = await acquireImageForSourceItem({
-          id: createdItem.id,
-          sourceUrl: createdItem.sourceUrl,
-          headline: createdItem.headline,
-        });
-        if (acquisition.ok) {
-          if (acquisition.reuseStatus === "REQUIRES_REVIEW" || acquisition.reuseStatus === "UNKNOWN") {
-            imagesNeedingReview++;
-          } else {
-            imagesAcquired++;
-          }
-        } else {
-          imagesFailed++;
-          await logSystemEvent({
-            level: "INFO",
-            source: "images.acquire",
-            message: `No image acquired for source item ${createdItem.id}: ${acquisition.reason}`,
-            context: { sourceItemId: createdItem.id, sourceUrl: createdItem.sourceUrl },
-          });
-        }
-      } catch (err) {
-        imagesFailed++;
-        const message = err instanceof Error ? err.message : String(err);
-        await logSystemEvent({
-          level: "WARN",
-          source: "images.acquire",
-          message: `Image acquisition threw unexpectedly for source item ${createdItem.id}: ${message}`,
-          context: { sourceItemId: createdItem.id, sourceUrl: createdItem.sourceUrl },
-        });
-      }
-
-      const clusterBefore = await prisma.storyCluster.findUniqueOrThrow({
-        where: { id: clusterId },
-        select: { importance: true, pakistanRelevance: true },
-      });
-      await prisma.storyCluster.update({
-        where: { id: clusterId },
-        data: {
-          importance: Math.max(priority.score, clusterBefore.importance),
-          pakistanRelevance: Math.max(relevanceScoreToPercent(relevance.score), clusterBefore.pakistanRelevance),
-          pakistanImpactLevel: relevance.level === "NONE" ? undefined : relevance.level,
-        },
-      });
-
-      created++;
-    }
+    const stats = await processIngestedItems(source, items);
 
     await prisma.source.update({
       where: { id: sourceId },
@@ -244,18 +270,18 @@ export async function ingestSource(sourceId: string, requestedById: string): Pro
       action: "source_fetched",
       entityType: "Source",
       entityId: sourceId,
-      metadata: { itemsSeen: items.length, itemsCreated: created, itemsSkippedExisting: skippedExisting },
+      metadata: { itemsSeen: items.length, itemsCreated: stats.created, itemsSkippedExisting: stats.skippedExisting },
     });
 
     return {
       ok: true,
       itemsSeen: items.length,
-      itemsCreated: created,
-      itemsSkippedExisting: skippedExisting,
-      itemsDeprioritizedNonTech: deprioritizedNonTech,
-      imagesAcquired,
-      imagesNeedingReview,
-      imagesFailed,
+      itemsCreated: stats.created,
+      itemsSkippedExisting: stats.skippedExisting,
+      itemsDeprioritizedNonTech: stats.deprioritizedNonTech,
+      imagesAcquired: stats.imagesAcquired,
+      imagesNeedingReview: stats.imagesNeedingReview,
+      imagesFailed: stats.imagesFailed,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
