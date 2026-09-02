@@ -50,11 +50,9 @@ describe("workflow transitions trigger notifications", () => {
   // never be picked up by another file's own pickEligibleAuthor() call
   // either — see the equivalent note in tests/discovery-ai-draft.test.ts.
   beforeAll(async () => {
-    // "ZZZ" prefix is deliberate — see the matching note in
-    // tests/article-media.test.ts: an alphabetically-early category name
-    // gets picked up by processVerificationBatch's shared
-    // prisma.category.findFirst({orderBy:{name:"asc"}}) fallback, which
-    // then creates a real, untracked Article against it.
+    // "ZZZ" prefix is a harmless legacy precaution — see the matching note
+    // in tests/article-media.test.ts: processVerificationBatch's fallback
+    // used to be alphabetical and could pick up a fixture like this one.
     const category = await prisma.category.create({
       data: { name: `ZZZ Notifications Test Cat ${Date.now()}`, slug: `zzz-notifications-test-cat-${Date.now()}` },
     });

@@ -45,9 +45,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const summary = await processVerificationBatch();
 
   await logSystemEvent({
-    level: summary.failed > 0 || summary.skippedNoEligibleAuthor > 0 ? "WARN" : "INFO",
+    level: summary.failed > 0 || summary.skippedNoEligibleAuthor > 0 || summary.skippedNoCategory > 0 ? "WARN" : "INFO",
     source: "cron.verify-publish",
-    message: `Processed ${summary.itemsProcessed} item(s): ${summary.autoPublished} auto-published, ${summary.sentToReview} sent to review, ${summary.skippedNoDraft} skipped (no draft), ${summary.skippedNoEligibleAuthor} skipped (no eligible author), ${summary.failed} failed.`,
+    message: `Processed ${summary.itemsProcessed} item(s): ${summary.autoPublished} auto-published, ${summary.sentToReview} sent to review, ${summary.skippedNoDraft} skipped (no draft), ${summary.skippedNoEligibleAuthor} skipped (no eligible author), ${summary.skippedNoCategory} skipped (no category), ${summary.failed} failed.`,
     context: summary as unknown as Record<string, unknown>,
   });
 

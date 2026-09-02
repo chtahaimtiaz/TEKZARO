@@ -18,10 +18,27 @@ export interface VerificationBatchSummary {
   sentToReview: number;
   skippedNoDraft: number;
   skippedNoEligibleAuthor: number;
+  /** Item's Source has no categoryId AND the UNCATEGORIZED_CATEGORY_SLUG
+   * category doesn't exist to fall back to — left NEW for a future run,
+   * same as every other skip in this loop. Should be rare/zero once that
+   * category is seeded; never silently guesses a real category instead. */
+  skippedNoCategory: number;
   failed: number;
 }
 
 const DEFAULT_LIMIT = 1;
+
+/**
+ * Home for a SourceItem whose Source carries no categoryId (e.g. a
+ * general-interest outlet not yet scoped to any specific category). This
+ * used to fall back to whichever Category sorted first alphabetically —
+ * "AI" in practice — which silently mislabeled unrelated stories (a
+ * toothbrush review, a digital piano) as AI content. A real, dedicated,
+ * always-excluded-from-auto-publish category makes that failure visible to
+ * an editor instead of invisible inside a real topic. See Stage 6A's
+ * Discovery Coverage Diagnostic for the incident this fixes.
+ */
+export const UNCATEGORIZED_CATEGORY_SLUG = "uncategorized";
 
 function emptySummary(): VerificationBatchSummary {
   return {
@@ -31,6 +48,7 @@ function emptySummary(): VerificationBatchSummary {
     sentToReview: 0,
     skippedNoDraft: 0,
     skippedNoEligibleAuthor: 0,
+    skippedNoCategory: 0,
     failed: 0,
   };
 }
@@ -43,8 +61,15 @@ function emptySummary(): VerificationBatchSummary {
  * "verify + synthesize -> human review" mode, matching the recommended
  * trial period before enabling auto-publish for selected high-confidence
  * categories.
+ *
+ * UNCATEGORIZED_CATEGORY_SLUG is hard-excluded regardless of env
+ * configuration — an item that landed here did so specifically because
+ * nothing could confirm what topic it belongs to, so it must always reach a
+ * human, even if someone mistakenly adds "uncategorized" to the allowlist
+ * string one day.
  */
 function isCategoryAllowedForAutoPublish(categorySlug: string): boolean {
+  if (categorySlug === UNCATEGORIZED_CATEGORY_SLUG) return false;
   const raw = process.env.AUTO_PUBLISH_CATEGORY_SLUGS ?? "";
   const allowed = raw.split(",").map((s) => s.trim()).filter(Boolean);
   return allowed.includes(categorySlug);
@@ -78,16 +103,32 @@ export async function processVerificationBatch(
   if (items.length === 0) return summary;
 
   // Same precondition createDraftFromItemAction enforces for the
-  // human-triggered path — without at least one Category to assign, there's
-  // nothing this batch can do. Author eligibility is per-category now, so
-  // it's checked per-item below, not as a single upfront guard.
-  const fallbackCategory = await prisma.category.findFirst({ orderBy: { name: "asc" } });
-  if (!fallbackCategory) return summary;
+  // human-triggered path — without a category to assign an uncategorized
+  // item to, there's nothing this batch can do with it. Deliberately looked
+  // up by a fixed slug, never "whichever Category sorts first" — see
+  // UNCATEGORIZED_CATEGORY_SLUG's comment. Author eligibility is
+  // per-category, so it's checked per-item below, not as a single upfront
+  // guard.
+  const fallbackCategory = await prisma.category.findUnique({ where: { slug: UNCATEGORIZED_CATEGORY_SLUG } });
 
   for (const item of items) {
     summary.itemsProcessed += 1;
     try {
       const category = item.category ?? fallbackCategory;
+      if (!category) {
+        // item.category is null AND the Uncategorized category is missing —
+        // never guess a real category as a substitute. Left NEW, retried
+        // once the Uncategorized category exists (or the Source gets a
+        // real categoryId).
+        summary.skippedNoCategory += 1;
+        await logSystemEvent({
+          level: "WARN",
+          source: "verification.batch",
+          message: `SourceItem ${item.id} has no category and the "${UNCATEGORIZED_CATEGORY_SLUG}" fallback category doesn't exist — left for a future run.`,
+          context: { sourceItemId: item.id },
+        });
+        continue;
+      }
 
       // Checked BEFORE the paid search call in verifyAndSynthesize — no
       // point burning a Tavily credit on an item that can't produce an

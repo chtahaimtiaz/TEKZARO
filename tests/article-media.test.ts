@@ -25,15 +25,15 @@ afterAll(async () => {
 
 async function makeCategoryAuthorSource() {
   if (!categoryId) {
-    // "ZZZ" prefix is deliberate: lib/verification-actions.ts's
-    // processVerificationBatch (and tests/verification-actions.test.ts's
-    // own mirroring helper) fall back to
-    // prisma.category.findFirst({orderBy:{name:"asc"}}) whenever a
-    // SourceItem has no categoryId — an alphabetically-early test-fixture
-    // name (e.g. "Article Media Test Cat") gets picked up by that query
-    // and used to create a real, untracked Article referencing this
-    // category, which then blocks this file's own category delete below
-    // with a dangling FK (observed: Article_categoryId_fkey violation).
+    // "ZZZ" prefix is a harmless legacy precaution: lib/verification-actions.ts's
+    // processVerificationBatch used to fall back to an alphabetically-first
+    // category for any SourceItem with no categoryId, which could pick up
+    // this file's own fixture and create a real, untracked Article
+    // referencing it (observed: Article_categoryId_fkey violation blocking
+    // this file's cleanup below). That fallback is now scoped to a single
+    // reserved "uncategorized" slug (see UNCATEGORIZED_CATEGORY_SLUG), so
+    // this can no longer happen regardless of name — kept as-is anyway,
+    // since there's no reason to churn a working fixture.
     const category = await prisma.category.create({
       data: { name: `ZZZ Article Media Test Cat ${Date.now()}`, slug: `zzz-article-media-test-cat-${Date.now()}` },
     });

@@ -69,10 +69,10 @@ beforeAll(async () => {
   // suite runs concurrently with other test files that create/delete their
   // own temporary Category/Author rows, and an unowned findFirstOrThrow()
   // here can land on one of THOSE rows and go stale (or form a mismatched
-  // category/author pairing) mid-run. "ZZZ" prefix additionally keeps this
-  // category out of processVerificationBatch's/getUsableCategory's
-  // findFirst({orderBy:{name:"asc"}}) fallback — see the matching note in
-  // tests/article-media.test.ts. The Author is restricted to this file's
+  // category/author pairing) mid-run. "ZZZ" prefix is a harmless legacy
+  // precaution from when processVerificationBatch's fallback was
+  // alphabetical — see the matching note in tests/article-media.test.ts.
+  // The Author is restricted to this file's
   // own category (not a generalist) for the same cross-file-collision
   // reason — see tests/discovery-ai-draft.test.ts.
   const category = await prisma.category.create({

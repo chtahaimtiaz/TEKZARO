@@ -5,7 +5,7 @@ vi.mock("../lib/ai/verify-and-synthesize", () => ({
   verifyAndSynthesize: verifyAndSynthesizeMock,
 }));
 
-const { processVerificationBatch } = await import("../lib/verification-actions");
+const { processVerificationBatch, UNCATEGORIZED_CATEGORY_SLUG } = await import("../lib/verification-actions");
 const { prisma } = await import("../lib/prisma");
 const { getSystemUserId } = await import("../lib/system-actor");
 const { cleanupTestData } = await import("./helpers");
@@ -26,9 +26,9 @@ const createdCategoryIds: string[] = [];
 const createdAuthorIds: string[] = [];
 const createdGenerationIds: string[] = [];
 
-async function makeSourceItem() {
+async function makeSourceItem(categoryId?: string) {
   const source = await prisma.source.create({
-    data: { name: `Gate Test Source ${Date.now()}-${Math.random()}`, url: "https://gate-test-outlet.test", type: "RSS", tier: "TIER_2" },
+    data: { name: `Gate Test Source ${Date.now()}-${Math.random()}`, url: "https://gate-test-outlet.test", type: "RSS", tier: "TIER_2", categoryId },
   });
   createdSourceIds.push(source.id);
   const item = await prisma.sourceItem.create({
@@ -38,6 +38,13 @@ async function makeSourceItem() {
       headline: "A discovered tech story headline for the gate test",
       normalizedTitle: "a discovered tech story headline for the gate test",
       status: "NEW",
+      // Real ingestion (lib/ingestion/ingest.ts's processIngestedItems)
+      // always copies Source.categoryId onto the SourceItem at creation
+      // time — mirrored here so item.category is populated exactly like a
+      // real discovered item's would be, rather than silently depending on
+      // processVerificationBatch's Uncategorized fallback for every test
+      // fixture regardless of the categoryId passed in above.
+      categoryId,
     },
   });
   createdItemIds.push(item.id);
@@ -58,15 +65,30 @@ async function makeGeneration(): Promise<string> {
   return generation.id;
 }
 
-/** Finds (or creates) a usable Category, matching processVerificationBatch's
- * own fallback logic exactly — returned so tests can set
- * AUTO_PUBLISH_CATEGORY_SLUGS to the specific category that will actually be
- * used, rather than guessing at shared-DB state. */
+/** Any real, usable Category — tests pass its id directly to makeSourceItem
+ * so the SourceItem is unambiguously categorized, and set
+ * AUTO_PUBLISH_CATEGORY_SLUGS to its slug. Excludes the reserved
+ * "uncategorized" fallback category (see the dedicated test for that one)
+ * so these gate tests exercise a normal, directly-assigned category. */
 async function getUsableCategory() {
-  const existing = await prisma.category.findFirst({ orderBy: { name: "asc" } });
+  const existing = await prisma.category.findFirst({ where: { slug: { not: UNCATEGORIZED_CATEGORY_SLUG } }, orderBy: { name: "asc" } });
   if (existing) return existing;
   const created = await prisma.category.create({
     data: { name: `Gate Test Category ${Date.now()}`, slug: `gate-test-category-${Date.now()}` },
+  });
+  createdCategoryIds.push(created.id);
+  return created;
+}
+
+/** Finds or creates the real, reserved fallback category
+ * (lib/verification-actions.ts's UNCATEGORIZED_CATEGORY_SLUG) — Stage 6B
+ * seeds this permanently in production, but a test run shouldn't assume
+ * that seed already happened. */
+async function getOrCreateUncategorizedCategory() {
+  const existing = await prisma.category.findUnique({ where: { slug: UNCATEGORIZED_CATEGORY_SLUG } });
+  if (existing) return existing;
+  const created = await prisma.category.create({
+    data: { name: "Uncategorized", slug: UNCATEGORIZED_CATEGORY_SLUG, active: false, participatesInQuota: false },
   });
   createdCategoryIds.push(created.id);
   return created;
@@ -131,7 +153,7 @@ describe("processVerificationBatch — the auto-publish gate", () => {
     const category = await getUsableCategory();
     await ensureAuthorExists();
     process.env.AUTO_PUBLISH_CATEGORY_SLUGS = category.slug; // allowlisted — proves the IMAGE check is what blocks this, not the allowlist
-    const item = await makeSourceItem();
+    const item = await makeSourceItem(category.id);
     const systemUserId = await getSystemUserId();
     const generationId = await makeGeneration();
 
@@ -191,7 +213,7 @@ describe("processVerificationBatch — the auto-publish gate", () => {
     const category = await getUsableCategory();
     await ensureAuthorExists();
     process.env.AUTO_PUBLISH_CATEGORY_SLUGS = category.slug;
-    const item = await makeSourceItem();
+    const item = await makeSourceItem(category.id);
     const generationId = await makeGeneration();
 
     verifyAndSynthesizeMock.mockResolvedValue({
@@ -233,7 +255,7 @@ describe("processVerificationBatch — the auto-publish gate", () => {
     const category = await getUsableCategory();
     await ensureAuthorExists();
     process.env.AUTO_PUBLISH_CATEGORY_SLUGS = category.slug; // allowlisted — proves originality is what blocks this
-    const item = await makeSourceItem();
+    const item = await makeSourceItem(category.id);
     const generationId = await makeGeneration();
 
     verifyAndSynthesizeMock.mockResolvedValue({
@@ -270,7 +292,7 @@ describe("processVerificationBatch — the auto-publish gate", () => {
     const category = await getUsableCategory();
     await ensureAuthorExists();
     process.env.AUTO_PUBLISH_CATEGORY_SLUGS = ""; // empty — nothing allowed, the default/starting state
-    const item = await makeSourceItem();
+    const item = await makeSourceItem(category.id);
     const generationId = await makeGeneration();
 
     verifyAndSynthesizeMock.mockResolvedValue({
@@ -307,7 +329,7 @@ describe("processVerificationBatch — the auto-publish gate", () => {
     const category = await getUsableCategory();
     await ensureAuthorExists();
     process.env.AUTO_PUBLISH_CATEGORY_SLUGS = category.slug; // allowlisted — proves verificationStatus is what blocks this
-    const item = await makeSourceItem();
+    const item = await makeSourceItem(category.id);
     const generationId = await makeGeneration();
 
     verifyAndSynthesizeMock.mockResolvedValue({
@@ -334,5 +356,44 @@ describe("processVerificationBatch — the auto-publish gate", () => {
     const article = await prisma.article.findUniqueOrThrow({ where: { id: updatedItem.convertedArticleId } });
     expect(article.status).toBe("DRAFT");
     expect(article.autoPublished).toBe(false);
+  });
+
+  it("files a SourceItem with no category into the reserved Uncategorized category, and never auto-publishes it even if mistakenly allowlisted — never guesses a real topic category", async () => {
+    const uncategorized = await getOrCreateUncategorizedCategory();
+    await ensureAuthorExists();
+    // Deliberately allowlisted — proves isCategoryAllowedForAutoPublish's
+    // own hard exclusion is what blocks this, not just "nobody would
+    // normally allowlist it."
+    process.env.AUTO_PUBLISH_CATEGORY_SLUGS = uncategorized.slug;
+    const item = await makeSourceItem(); // no categoryId — the case this test covers
+    const generationId = await makeGeneration();
+
+    verifyAndSynthesizeMock.mockResolvedValue({
+      verificationStatus: "PRIMARY_SOURCE_CONFIRMED",
+      primarySourceUrl: "https://official-newsroom.test/press-release-uncategorized",
+      secondarySourceUrl: null,
+      verificationConfidence: 88,
+      claimsChecked: ["The product was announced."],
+      notes: "Confirmed, but this item's Source has no category.",
+      draft: { ...confirmedDraft, headline: `${confirmedDraft.headline} (uncategorized)` },
+      generationId,
+    });
+
+    const summary = await claimOnly(item.id, 1);
+
+    const updatedItem = await prisma.sourceItem.findUnique({ where: { id: item.id } });
+    if (!updatedItem || updatedItem.status !== "CONVERTED_TO_DRAFT" || !updatedItem.convertedArticleId) {
+      throw new Error(
+        "Test setup assumption failed: this SourceItem was not the one claimed by processVerificationBatch(1).",
+      );
+    }
+    createdArticleIds.push(updatedItem.convertedArticleId);
+
+    const article = await prisma.article.findUniqueOrThrow({ where: { id: updatedItem.convertedArticleId } });
+    expect(article.categoryId).toBe(uncategorized.id);
+    expect(article.status).not.toBe("PUBLISHED");
+    expect(article.autoPublished).toBe(false);
+    expect(summary.autoPublished).toBe(0);
+    expect(summary.skippedNoCategory).toBe(0);
   });
 });
