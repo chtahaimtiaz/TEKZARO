@@ -1,6 +1,9 @@
 import "server-only";
 import { prisma } from "./prisma";
-import { editorialScore, sortTrending, sortPakistanTrending } from "./ranking";
+// editorialScore is deliberately not imported here any more — see
+// getLatestPreview. It remains in lib/ranking.ts, still used by selectHero
+// for the homepage hero, which keeps its Pakistan-weighted ranking.
+import { sortTrending, sortPakistanTrending } from "./ranking";
 import type { ArticleWithRelations } from "./types";
 
 export const ARTICLE_INCLUDE = {
@@ -19,6 +22,22 @@ export const ARTICLE_INCLUDE = {
 // Exported: lib/editorial-checklist.ts's counting query reuses this exact
 // constant rather than re-deriving "what counts as really published."
 export const PUBLISHED = { status: "PUBLISHED" as const, isDemo: false };
+
+/**
+ * PUBLISHED, plus the guard that the article's publishedAt has actually
+ * arrived. Scoped to the "Just In" feeds rather than folded into PUBLISHED
+ * itself: every code path that publishes (the workflow transition in
+ * lib/article-actions.ts, auto-publish in lib/verification-actions.ts, and
+ * the scheduled-publish cron, which flips SCHEDULED -> PUBLISHED and stamps
+ * publishedAt at that moment) sets publishedAt to the current time, so a
+ * future-dated PUBLISHED row can't arise from the application at all —
+ * verified against production, where zero published articles carry a null or
+ * future publishedAt. This is defense against a direct DB edit or an import,
+ * on the two surfaces that promise recency, and nothing more.
+ */
+function publiclyVisibleNow() {
+  return { ...PUBLISHED, publishedAt: { lte: new Date() } };
+}
 
 export async function getBreakingArticles(limit = 6): Promise<ArticleWithRelations[]> {
   return prisma.article.findMany({
@@ -39,15 +58,33 @@ export async function getHeroPool(limit = 16): Promise<ArticleWithRelations[]> {
   });
 }
 
-/** Homepage "Latest" preview — recent, lightly Pakistan/importance-weighted. */
+/**
+ * "Just In" — the homepage section and /latest below both answer one
+ * question: what did TEKZARO publish most recently? So ordering is strictly
+ * publishedAt DESC and nothing else.
+ *
+ * This deliberately does NOT use editorialScore (lib/ranking.ts). That score
+ * adds pakistanRelevance * 0.3 on top of a recency term that decays to zero
+ * over ~50 hours, so it reordered this section by relevance rather than
+ * recency: a Pakistan story could sit above a global one published 15 hours
+ * later, and past the 50-hour mark recency stopped contributing at all,
+ * leaving week-old Pakistan coverage pinned above today's news. A section
+ * labelled "Just In" that isn't chronological is simply mislabelled.
+ *
+ * Pakistan-first ranking is intentional and untouched everywhere it belongs —
+ * the discovery queue, the hero (selectHero), and the Pakistan trending
+ * module. It just doesn't belong in a recency feed.
+ *
+ * id DESC is the tie-break so ordering stays deterministic when two articles
+ * share a publishedAt, which matters for pagination in getLatestArchive.
+ */
 export async function getLatestPreview(limit = 8): Promise<ArticleWithRelations[]> {
-  const pool = await prisma.article.findMany({
-    where: PUBLISHED,
-    orderBy: { publishedAt: "desc" },
-    take: limit * 3,
+  return prisma.article.findMany({
+    where: publiclyVisibleNow(),
+    orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
+    take: limit,
     include: ARTICLE_INCLUDE,
   });
-  return pool.sort((a, b) => editorialScore(b) - editorialScore(a)).slice(0, limit);
 }
 
 export interface PaginatedArticles {
@@ -57,17 +94,31 @@ export interface PaginatedArticles {
   pageSize: number;
 }
 
-/** Strict reverse-chronological archive, for /latest. */
+/**
+ * Strict reverse-chronological archive, for /latest — the full "Just In"
+ * feed behind the homepage preview above, and ordered identically.
+ *
+ * The where clause is evaluated once and reused for both the page query and
+ * the count: publiclyVisibleNow() stamps new Date() per call, so calling it
+ * twice could straddle an article publishing between the two queries and
+ * report a total that disagrees with the rows returned.
+ *
+ * id DESC is not cosmetic here. Offset pagination re-runs the sort on every
+ * page request, and Postgres gives no stable order among rows tied on
+ * publishedAt — so without a unique tie-break, articles sharing a timestamp
+ * could appear on two pages or none as the reader clicks through.
+ */
 export async function getLatestArchive(page = 1, pageSize = 12): Promise<PaginatedArticles> {
+  const where = publiclyVisibleNow();
   const [articles, total] = await Promise.all([
     prisma.article.findMany({
-      where: PUBLISHED,
-      orderBy: { publishedAt: "desc" },
+      where,
+      orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: ARTICLE_INCLUDE,
     }),
-    prisma.article.count({ where: PUBLISHED }),
+    prisma.article.count({ where }),
   ]);
   return { articles, total, page, pageSize };
 }
