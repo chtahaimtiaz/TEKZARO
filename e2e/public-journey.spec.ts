@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { prisma } from "../lib/prisma";
 
 test.describe("Public site — core reading journey", () => {
   test("homepage loads with hero, sections, and no console errors", async ({ page }) => {
@@ -32,8 +33,22 @@ test.describe("Public site — core reading journey", () => {
   });
 
   test("category page lists articles", async ({ page }) => {
-    await page.goto("/category/ai");
-    await expect(page.locator("h1")).toHaveText("AI");
+    // Resolves a category that actually holds a published article instead of
+    // hard-coding one. This used to target /category/ai, which asserted a
+    // fact about the newsroom's output rather than about the page: once
+    // nothing was published under AI, a perfectly working category page
+    // failed the suite. Reading the slug from the database keeps the test
+    // about rendering, which is what it is for.
+    const article = await prisma.article.findFirst({
+      where: { status: "PUBLISHED", isDemo: false },
+      orderBy: { publishedAt: "desc" },
+      select: { category: { select: { slug: true, name: true } } },
+    });
+    test.skip(!article, "No published article exists to resolve a category from.");
+    if (!article) return;
+
+    await page.goto(`/category/${article.category.slug}`);
+    await expect(page.locator("h1")).toHaveText(article.category.name);
     await expect(page.locator('a[href^="/article/"]').first()).toBeVisible();
   });
 
