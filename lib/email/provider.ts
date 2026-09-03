@@ -15,16 +15,16 @@ export type SendEmailResult = { ok: true } | { ok: false; notConfigured: true } 
 
 let cachedTransporter: ReturnType<typeof nodemailer.createTransport> | null = null;
 
+function isResendConfigured(): boolean {
+  return Boolean(process.env.RESEND_API_KEY);
+}
+
 function isSmtpConfigured(): boolean {
   return Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_USER && process.env.SMTP_PASS);
 }
 
-function isBrevoApiConfigured(): boolean {
-  return Boolean(process.env.BREVO_API_KEY);
-}
-
 export function isEmailConfigured(): boolean {
-  return isBrevoApiConfigured() || isSmtpConfigured();
+  return isResendConfigured() || isSmtpConfigured();
 }
 
 function getTransporter() {
@@ -38,42 +38,48 @@ function getTransporter() {
   return cachedTransporter;
 }
 
+/** EMAIL_FROM is the canonical name; SMTP_FROM is still read as a fallback
+ * so an SMTP-configured deployment keeps working without renaming a var. */
 function fromAddress(): string {
-  return process.env.SMTP_FROM || process.env.SMTP_USER || "";
+  return process.env.EMAIL_FROM || process.env.SMTP_FROM || process.env.SMTP_USER || "";
 }
 
 type SendAttempt = { ok: true } | { ok: false; error: string };
 
 /**
- * Sends via Brevo's transactional email HTTP API — preferred over SMTP
- * relay whenever BREVO_API_KEY is set. Brevo's SMTP relay login is
- * IP-gated (new/unrecognized IPs get "535 Unauthorized IP address"), which
- * is fundamentally incompatible with Vercel's serverless functions running
- * from many different, rotating outbound IPs — confirmed live: SMTP relay
- * worked for exactly one lucky authorized IP, then failed for every
- * request after from a different one. The API authenticates purely by key
- * over HTTPS, with no such restriction.
+ * Sends via Resend's HTTP API — the preferred transport whenever
+ * RESEND_API_KEY is set, because it authenticates purely by key over HTTPS
+ * with no IP allowlist. That matters specifically on Vercel: serverless
+ * functions send from many different, rotating AWS IPs, so any provider
+ * that gates SMTP login on a list of known IPs fails intermittently and
+ * unpredictably here. Confirmed live against the previous provider — four
+ * consecutive sends from production came from three different IPs, and
+ * only the single pre-authorized one was accepted.
+ *
+ * Note that Resend (like every reputable sender) will only deliver to
+ * arbitrary recipients once a sending domain is verified; until then it
+ * accepts mail only to the account owner's own address. That's a DNS/SPF
+ * matter, not a code one — this function's behavior doesn't change.
  */
-async function sendViaBrevoApi(input: SendEmailInput): Promise<SendAttempt> {
-  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+async function sendViaResend(input: SendEmailInput): Promise<SendAttempt> {
+  const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
-      "api-key": process.env.BREVO_API_KEY!,
+      Authorization: `Bearer ${process.env.RESEND_API_KEY!}`,
       "content-type": "application/json",
-      accept: "application/json",
     },
     body: JSON.stringify({
-      sender: { email: fromAddress() },
-      to: [{ email: input.to }],
+      from: fromAddress(),
+      to: [input.to],
       subject: input.subject,
-      htmlContent: input.html,
-      textContent: input.text,
+      html: input.html,
+      text: input.text,
     }),
   });
 
   if (res.ok) return { ok: true };
   const body = await res.text().catch(() => "");
-  return { ok: false, error: `Brevo API ${res.status}: ${body.slice(0, 500)}` };
+  return { ok: false, error: `Resend API ${res.status}: ${body.slice(0, 500)}` };
 }
 
 async function sendViaSmtp(input: SendEmailInput): Promise<SendAttempt> {
@@ -92,14 +98,13 @@ async function sendViaSmtp(input: SendEmailInput): Promise<SendAttempt> {
 }
 
 /**
- * Sends an email if configured (Brevo API preferred when BREVO_API_KEY is
- * set; plain SMTP relay otherwise, for non-Brevo hosts without the IP-gate
- * quirk). Every call is logged to EmailLog (SENT/FAILED/NOT_CONFIGURED) —
- * mirrors the AIGeneration honest-logging pattern from Phase 4: callers
- * never have to guess whether a send actually happened, and a failure is
- * visible in /admin/monitoring rather than swallowed. Never throws —
- * callers (invite, reset, notifications, newsletter) degrade gracefully on
- * {ok:false}.
+ * Sends an email if configured (Resend preferred when RESEND_API_KEY is
+ * set; plain SMTP relay otherwise). Every call is logged to EmailLog
+ * (SENT/FAILED/NOT_CONFIGURED) — mirrors the AIGeneration honest-logging
+ * pattern from Phase 4: callers never have to guess whether a send actually
+ * happened, and a failure is visible in /admin/monitoring rather than
+ * swallowed. Never throws — callers (invite, reset, notifications,
+ * newsletter) degrade gracefully on {ok:false}.
  */
 export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
   if (!isEmailConfigured()) {
@@ -115,7 +120,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
     return { ok: false, notConfigured: true };
   }
 
-  const attempt = isBrevoApiConfigured() ? await sendViaBrevoApi(input) : await sendViaSmtp(input);
+  const attempt = isResendConfigured() ? await sendViaResend(input) : await sendViaSmtp(input);
 
   await prisma.emailLog.create({
     data: {

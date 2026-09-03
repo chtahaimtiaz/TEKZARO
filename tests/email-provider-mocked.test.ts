@@ -11,11 +11,11 @@ vi.mock("nodemailer", () => ({
   },
 }));
 
-// Cleared explicitly — real .env now carries a live BREVO_API_KEY, which
+// Cleared explicitly — real .env now carries a live RESEND_API_KEY, which
 // would otherwise take priority over SMTP and route this test's sends
-// through the (unmocked) Brevo API branch instead of the mocked
-// transporter this file exists to exercise.
-delete process.env.BREVO_API_KEY;
+// through the (unmocked) Resend branch instead of the mocked transporter
+// this file exists to exercise.
+delete process.env.RESEND_API_KEY;
 process.env.SMTP_HOST = "smtp.example.test";
 process.env.SMTP_PORT = "587";
 process.env.SMTP_USER = "test-user";

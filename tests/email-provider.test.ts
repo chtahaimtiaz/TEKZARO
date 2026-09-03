@@ -2,12 +2,12 @@ import { describe, it, expect, afterEach } from "vitest";
 import { prisma } from "../lib/prisma";
 
 // Explicitly unset here rather than relying on ambient .env being blank —
-// this project's real .env now legitimately carries live Brevo credentials
-// (BREVO_API_KEY, SMTP_*), so "unconfigured" has to be forced rather than
+// this project's real .env now legitimately carries live credentials
+// (RESEND_API_KEY, SMTP_*), so "unconfigured" has to be forced rather than
 // assumed. Each vitest file runs in its own worker with its own process.env
 // copy (see email-provider-mocked.test.ts's same pattern), so this can't
 // leak into other test files.
-delete process.env.BREVO_API_KEY;
+delete process.env.RESEND_API_KEY;
 delete process.env.SMTP_HOST;
 delete process.env.SMTP_PORT;
 delete process.env.SMTP_USER;

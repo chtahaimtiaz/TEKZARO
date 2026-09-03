@@ -31,7 +31,7 @@ const INTEGRATIONS = [
   {
     name: "Email delivery",
     detail: "Invites, password resets, notifications, newsletter confirmations & campaigns",
-    envVar: "BREVO_API_KEY (or SMTP_HOST / PORT / USER / PASS)",
+    envVar: "RESEND_API_KEY + EMAIL_FROM (or SMTP_HOST / PORT / USER / PASS)",
     check: isEmailConfigured,
   },
 ] as const;
