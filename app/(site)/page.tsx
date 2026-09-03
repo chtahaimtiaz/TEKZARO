@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { HeroSection } from "@/components/content/HeroSection";
 import { SectionHeader } from "@/components/content/SectionHeader";
@@ -19,6 +20,14 @@ import {
 } from "@/lib/articles";
 
 export const dynamic = "force-dynamic";
+
+// Self-referencing canonical. The newsletter form redirects back here with
+// a status param (/?newsletter=pending|invalid|ratelimited), so the site
+// generates crawlable duplicates of its own front page; this points all of
+// them at the clean URL. Resolves against metadataBase in app/layout.tsx.
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 // Order matches the spec's homepage section list (section 3), with Pakistan
 // Tech inserted right after the hero per the Pakistan-first addendum.

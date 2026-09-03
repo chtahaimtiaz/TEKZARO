@@ -16,7 +16,11 @@ export function buildArticleMetadata(article: ArticleWithRelations): Metadata {
   const image = article.ogImage || article.featuredImageUrl || absoluteUrl("/logo.png");
 
   return {
-    title: `${title} | ${SITE_NAME}`,
+    // Just the headline — the root layout's title.template ("%s | TEKZARO",
+    // app/layout.tsx) appends the brand. Appending it here too produced
+    // "Headline | TEKZARO | TEKZARO" on every article, which is what search
+    // results and browser tabs actually showed.
+    title,
     description,
     alternates: { canonical: article.canonicalUrl || url },
     openGraph: {
