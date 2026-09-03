@@ -44,8 +44,8 @@ export default function AboutPage() {
           When we get something wrong, we fix it. Substantive corrections are noted with an
           &ldquo;Updated&rdquo; timestamp on the article, visibly distinct from the original publish time.
           If you believe a TEKZARO article contains an error, contact us at{" "}
-          <a href="mailto:corrections@tekzaro.example" className="text-accent hover:underline">
-            corrections@tekzaro.example
+          <a href="mailto:editorial@tekzaro.co" className="text-accent hover:underline">
+            editorial@tekzaro.co
           </a>
           .
         </p>

@@ -54,8 +54,8 @@ export default function TermsPage() {
         <h2 className="pt-2 text-xl font-bold text-ink">Contact</h2>
         <p>
           Questions about these terms can be sent to{" "}
-          <a href="mailto:hello@tekzaro.example" className="text-accent hover:underline">
-            hello@tekzaro.example
+          <a href="mailto:business@tekzaro.co" className="text-accent hover:underline">
+            business@tekzaro.co
           </a>
           .
         </p>

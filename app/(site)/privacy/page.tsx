@@ -43,8 +43,8 @@ export default function PrivacyPage() {
         <p>
           You can unsubscribe from the newsletter at any time once campaigns are live, and you can
           request deletion of your stored email address by contacting{" "}
-          <a href="mailto:hello@tekzaro.example" className="text-accent hover:underline">
-            hello@tekzaro.example
+          <a href="mailto:business@tekzaro.co" className="text-accent hover:underline">
+            business@tekzaro.co
           </a>
           .
         </p>

@@ -28,8 +28,8 @@ export default function AdvertisePage() {
         <h2 className="pt-2 text-xl font-bold text-ink">Get in touch</h2>
         <p>
           For rates, placements and sponsored content inquiries, email{" "}
-          <a href="mailto:advertise@tekzaro.example" className="text-accent hover:underline">
-            advertise@tekzaro.example
+          <a href="mailto:business@tekzaro.co" className="text-accent hover:underline">
+            business@tekzaro.co
           </a>
           .
         </p>
