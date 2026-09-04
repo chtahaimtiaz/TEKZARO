@@ -130,7 +130,11 @@ export async function sendTestCampaignAction(campaignId: string): Promise<Action
   });
 
   if (!result.ok) {
-    return { ok: false, error: "notConfigured" in result ? "Email isn't configured." : result.error };
+    if ("notConfigured" in result) return { ok: false, error: "Email isn't configured." };
+    // Reserved/undeliverable recipient, or a test run — reported as itself
+    // rather than dressed up as a send failure.
+    if ("skipped" in result) return { ok: false, error: result.reason };
+    return { ok: false, error: result.error };
   }
 
   await logAction({

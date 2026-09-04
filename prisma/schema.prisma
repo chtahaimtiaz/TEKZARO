@@ -153,6 +153,12 @@ enum EmailStatus {
   SENT
   FAILED
   NOT_CONFIGURED
+  // Deliberately not attempted, so not a failure: an RFC 2606 reserved
+  // recipient (example.com, .test, .invalid) that can never receive mail,
+  // or a test run. Distinct from FAILED because counting these as failures
+  // is what buried real delivery problems in noise — and attempting them
+  // is what damaged the sender's reputation with rejections.
+  SKIPPED
 }
 
 enum NewsletterCampaignStatus {

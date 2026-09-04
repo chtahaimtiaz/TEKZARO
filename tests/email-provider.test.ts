@@ -13,6 +13,10 @@ delete process.env.SMTP_PORT;
 delete process.env.SMTP_USER;
 delete process.env.SMTP_PASS;
 
+// This file mocks the transport, so no mail leaves the process — opt out
+// of the delivery guards so the real send path can be exercised.
+process.env.EMAIL_BYPASS_DELIVERY_GUARDS = "1";
+
 const { isEmailConfigured, sendEmail } = await import("../lib/email/provider");
 
 // Same honest-gating pattern as Phase 4's AI provider tests.

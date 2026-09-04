@@ -13,6 +13,10 @@ process.env.EMAIL_FROM = "TEKZARO <news@tekzaro.test>";
 const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
 
+// This file mocks the transport, so no mail leaves the process — opt out
+// of the delivery guards so the real send path can be exercised.
+process.env.EMAIL_BYPASS_DELIVERY_GUARDS = "1";
+
 const { isEmailConfigured, sendEmail } = await import("../lib/email/provider");
 
 describe("email provider — Resend HTTP API (mocked fetch, no real network call)", () => {

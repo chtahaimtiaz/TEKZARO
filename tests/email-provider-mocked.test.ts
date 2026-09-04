@@ -22,6 +22,10 @@ process.env.SMTP_USER = "test-user";
 process.env.SMTP_PASS = "test-pass";
 process.env.SMTP_FROM = "TEKZARO <noreply@tekzaro.test>";
 
+// This file mocks the transport, so no mail leaves the process — opt out
+// of the delivery guards so the real send path can be exercised.
+process.env.EMAIL_BYPASS_DELIVERY_GUARDS = "1";
+
 const { isEmailConfigured, sendEmail } = await import("../lib/email/provider");
 
 describe("email provider — configured (mocked SMTP fallback, no real network call)", () => {

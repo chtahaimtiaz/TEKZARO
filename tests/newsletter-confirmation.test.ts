@@ -23,6 +23,10 @@ process.env.SMTP_USER = "test-user";
 process.env.SMTP_PASS = "test-pass";
 process.env.SMTP_FROM = "TEKZARO <noreply@tekzaro.test>";
 
+// nodemailer is mocked above, so nothing leaves the process — opt out of
+// the delivery guards so the real send path is still exercised.
+process.env.EMAIL_BYPASS_DELIVERY_GUARDS = "1";
+
 const { subscribeToNewsletter } = await import("../lib/actions");
 const { confirmSubscriptionAction, unsubscribeAction } = await import("../lib/newsletter-actions");
 const { createConfirmationToken, consumeConfirmationToken } = await import("../lib/newsletter-confirmation");
