@@ -26,6 +26,18 @@ const SOCIAL_ICON_PATHS: Record<SocialPlatform, ReactNode> = {
     />
   ),
   x: <path d="M8 8l8 8M16 8l-8 8" strokeLinecap="round" />,
+  youtube: (
+    <>
+      <rect x="4.5" y="7.5" width="15" height="9" rx="2.6" />
+      <path d="M11 10.6l3.2 1.9-3.2 1.9z" fill="currentColor" stroke="none" />
+    </>
+  ),
+  linkedin: (
+    <>
+      <path d="M8 11v5.5M8 8.4v.1" strokeLinecap="round" />
+      <path d="M11.6 16.5V11m0 1.6a2.4 2.4 0 0 1 4.4 1.4v2.5" strokeLinecap="round" strokeLinejoin="round" />
+    </>
+  ),
 };
 
 const COMPANY_LINKS = [

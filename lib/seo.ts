@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ArticleWithRelations } from "./types";
 import { siteUrl, SITE_NAME, SITE_DESCRIPTION } from "./constants";
+import { socialProfileUrls } from "./social-links";
 
 export function absoluteUrl(path: string): string {
   return `${siteUrl()}${path.startsWith("/") ? path : `/${path}`}`;
@@ -69,6 +70,21 @@ export function buildArticleJsonLd(article: ArticleWithRelations) {
   };
 }
 
+/**
+ * The single authoritative Organization node. Emitted sitewide from
+ * app/layout.tsx and reused verbatim as the `publisher` of every
+ * NewsArticle, so the entity is described once and never diverges between
+ * the two.
+ *
+ * `sameAs` carries the official social profiles, read from the same
+ * lib/social-links.ts list the footer renders. It is the standard signal
+ * for associating those accounts with this organization; it is not a
+ * guarantee that any search engine will surface them.
+ *
+ * The logo previously pointed at /icon.svg, which does not exist and
+ * returned a 404 — meaning the publisher logo was unusable for article
+ * rich results. It now points at the real brand asset.
+ */
 export function organizationJsonLd() {
   return {
     "@type": "Organization",
@@ -76,8 +92,9 @@ export function organizationJsonLd() {
     url: siteUrl(),
     logo: {
       "@type": "ImageObject",
-      url: absoluteUrl("/icon.svg"),
+      url: absoluteUrl("/logo.png"),
     },
+    sameAs: socialProfileUrls(),
   };
 }
 
