@@ -1,4 +1,4 @@
-name: News Pipeline (Ingest + Verify/Publish)
+name: News Pipeline (Publish Scheduled + Ingest + Verify/Publish)
 
 on:
   # A tight fixed poll — the actual ingestion/verify cadence is
@@ -16,6 +16,27 @@ jobs:
   ingest:
     runs-on: ubuntu-latest
     steps:
+      - name: Publish scheduled articles
+        # First step, and deliberately not gated by PipelineSchedule: an
+        # editor scheduling a story for 15:00 PKT expects it live at 15:00,
+        # so this must poll at the workflow's own cadence.
+        #
+        # This was the whole reason scheduled publishing appeared broken.
+        # vercel.json also schedules this route, but at "0 1 * * *" — once a
+        # day, which is the tightest native cron the Vercel Hobby plan
+        # allows. So until now an article scheduled for any afternoon or
+        # evening slot did not go live until 01:00 UTC the following
+        # morning. The route itself was always correct and is covered by
+        # tests including a concurrent double-invocation case; it simply was
+        # never called often enough to be useful.
+        #
+        # Safe to run every 15 minutes: the route publishes via a
+        # conditional updateMany (compare-and-swap on status:"SCHEDULED"),
+        # so overlapping runs cannot double-publish, and a poll with nothing
+        # due is a single indexed query.
+        run: |
+          curl -sf -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://tekzaro.vercel.app/api/cron/publish-scheduled
       - name: Trigger ingestion
         run: |
           curl -sf -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
