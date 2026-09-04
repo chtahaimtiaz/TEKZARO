@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { CAN_MANAGE_SOURCES } from "@/lib/permissions";
 import { updateSourceAction } from "@/lib/source-actions";
 import { FetchNowButton } from "@/components/admin/FetchNowButton";
+import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -38,8 +39,8 @@ export default async function EditSourcePage({
         {(source.feedUrl || source.type === "GOOGLE_NEWS") && <FetchNowButton sourceId={source.id} />}
       </div>
       <p className="text-sm text-ink-muted">
-        Last checked: {source.lastChecked ? source.lastChecked.toLocaleString() : "Never"} · Last success:{" "}
-        {source.lastSuccess ? source.lastSuccess.toLocaleString() : "Never"}
+        Last checked: {source.lastChecked ? formatDateTime(source.lastChecked) : "Never"} · Last success:{" "}
+        {source.lastSuccess ? formatDateTime(source.lastSuccess) : "Never"}
       </p>
       {source.lastError && <p className="mt-1 text-sm text-red-600 dark:text-red-400">Last error: {source.lastError}</p>}
 

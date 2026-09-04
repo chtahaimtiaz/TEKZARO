@@ -8,6 +8,7 @@ import { isMediaUploadAvailable } from "@/lib/media/storage";
 import { deleteMediaAction, approveMediaAction, rejectMediaAction } from "@/lib/media-actions";
 import { MediaLibraryUploader } from "@/components/admin/MediaLibraryUploader";
 import type { ImageReuseStatus, Prisma } from "@prisma/client";
+import { formatDate } from "@/lib/format";
 
 /** Resolves "which article is this for", in priority order: explicitly
  * tagged at upload time (Media.articleId) > currently in use as an
@@ -149,7 +150,7 @@ export default async function MediaLibraryPage({ searchParams }: { searchParams:
                   {m.filename}
                 </p>
                 <p className="mt-0.5 text-ink-muted">
-                  {(m.sizeBytes / 1024).toFixed(0)} KB · {m.createdAt.toLocaleDateString()}
+                  {(m.sizeBytes / 1024).toFixed(0)} KB · {formatDate(m.createdAt)}
                 </p>
                 {m.sourceDomain && <p className="mt-0.5 text-ink-muted">Found on {m.sourceDomain}</p>}
                 {forArticle ? (

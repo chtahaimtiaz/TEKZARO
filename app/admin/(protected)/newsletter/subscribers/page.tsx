@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { CAN_SEND_NEWSLETTER } from "@/lib/permissions";
 import { NEWSLETTER_SUBSCRIBER_STATUSES, buildSubscriberWhere } from "@/lib/newsletter-subscribers";
+import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -123,7 +124,7 @@ export default async function NewsletterSubscribersPage({
                     {s.status}
                   </span>
                 </td>
-                <td className="p-3 text-ink-muted">{s.createdAt.toLocaleString()}</td>
+                <td className="p-3 text-ink-muted">{formatDateTime(s.createdAt)}</td>
               </tr>
             ))}
             {subscribers.length === 0 && (

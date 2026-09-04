@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { CAN_VIEW_DISCOVERY } from "@/lib/permissions";
 import { formatRelativeTime } from "@/lib/format-relative-time";
 import type { DiscoveryStatus, Prisma, SourceTier } from "@prisma/client";
+import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -172,7 +173,7 @@ export default async function DiscoveryPage({ searchParams }: { searchParams: Pr
                 <td className="p-3 text-ink-soft">{item.category?.name ?? "—"}</td>
                 <td className="p-3 text-ink-muted">
                   {item.publishedAt ? (
-                    <time dateTime={item.publishedAt.toISOString()} title={item.publishedAt.toLocaleString()}>
+                    <time dateTime={item.publishedAt.toISOString()} title={formatDateTime(item.publishedAt)}>
                       {formatRelativeTime(item.publishedAt)}
                     </time>
                   ) : (

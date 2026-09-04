@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { markNotificationReadAction, markAllNotificationsReadAction } from "@/lib/notification-actions";
+import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,7 @@ export default async function NotificationsPage() {
               <div>
                 <p className="text-sm font-bold">{n.title}</p>
                 <p className="mt-1 text-sm text-ink-soft">{n.body}</p>
-                <p className="mt-2 text-xs text-ink-muted">{n.createdAt.toLocaleString()}</p>
+                <p className="mt-2 text-xs text-ink-muted">{formatDateTime(n.createdAt)}</p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-2">
                 {n.link && (

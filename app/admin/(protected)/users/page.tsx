@@ -12,6 +12,7 @@ import {
 } from "@/lib/user-actions";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import type { Prisma } from "@prisma/client";
+import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -148,7 +149,7 @@ export default async function AdminUsersPage({
                   </form>
                 </td>
                 <td className="p-3">{u.active ? "Active" : "Disabled"}</td>
-                <td className="p-3 text-ink-soft">{u.lastLoginAt ? u.lastLoginAt.toLocaleString() : "Never"}</td>
+                <td className="p-3 text-ink-soft">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : "Never"}</td>
                 <td className="p-3 text-right">
                   <div className="flex justify-end gap-3">
                     <form action={handleResetPassword.bind(null, u.id)}>

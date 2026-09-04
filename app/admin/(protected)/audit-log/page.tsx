@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { CAN_VIEW_AUDIT_LOG } from "@/lib/permissions";
+import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,7 @@ export default async function AuditLogPage({
           <tbody>
             {logs.map((log) => (
               <tr key={log.id} className="border-b border-border last:border-b-0">
-                <td className="p-3 whitespace-nowrap text-ink-muted">{log.createdAt.toLocaleString()}</td>
+                <td className="p-3 whitespace-nowrap text-ink-muted">{formatDateTime(log.createdAt)}</td>
                 <td className="p-3">{log.user.name}</td>
                 <td className="p-3 font-medium">{log.action}</td>
                 <td className="p-3 text-ink-soft">

@@ -1,3 +1,5 @@
+import { formatDate } from "./format";
+
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
@@ -9,7 +11,8 @@ const DAY = 24 * HOUR;
  * dependency for one function. */
 export function formatRelativeTime(date: Date, now: Date = new Date()): string {
   const diffMs = now.getTime() - date.getTime();
-  if (diffMs < 0) return date.toLocaleDateString();
+  // Bare toLocaleDateString() renders in the runtime zone — UTC on Vercel.
+  if (diffMs < 0) return formatDate(date);
 
   if (diffMs < MINUTE) return "Just now";
   if (diffMs < HOUR) {
@@ -25,5 +28,5 @@ export function formatRelativeTime(date: Date, now: Date = new Date()): string {
     const days = Math.floor(diffMs / DAY);
     return `${days} days ago`;
   }
-  return date.toLocaleDateString();
+  return formatDate(date);
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { getDailyChecklist, dayStatusLabel } from "@/lib/editorial-checklist";
+import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -133,7 +134,7 @@ export default async function AdminOverviewPage({
           <div>
             <p className="text-sm text-ink-muted">Last ingestion run</p>
             <p className="mt-1 font-serif text-xl font-bold text-ink-muted">
-              {data.discovery.lastIngestion ? data.discovery.lastIngestion.toLocaleString() : "Not configured"}
+              {data.discovery.lastIngestion ? formatDateTime(data.discovery.lastIngestion) : "Not configured"}
             </p>
           </div>
         </div>
@@ -191,7 +192,7 @@ export default async function AdminOverviewPage({
                 <span>
                   <strong>{log.user.name}</strong> {log.action.replace(/_/g, " ")} <span className="text-ink-muted">{log.entityType}</span>
                 </span>
-                <span className="text-ink-muted">{log.createdAt.toLocaleString()}</span>
+                <span className="text-ink-muted">{formatDateTime(log.createdAt)}</span>
               </li>
             ))}
           </ul>

@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { CAN_MANAGE_ADS } from "@/lib/permissions";
 import { computeAdRuntimeStatus, AD_RUNTIME_STATUS_LABELS, type AdRuntimeStatus } from "@/lib/ads";
 import type { AdCampaignStatus, AdPlacement, Prisma } from "@prisma/client";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -108,7 +109,7 @@ export default async function AdCampaignsPage({
                   <td className="p-3 text-ink-soft">{c.placement.replace(/_/g, " ")}</td>
                   <td className="p-3 text-ink-soft">{c.category?.name ?? "All categories"}</td>
                   <td className="p-3 text-ink-muted">
-                    {c.startDate.toLocaleDateString()} – {c.endDate.toLocaleDateString()}
+                    {formatDate(c.startDate)} – {formatDate(c.endDate)}
                   </td>
                   <td className="p-3">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${RUNTIME_BADGE[runtime]}`}>

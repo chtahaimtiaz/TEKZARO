@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getDailyChecklist, dayStatusLabel, todayInTimeZone } from "@/lib/editorial-checklist";
 import { getEditorialSettings } from "@/lib/editorial-settings";
+import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -106,7 +107,7 @@ export default async function EditorialChecklistPage({
                     <li key={a.id} className="border-t border-border pt-2 first:border-t-0 first:pt-0">
                       <p className="font-semibold text-ink-soft">{a.title}</p>
                       <p>
-                        By {a.authorName} · {a.publishedAt.toLocaleString()} · {a.verificationStatus.replace(/_/g, " ").toLowerCase()}
+                        By {a.authorName} · {formatDateTime(a.publishedAt)} · {a.verificationStatus.replace(/_/g, " ").toLowerCase()}
                       </p>
                       <div className="mt-1 flex gap-3">
                         <a href={`/article/${a.slug}`} target="_blank" rel="noopener noreferrer" className="font-semibold text-accent hover:underline">

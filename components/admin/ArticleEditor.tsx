@@ -27,6 +27,7 @@ import {
 import { isPublishableReuseStatus } from "@/lib/publication-checks";
 import type { ArticleStatus, ArticleVerificationStatus, ImageReuseStatus } from "@prisma/client";
 import type { ContentBlock } from "@/lib/content-blocks";
+import { formatDate } from "@/lib/format";
 
 export interface EditorAuthorOption {
   id: string;
@@ -511,7 +512,7 @@ export function ArticleEditor({
                     )}
                     <p>
                       <span className="font-medium text-ink-soft">Found: </span>
-                      {new Date(featuredMedia.createdAt).toLocaleDateString()}
+                      {formatDate(new Date(featuredMedia.createdAt))}
                     </p>
                     {featuredMedia.selectionReasons && featuredMedia.selectionReasons.length > 0 && (
                       <div>

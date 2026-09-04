@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { CAN_MANAGE_BACKUPS } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,7 @@ export default async function EditorialDataExportPage() {
         </a>
         {lastExport && (
           <p className="mt-3 text-xs text-ink-muted">
-            Last exported {lastExport.createdAt.toLocaleString()} by {lastExport.user.name}.
+            Last exported {formatDateTime(lastExport.createdAt)} by {lastExport.user.name}.
           </p>
         )}
       </section>

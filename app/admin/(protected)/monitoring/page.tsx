@@ -8,6 +8,7 @@ import { isMediaUploadAvailable } from "@/lib/media/storage";
 import { isEmailConfigured } from "@/lib/email/provider";
 import { getPipelineSchedule, updatePipelineScheduleAction, MIN_INTERVAL_MINUTES } from "@/lib/pipeline-schedule";
 import { formatRelativeTime } from "@/lib/format-relative-time";
+import { formatDateTime } from "@/lib/format";
 
 const INTEGRATIONS = [
   {
@@ -162,28 +163,28 @@ export default async function MonitoringPage({
         <div className="rounded-xl border border-border bg-paper-raised p-5">
           <p className="text-sm text-ink-muted">Last scheduled-publish run</p>
           <p className="mt-1 font-serif text-lg font-bold">
-            {lastCronRun ? lastCronRun.createdAt.toLocaleString() : "Not configured"}
+            {lastCronRun ? formatDateTime(lastCronRun.createdAt) : "Not configured"}
           </p>
           {lastCronRun && <p className="mt-1 text-xs text-ink-muted">{lastCronRun.message}</p>}
         </div>
         <div className="rounded-xl border border-border bg-paper-raised p-5">
           <p className="text-sm text-ink-muted">Last news ingestion run</p>
           <p className="mt-1 font-serif text-lg font-bold">
-            {lastIngestRun ? lastIngestRun.createdAt.toLocaleString() : "Not configured"}
+            {lastIngestRun ? formatDateTime(lastIngestRun.createdAt) : "Not configured"}
           </p>
           {lastIngestRun && <p className="mt-1 text-xs text-ink-muted">{lastIngestRun.message}</p>}
         </div>
         <div className="rounded-xl border border-border bg-paper-raised p-5">
           <p className="text-sm text-ink-muted">Last verify/publish run</p>
           <p className="mt-1 font-serif text-lg font-bold">
-            {lastVerifyRun ? lastVerifyRun.createdAt.toLocaleString() : "Not configured"}
+            {lastVerifyRun ? formatDateTime(lastVerifyRun.createdAt) : "Not configured"}
           </p>
           {lastVerifyRun && <p className="mt-1 text-xs text-ink-muted">{lastVerifyRun.message}</p>}
         </div>
         <div className="rounded-xl border border-border bg-paper-raised p-5">
           <p className="text-sm text-ink-muted">Last email send</p>
           <p className="mt-1 font-serif text-lg font-bold">
-            {lastEmail ? lastEmail.createdAt.toLocaleString() : "Not configured"}
+            {lastEmail ? formatDateTime(lastEmail.createdAt) : "Not configured"}
           </p>
           {lastEmail && <p className="mt-1 text-xs text-ink-muted">{lastEmail.status} — {lastEmail.to}</p>}
         </div>
@@ -228,7 +229,7 @@ export default async function MonitoringPage({
                   </td>
                   <td className="p-3 text-ink-soft">{e.source}</td>
                   <td className="p-3">{e.message}</td>
-                  <td className="p-3 text-ink-muted">{e.createdAt.toLocaleString()}</td>
+                  <td className="p-3 text-ink-muted">{formatDateTime(e.createdAt)}</td>
                 </tr>
               ))}
               {events.length === 0 && (

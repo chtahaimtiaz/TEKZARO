@@ -7,6 +7,7 @@ import { researchItemAction, saveReviewNoteAction, setDiscoveryStatusAction, cre
 import { suggestPakistanImpactAction } from "@/lib/ai-actions";
 import { CreateDraftButton } from "@/components/admin/CreateDraftButton";
 import { AIAssistPanel } from "@/components/admin/AIAssistPanel";
+import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -42,8 +43,8 @@ export default async function DiscoveryItemPage({ params }: { params: Promise<{ 
         <a href={item.sourceUrl} target="_blank" rel="noreferrer" className="text-accent hover:underline">
           Original link →
         </a>
-        <span>Published: {item.publishedAt ? item.publishedAt.toLocaleString() : "Unknown"}</span>
-        <span>Discovered: {item.createdAt.toLocaleString()}</span>
+        <span>Published: {item.publishedAt ? formatDateTime(item.publishedAt) : "Unknown"}</span>
+        <span>Discovered: {formatDateTime(item.createdAt)}</span>
         <span>Category: {item.category?.name ?? "Unassigned"}</span>
       </div>
 

@@ -111,6 +111,18 @@ export const OVERFLOW_NAV: CategorySlug[] = [
   "enterprise",
 ];
 
+/**
+ * TEKZARO's editorial timezone, and the single source of that value.
+ *
+ * Lives here rather than in lib/editorial-settings.ts because that module
+ * is server-only and reads the database asynchronously, while date
+ * formatting has to work synchronously inside client components too.
+ * editorial-settings.ts imports this as its own default, so the admin
+ * setting and the display default can never drift apart — this is not a
+ * second timezone configuration.
+ */
+export const EDITORIAL_TIMEZONE = "Asia/Karachi";
+
 export const SITE_NAME = "TEKZARO";
 export const SITE_TAGLINE = "Independent Technology News";
 export const SITE_DESCRIPTION =

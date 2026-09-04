@@ -15,6 +15,7 @@ import { mergeIntoClusterAction } from "@/lib/discovery-actions";
 import { summarizeClusterAction, extractClaimsAction } from "@/lib/ai-actions";
 import { CreateDraftButton } from "@/components/admin/CreateDraftButton";
 import { AIAssistPanel } from "@/components/admin/AIAssistPanel";
+import { formatDate, formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -72,7 +73,7 @@ export default async function StoryClusterPage({ params }: { params: Promise<{ i
                   {item.headline}
                 </Link>
                 <p className="text-xs text-ink-muted">
-                  {item.source.name} ({item.source.tier.replace("_", " ")}) · {item.publishedAt?.toLocaleDateString() ?? "unknown date"}
+                  {item.source.name} ({item.source.tier.replace("_", " ")}) · {formatDate(item.publishedAt) ?? "unknown date"}
                 </p>
               </div>
               {canResearch && cluster.items.length > 1 && (
@@ -198,7 +199,7 @@ export default async function StoryClusterPage({ params }: { params: Promise<{ i
           {cluster.notes.map((note) => (
             <li key={note.id} className="rounded-md bg-paper p-2">
               {note.note}
-              <span className="ml-2 text-xs text-ink-muted">{note.createdAt.toLocaleString()}</span>
+              <span className="ml-2 text-xs text-ink-muted">{formatDateTime(note.createdAt)}</span>
             </li>
           ))}
           {cluster.notes.length === 0 && <p className="text-ink-muted">No notes yet.</p>}

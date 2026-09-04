@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { canEditArticle, canViewArticle } from "@/lib/permissions";
 import { restoreVersionAction } from "@/lib/article-actions";
+import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,7 @@ export default async function ArticleVersionsPage({ params }: { params: Promise<
                 v{v.versionNumber} — <span className="font-normal text-ink-muted">{v.status.replace(/_/g, " ")}</span>
               </p>
               <p className="text-sm text-ink-muted">
-                {v.editor.name} · {v.createdAt.toLocaleString()}
+                {v.editor.name} · {formatDateTime(v.createdAt)}
                 {v.changeSummary && <> · {v.changeSummary}</>}
               </p>
             </div>

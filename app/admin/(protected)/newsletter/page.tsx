@@ -7,6 +7,7 @@ import { isEmailConfigured } from "@/lib/email/provider";
 import { wrapEmailHtml } from "@/lib/email/template";
 import { createCampaignAction, sendCampaignAction, sendTestCampaignAction } from "@/lib/newsletter-actions";
 import { NewCampaignForm } from "@/components/admin/NewCampaignForm";
+import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -107,8 +108,8 @@ export default async function NewsletterAdminPage({
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-muted">
                 <span>
                   {c.status === "SENT" && c.sentAt
-                    ? `Sent ${c.sentAt.toLocaleString()} to ${c.recipientCount ?? 0} recipient(s)`
-                    : `Created ${c.createdAt.toLocaleString()}`}
+                    ? `Sent ${formatDateTime(c.sentAt)} to ${c.recipientCount ?? 0} recipient(s)`
+                    : `Created ${formatDateTime(c.createdAt)}`}
                 </span>
                 {c.status === "DRAFT" && (
                   <div className="flex flex-wrap gap-2">

@@ -7,6 +7,7 @@ import { setSourceActiveAction } from "@/lib/source-actions";
 import { FetchNowButton } from "@/components/admin/FetchNowButton";
 import { FetchAllButton } from "@/components/admin/FetchAllButton";
 import { DeleteSourceButton } from "@/components/admin/DeleteSourceButton";
+import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +62,7 @@ export default async function SourcesPage() {
                 <td className="p-3">{s.tier.replace("_", " ")}</td>
                 <td className="p-3 text-ink-soft">{s.category?.name ?? "—"}</td>
                 <td className="p-3">{s._count.items}</td>
-                <td className="p-3 text-ink-muted">{s.lastSuccess ? s.lastSuccess.toLocaleString() : "Never"}</td>
+                <td className="p-3 text-ink-muted">{s.lastSuccess ? formatDateTime(s.lastSuccess) : "Never"}</td>
                 <td className="max-w-[200px] truncate p-3 text-red-600 dark:text-red-400">{s.lastError ?? ""}</td>
                 <td className="p-3">
                   <form action={setSourceActiveAction.bind(null, s.id, !s.active)}>

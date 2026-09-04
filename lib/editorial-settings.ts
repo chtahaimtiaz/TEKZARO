@@ -1,11 +1,14 @@
 import "server-only";
 import { prisma } from "./prisma";
+import { EDITORIAL_TIMEZONE } from "./constants";
 
 export interface EditorialSettings {
   timezone: string;
 }
 
-const DEFAULT_TIMEZONE = "Asia/Karachi";
+// Shared with lib/format.ts so the stored setting and the display default
+// are one value — see the note on EDITORIAL_TIMEZONE.
+const DEFAULT_TIMEZONE = EDITORIAL_TIMEZONE;
 
 /** Lazy-default, not lazy-create — a plain read never writes a row. Only
  * updateEditorialSettingsAction (lib/editorial-settings-actions.ts) ever
