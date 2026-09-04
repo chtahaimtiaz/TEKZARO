@@ -7,11 +7,18 @@ export interface SocialLinkConfig {
 }
 
 /**
- * TEKZARO doesn't have these accounts yet — never invent a URL. A platform
- * only ever appears here once its env var is actually set to a real URL;
- * the single place that decision is made, so the footer (or anywhere else
- * that wants social links later) never has to re-derive "is this enabled."
- * Adding a real account later is exactly one env var + a redeploy.
+ * Never invent a URL. A platform only ever appears here once its env var is
+ * actually set to a real account; the single place that decision is made, so
+ * the footer (or anywhere else that wants social links) never has to
+ * re-derive "is this enabled." Adding an account is exactly one env var + a
+ * redeploy — no code change.
+ *
+ * Live: X (@tekzaro_co) and Instagram (@tekzaro.co). Facebook and TikTok
+ * are wired but intentionally unset — no accounts exist for them yet, and
+ * an icon linking nowhere is worse than no icon.
+ *
+ * These are NEXT_PUBLIC_*, so they are inlined at build time: setting one
+ * in Vercel does nothing until the next deploy.
  */
 export function getConfiguredSocialLinks(): SocialLinkConfig[] {
   const candidates: SocialLinkConfig[] = [
