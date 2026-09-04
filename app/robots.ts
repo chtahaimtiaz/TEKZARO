@@ -6,7 +6,12 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/admin", "/api/"],
+      // /search is an internal search results page: thin, endlessly
+      // variable by query string, and duplicative of the category and
+      // latest feeds. Google's guidance is explicitly not to let search
+      // result pages be crawled, so it is excluded here and absent from
+      // the sitemap.
+      disallow: ["/admin", "/api/", "/search"],
     },
     sitemap: `${siteUrl()}/sitemap.xml`,
   };
