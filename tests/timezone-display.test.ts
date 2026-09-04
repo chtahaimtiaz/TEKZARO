@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { formatDate, formatDateTime, timeAgo } from "../lib/format";
 import { formatRelativeTime } from "../lib/format-relative-time";
 import { EDITORIAL_TIMEZONE } from "../lib/constants";
+import { parseZonedDateTimeLocal, toZonedDateTimeLocal } from "../lib/timezone";
 import { buildArticleJsonLd } from "../lib/seo";
 import type { ArticleWithRelations } from "../lib/types";
 
@@ -140,5 +141,47 @@ describe("no manual offset workaround exists", () => {
     const src = readFileSync("lib/format.ts", "utf8");
     expect(src).toContain("timeZone");
     expect(src).toContain("EDITORIAL_TIMEZONE");
+  });
+});
+
+describe("scheduling input round trip (Pakistan wall-clock <-> instant)", () => {
+  it("reads 16:00 in the field as 4pm Pakistan, not 4pm UTC", () => {
+    const parsed = parseZonedDateTimeLocal("2026-09-04T16:00", EDITORIAL_TIMEZONE)!;
+    // 16:00 PKT is 11:00 UTC. Parsed with new Date() on a UTC server it
+    // would have been 16:00Z — a 9pm PKT publish, five hours late.
+    expect(parsed.toISOString()).toBe("2026-09-04T11:00:00.000Z");
+    expect(formatDateTime(parsed)).toContain("4:00 PM");
+  });
+
+  it("shows a stored instant back in the field as Pakistan wall-clock", () => {
+    const stored = new Date("2026-09-04T11:00:00.000Z");
+    expect(toZonedDateTimeLocal(stored, EDITORIAL_TIMEZONE)).toBe("2026-09-04T16:00");
+    // The old toISOString().slice(0,16) showed the UTC clock instead.
+    expect(stored.toISOString().slice(0, 16)).toBe("2026-09-04T11:00");
+  });
+
+  it("round trips without drift", () => {
+    for (const wall of ["2026-09-04T00:00", "2026-09-04T16:00", "2026-09-04T23:59", "2026-12-31T23:30"]) {
+      const instant = parseZonedDateTimeLocal(wall, EDITORIAL_TIMEZONE)!;
+      expect(toZonedDateTimeLocal(instant, EDITORIAL_TIMEZONE)).toBe(wall);
+    }
+  });
+
+  it("crosses midnight correctly in both directions", () => {
+    // 00:30 PKT on the 5th is 19:30 UTC on the 4th.
+    const parsed = parseZonedDateTimeLocal("2026-09-05T00:30", EDITORIAL_TIMEZONE)!;
+    expect(parsed.toISOString()).toBe("2026-09-04T19:30:00.000Z");
+    expect(toZonedDateTimeLocal(parsed, EDITORIAL_TIMEZONE)).toBe("2026-09-05T00:30");
+  });
+
+  it("returns null for empty or malformed input rather than an Invalid Date", () => {
+    expect(parseZonedDateTimeLocal("", EDITORIAL_TIMEZONE)).toBeNull();
+    expect(parseZonedDateTimeLocal("not-a-date", EDITORIAL_TIMEZONE)).toBeNull();
+  });
+
+  it("derives the offset from Intl rather than a hardcoded five hours", () => {
+    const src = readFileSync("lib/timezone.ts", "utf8");
+    expect(src).not.toMatch(/18000000|5\s*\*\s*60\s*\*\s*60/);
+    expect(src).toContain("formatToParts");
   });
 });

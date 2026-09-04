@@ -14,6 +14,13 @@ import { estimateReadingTime } from "./reading-time";
 import { logAction } from "./audit";
 import { notify } from "./notifications";
 import { buildSnapshotFromArticleRow, snapshotVersion } from "./article-snapshot";
+// The scheduling field is an <input type="datetime-local">, whose value
+// carries no offset. Parsing it with new Date() on a UTC server read the
+// editor's intended Pakistan wall-clock time as UTC, publishing five hours
+// late. EDITORIAL_TIMEZONE is the same constant the display formatters and
+// the stored editorial setting default to.
+import { parseZonedDateTimeLocal } from "./timezone";
+import { EDITORIAL_TIMEZONE } from "./constants";
 import type { Prisma, Role } from "@prisma/client";
 
 // Every route under /admin reads the session cookie (via requireUser/
@@ -245,7 +252,7 @@ export async function createArticleAction(raw: ArticleFormInput): Promise<Action
       metaDescription: nullable(input.metaDescription),
       canonicalUrl: nullable(input.canonicalUrl),
       ogImage: nullable(input.ogImage),
-      scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
+      scheduledAt: parseZonedDateTimeLocal(input.scheduledAt, EDITORIAL_TIMEZONE),
     },
   });
 
@@ -325,7 +332,7 @@ export async function updateArticleAction(articleId: string, raw: ArticleFormInp
       metaDescription: nullable(input.metaDescription),
       canonicalUrl: nullable(input.canonicalUrl),
       ogImage: nullable(input.ogImage),
-      scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
+      scheduledAt: parseZonedDateTimeLocal(input.scheduledAt, EDITORIAL_TIMEZONE),
     },
   });
 

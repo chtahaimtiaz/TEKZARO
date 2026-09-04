@@ -8,6 +8,8 @@ import { asArticleContent } from "@/lib/content-blocks";
 import { ArticleEditor } from "@/components/admin/ArticleEditor";
 import { isMediaUploadAvailable } from "@/lib/media/storage";
 import { getArticleMediaOptions } from "@/lib/article-media";
+import { toZonedDateTimeLocal } from "@/lib/timezone";
+import { EDITORIAL_TIMEZONE } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -108,7 +110,10 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
         pakistanRelevance: article.pakistanRelevance,
         regionalRelevance: article.regionalRelevance,
         globalSignificance: article.globalSignificance,
-        scheduledAt: article.scheduledAt ? article.scheduledAt.toISOString().slice(0, 16) : "",
+        // Shown as Pakistan wall-clock, matching how the server parses it
+        // back. toISOString().slice(0,16) showed the UTC clock, so a 4pm
+        // PKT schedule appeared in the field as 11:00.
+        scheduledAt: article.scheduledAt ? toZonedDateTimeLocal(article.scheduledAt, EDITORIAL_TIMEZONE) : "",
         // Always starts unchecked — a fresh, explicit re-confirmation per
         // save, not persisted UI state (see resolveAuthorEligibility in
         // lib/article-actions.ts for why an unchanged, already-overridden

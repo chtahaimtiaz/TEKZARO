@@ -2,29 +2,13 @@ import "server-only";
 import { prisma } from "./prisma";
 import { PUBLISHED } from "./articles";
 import { getEditorialSettings } from "./editorial-settings";
+import { offsetMillisAt } from "./timezone";
 import type { ArticleVerificationStatus } from "@prisma/client";
 
-// --- Timezone handling — dependency-free (no date library in this project) ---
-
-/** How far timeZone is ahead of UTC at the instant utcMillis represents —
- * e.g. +5h for Asia/Karachi. Positive means the zone is ahead of UTC. */
-function offsetMillisAt(utcMillis: number, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  }).formatToParts(new Date(utcMillis));
-  const map = Object.fromEntries(parts.map((p) => [p.type, p.value]));
-  // Some ICU implementations return "24" for midnight with hour12:false.
-  const hour = Number(map.hour) === 24 ? 0 : Number(map.hour);
-  const shownAsUtcMillis = Date.UTC(Number(map.year), Number(map.month) - 1, Number(map.day), hour, Number(map.minute), Number(map.second));
-  return shownAsUtcMillis - utcMillis;
-}
+// --- Timezone handling ---
+// offsetMillisAt now lives in lib/timezone.ts, shared with the article
+// scheduler's datetime-local parsing. One implementation of "how far ahead
+// of UTC is this zone at this instant", not two that can diverge.
 
 /** Resolves local midnight on (year, month, day) in timeZone to the UTC
  * instant that displays as that wall-clock time. Each pass re-estimates
