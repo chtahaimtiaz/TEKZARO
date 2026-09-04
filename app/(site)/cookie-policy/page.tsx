@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Cookie Policy",
   description: "What cookies TEKZARO currently sets in your browser.",
+  alternates: { canonical: "/cookie-policy" },
 };
 
 export default function CookiePolicyPage() {

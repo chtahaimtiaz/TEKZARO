@@ -83,4 +83,76 @@ describe("Organization structured data", () => {
     expect((org.logo as { url: string }).url).toMatch(/^https?:\/\//);
     for (const u of org.sameAs as string[]) expect(u).toMatch(/^https:\/\//);
   });
+
+  it("declares itself a NewsMediaOrganization with a stable @id", async () => {
+    const org = await organization({});
+    // A subtype of Organization, so nothing consuming the previous markup
+    // breaks, but it states what this publisher is rather than leaving it
+    // to be inferred.
+    expect(org["@type"]).toBe("NewsMediaOrganization");
+    expect(String(org["@id"])).toMatch(/#organization$/);
+  });
+});
+
+describe("entity relationships", () => {
+  it("makes the article publisher the same entity as the sitewide organization", async () => {
+    const { organizationJsonLd, organizationId, buildArticleJsonLd } = await import("../lib/seo");
+    const article = {
+      slug: "s",
+      title: "T",
+      excerpt: "E",
+      metaDescription: null,
+      canonicalUrl: null,
+      ogImage: null,
+      featuredImageUrl: null,
+      publishedAt: new Date(),
+      updatedAt: new Date(),
+      author: { name: "A", slug: "a" },
+      category: { name: "C", slug: "c" },
+      tags: [],
+    } as never;
+
+    const publisher = (buildArticleJsonLd(article) as Record<string, unknown>).publisher as Record<string, unknown>;
+    // Same @id, so the two nodes describe one entity rather than two that
+    // merely share a name — while the publisher keeps name and logo inline,
+    // which Google's Article guidance expects.
+    expect(publisher["@id"]).toBe(organizationId());
+    expect(publisher["@id"]).toBe(organizationJsonLd()["@id"]);
+    expect(publisher.name).toBeTruthy();
+    expect((publisher.logo as { url: string }).url).toBeTruthy();
+  });
+
+  it("ties the website node to the publishing organization", async () => {
+    const { websiteJsonLd, organizationId } = await import("../lib/seo");
+    const site = websiteJsonLd() as Record<string, unknown>;
+    expect(site["@type"]).toBe("WebSite");
+    expect((site.publisher as Record<string, unknown>)["@id"]).toBe(organizationId());
+  });
+
+  it("describes an author from stored fields only, omitting what is absent", async () => {
+    const { authorJsonLd, organizationId } = await import("../lib/seo");
+    const bare = authorJsonLd({ name: "Bilal Ahmed", slug: "bilal-ahmed" }) as Record<string, unknown>;
+    const person = bare.mainEntity as Record<string, unknown>;
+
+    expect(person["@type"]).toBe("Person");
+    expect(person.name).toBe("Bilal Ahmed");
+    expect((person.worksFor as Record<string, unknown>)["@id"]).toBe(organizationId());
+    // No bio, photo or position stored — those keys must be absent rather
+    // than filled with invented text.
+    expect(person.description).toBeUndefined();
+    expect(person.image).toBeUndefined();
+    expect(person.jobTitle).toBeUndefined();
+
+    const full = authorJsonLd({
+      name: "Sara Khawaja",
+      slug: "sara-khawaja",
+      bio: "Covers smartphones.",
+      position: "Staff Writer",
+      photoUrl: "https://example.test/p.jpg",
+    }) as Record<string, unknown>;
+    const filled = full.mainEntity as Record<string, unknown>;
+    expect(filled.description).toBe("Covers smartphones.");
+    expect(filled.jobTitle).toBe("Staff Writer");
+    expect(filled.image).toBe("https://example.test/p.jpg");
+  });
 });

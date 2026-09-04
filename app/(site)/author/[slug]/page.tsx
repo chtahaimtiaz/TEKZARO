@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArticleCard } from "@/components/content/ArticleCard";
 import { Pagination } from "@/components/content/Pagination";
 import { getAuthorArticles, getAuthorBySlug } from "@/lib/articles";
+import { authorJsonLd } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: author.name,
     description: author.bio || `Articles by ${author.name} on TEKZARO.`,
+    alternates: { canonical: `/author/${author.slug}` },
   };
 }
 
@@ -34,6 +36,12 @@ export default async function AuthorPage({ params, searchParams }: Props) {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
+      {/* Describes a real staff member using only fields the system holds —
+          no invented biography, credential or employment history. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(authorJsonLd(author)) }}
+      />
       <div className="flex flex-col items-start gap-4 border-b border-border pb-8 sm:flex-row sm:items-center">
         <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-ink font-serif text-2xl font-bold text-white dark:text-paper">
           {author.name

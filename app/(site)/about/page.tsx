@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "About",
   description: "About TEKZARO — Pakistan-first technology journalism with global coverage.",
+  alternates: { canonical: "/about" },
 };
 
 export default function AboutPage() {

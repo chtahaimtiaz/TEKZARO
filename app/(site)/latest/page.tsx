@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Latest Technology News",
   description: "The latest verified technology news from TEKZARO, updated continuously.",
+  alternates: { canonical: "/latest" },
 };
 
 export default async function LatestPage({

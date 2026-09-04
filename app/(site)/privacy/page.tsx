@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description: "How TEKZARO collects, uses and protects information.",
+  alternates: { canonical: "/privacy" },
 };
 
 export default function PrivacyPage() {

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Contact",
   description: "Contact the TEKZARO newsroom — tips, corrections, advertising and general inquiries.",
+  alternates: { canonical: "/contact" },
 };
 
 // Two public desks, deliberately: editorial@ for anything newsroom-facing

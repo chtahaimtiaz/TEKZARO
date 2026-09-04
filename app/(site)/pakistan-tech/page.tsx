@@ -11,6 +11,7 @@ export const metadata: Metadata = {
   title: "Pakistan Tech",
   description:
     "Technology news from Pakistan — startups, policy, telecom, cybersecurity, IT exports and the people building Pakistan's digital economy.",
+  alternates: { canonical: "/pakistan-tech" },
 };
 
 export default async function PakistanTechPage({

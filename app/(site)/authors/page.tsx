@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Authors",
   description: "The TEKZARO newsroom — editors and reporters covering technology.",
+  alternates: { canonical: "/authors" },
 };
 
 export default async function AuthorsPage() {

@@ -21,6 +21,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: def.name,
     description: def.description,
+    // Points every paginated view (?page=2, ...) at the category's first
+    // page, so the series consolidates instead of competing with itself.
+    alternates: { canonical: `/category/${slug}` },
   };
 }
 

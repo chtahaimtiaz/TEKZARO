@@ -5,6 +5,7 @@ import { Logo } from "@/components/ui/Logo";
 export const metadata: Metadata = {
   title: "Newsletter",
   description: "Stay Ahead of Technology — the TEKZARO Pakistan Tech Briefing.",
+  alternates: { canonical: "/newsletter" },
 };
 
 export default async function NewsletterPage({
