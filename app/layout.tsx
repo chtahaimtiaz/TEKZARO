@@ -33,6 +33,18 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
   },
+  // AdSense site-ownership verification. Declared here in the root layout
+  // so it renders into <head> on every page, which is what AdSense asks
+  // for. Not a secret — the publisher ID is public in the page source by
+  // design — and not an env var, since it is fixed for the life of the
+  // site and an unset variable would silently break verification.
+  //
+  // This only proves ownership. It serves no ads on its own: that needs
+  // AdSense approval and then the ad unit script, and it is independent of
+  // the platform's own AdCampaign system.
+  other: {
+    "google-adsense-account": "ca-pub-1824611512521520",
+  },
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
