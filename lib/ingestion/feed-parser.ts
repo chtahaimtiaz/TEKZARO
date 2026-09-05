@@ -66,6 +66,52 @@ function parseDate(raw: unknown): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+/** Pulls the publisher's own article image out of a feed item.
+ *
+ * Only <enclosure type="image/*"> used to be read, which is why the vast
+ * majority of items arrived with no image at all: most modern news feeds
+ * express their image as Media RSS (<media:content>/<media:thumbnail>)
+ * instead. That image is the single most reliable candidate available,
+ * because unlike anything scraped from the article page it survives a
+ * publisher that 403s automated fetches or disallows them in robots.txt.
+ *
+ * Order reflects descending specificity: an explicitly image-typed
+ * enclosure, then media:content (preferring one that declares an image
+ * medium/type), then media:thumbnail, which is often a smaller crop.
+ */
+function feedImageFrom(item: Record<string, unknown>): string | undefined {
+  const enclosure = item.enclosure as { "@_url"?: string; "@_type"?: string } | undefined;
+  if (enclosure?.["@_type"]?.startsWith("image") && enclosure["@_url"]) return enclosure["@_url"];
+
+  type MediaNode = { "@_url"?: string; "@_type"?: string; "@_medium"?: string };
+  const mediaContent = asArray(item["media:content"] as unknown) as MediaNode[];
+  const imageish = mediaContent.filter(
+    (m) => m["@_url"] && (m["@_medium"] === "image" || m["@_type"]?.startsWith("image") || (!m["@_medium"] && !m["@_type"])),
+  );
+  if (imageish.length > 0) return imageish[0]["@_url"];
+
+  const thumb = asArray(item["media:thumbnail"] as unknown) as MediaNode[];
+  const firstThumb = thumb.find((t) => t["@_url"]);
+  if (firstThumb) return firstThumb["@_url"];
+
+  // Last resort within the feed: the first plausible <img> in the item's
+  // own HTML body. Some publishers (9to5Google, MacRumors) ship no Media
+  // RSS at all but do embed the lead image here. Ranked below the explicit
+  // Media RSS elements because body images are far more likely to be a
+  // logo, avatar or tracking pixel — lib/images/filter-rank.ts rejects
+  // those by URL, and the download is still magic-byte validated, so a bad
+  // guess here degrades to "candidate rejected", never to a bad image.
+  const body = textOf(item["content:encoded"] ?? item.description ?? item.content ?? item.summary ?? "");
+  if (body) {
+    const html = decodeEntities(body);
+    const match = /<img[^>]+src\s*=\s*["']([^"']+)["']/i.exec(html);
+    const src = match?.[1]?.trim();
+    if (src && /^https?:\/\//i.test(src)) return src;
+  }
+
+  return undefined;
+}
+
 function parseRssItem(item: Record<string, unknown>): ParsedFeedItem | null {
   const title = decodeEntities(textOf(item.title).trim());
   const link = textOf(item.link).trim();
@@ -75,15 +121,13 @@ function parseRssItem(item: Record<string, unknown>): ParsedFeedItem | null {
   const guidIsPermalink =
     typeof guid === "object" && guid["@_isPermaLink"] !== "false" && Boolean(guid["#text"]);
 
-  const enclosure = item.enclosure as { "@_url"?: string; "@_type"?: string } | undefined;
-
   return {
     title,
     link,
     canonicalUrl: guidIsPermalink ? textOf((guid as { "#text"?: string })["#text"]) : undefined,
     excerpt: excerptFrom(textOf(item.description ?? item["content:encoded"] ?? "")),
     publishedAt: parseDate(item.pubDate),
-    imageUrl: enclosure?.["@_type"]?.startsWith("image") ? enclosure["@_url"] : undefined,
+    imageUrl: feedImageFrom(item),
     externalId: typeof guid === "string" ? guid : textOf((guid as { "#text"?: string })?.["#text"]) || undefined,
   };
 }
@@ -103,6 +147,10 @@ function parseAtomEntry(entry: Record<string, unknown>): ParsedFeedItem | null {
     canonicalUrl: id.startsWith("http") ? id : undefined,
     excerpt: excerptFrom(textOf(entry.summary ?? entry.content ?? "")),
     publishedAt: parseDate(entry.published ?? entry.updated),
+    // Atom carries no enclosure of its own, but feeds routinely mix in the
+    // same Media RSS elements, and an Atom entry previously yielded no
+    // image under any circumstances.
+    imageUrl: feedImageFrom(entry),
     externalId: id || undefined,
   };
 }

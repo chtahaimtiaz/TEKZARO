@@ -16,6 +16,11 @@ const MAX_ASPECT_RATIO = 4;
 const MIN_ASPECT_RATIO = 0.25;
 
 const METADATA_SOURCE_POINTS: Record<ImageCandidate["metadataSource"], { points: number; reason: string }> = {
+  // Ranked above og:image: the publisher put this in their own syndication
+  // feed, which is a more deliberate "this represents the story" signal
+  // than a page-level social-preview tag, and it is the only candidate
+  // available at all when the article page cannot be fetched.
+  feed: { points: 35, reason: "Publisher's own feed declared this as the article image" },
   og: { points: 30, reason: "Declared as the page's og:image" },
   jsonld: { points: 25, reason: "Declared in the article's structured data (JSON-LD) as its image" },
   twitter: { points: 20, reason: "Declared as the page's twitter:image" },

@@ -38,10 +38,13 @@ export async function featuredImageFieldsFor(sourceItemId: string) {
     try {
       const item = await prisma.sourceItem.findUnique({
         where: { id: sourceItemId },
-        select: { id: true, sourceUrl: true, headline: true },
+        // imageUrl is the publisher's own feed image. Passing it is what
+        // lets acquisition succeed when the article page is unreachable,
+        // which is the majority case.
+        select: { id: true, sourceUrl: true, headline: true, imageUrl: true },
       });
       if (item?.sourceUrl) {
-        const acquisition = await acquireImageForSourceItem(item);
+        const acquisition = await acquireImageForSourceItem({ ...item, feedImageUrl: item.imageUrl });
         if (acquisition.ok) {
           media = await prisma.media.findFirst({ where: { sourceItemId }, orderBy: { createdAt: "desc" } });
         } else {

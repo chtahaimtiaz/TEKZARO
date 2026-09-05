@@ -1,6 +1,11 @@
 import { attrValue, scanTags, extractJsonLdBlocks, forEachJsonLdNode } from "./html-utils";
 
-export type ImageMetadataSource = "og" | "jsonld" | "twitter" | "img-tag";
+/** "feed" is the publisher's own RSS/Atom enclosure or media:content
+ * image, captured at ingestion on SourceItem.imageUrl. It never comes from
+ * scraping the article page, which is what makes it usable when that page
+ * is unreachable — the common case, since most publishers either 403 an
+ * automated fetch or disallow it in robots.txt. */
+export type ImageMetadataSource = "feed" | "og" | "jsonld" | "twitter" | "img-tag";
 
 export interface ImageCandidate {
   sourceUrl: string;

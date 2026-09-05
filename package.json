@@ -20,7 +20,6 @@
     "@neondatabase/serverless": "1.1.0",
     "@prisma/adapter-neon": "7.10.0",
     "@prisma/client": "7.10.0",
-    "@vercel/blob": "^2.8.0",
     "bcryptjs": "latest",
     "dotenv": "latest",
     "fast-xml-parser": "latest",

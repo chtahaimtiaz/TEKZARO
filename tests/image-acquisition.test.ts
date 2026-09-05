@@ -339,3 +339,139 @@ describe("acquireImageForSourceItem — reuse status decides publishability, not
     expect(saveUploadMock).toHaveBeenCalled();
   });
 });
+
+describe("acquireImageForSourceItem — the publisher's feed image", () => {
+  it("acquires from the feed image when robots.txt blocks the article page", async () => {
+    // The failure this fixes: 34% of attempts ended here with no image,
+    // even when the feed had already handed us one.
+    const item = await makeSourceItem("https://news.example.com/story/robots-blocked");
+    safeFetchMock.mockImplementation(async (url: string) =>
+      url.endsWith("/robots.txt")
+        ? okText("User-agent: *\nDisallow: /")
+        : okText(`<meta property="og:image" content="https://cdn.example.com/never-reached.jpg">`),
+    );
+    safeFetchBinaryMock.mockResolvedValue(okBytes(buildMinimalJpeg(1280, 720), "https://cdn.example.com/feed.jpg"));
+    saveUploadMock.mockResolvedValue({ url: "https://r2.example/stored/feed.jpg" });
+
+    const result = await acquireImageForSourceItem({
+      id: item.id,
+      sourceUrl: item.sourceUrl,
+      headline: item.headline,
+      feedImageUrl: "https://cdn.example.com/feed.jpg",
+    });
+
+    expect(result.ok).toBe(true);
+    createdMediaIds.push(result.mediaId!);
+    expect(result.outcome).toBe("ATTACHED");
+    // No grant could be read from a page we never fetched — never invented.
+    expect(result.reuseStatus).toBe("REQUIRES_REVIEW");
+    const media = await prisma.media.findUniqueOrThrow({ where: { id: result.mediaId! } });
+    expect(media.sourceUrl).toBe("https://cdn.example.com/feed.jpg");
+    expect(media.reuseNotes).toMatch(/robots\.txt/i);
+  });
+
+  it("acquires from the feed image when the article page returns 403", async () => {
+    // The other 44%: publishers that block automated fetches outright.
+    const item = await makeSourceItem("https://news.example.com/story/forbidden");
+    safeFetchMock.mockImplementation(async (url: string) =>
+      url.endsWith("/robots.txt") ? notFoundText() : { status: 403, headers: new Headers(), text: "", finalUrl: url },
+    );
+    safeFetchBinaryMock.mockResolvedValue(okBytes(buildMinimalJpeg(1100, 620), "https://cdn.example.com/f403.jpg"));
+    saveUploadMock.mockResolvedValue({ url: "https://r2.example/stored/f403.jpg" });
+
+    const result = await acquireImageForSourceItem({
+      id: item.id,
+      sourceUrl: item.sourceUrl,
+      headline: item.headline,
+      feedImageUrl: "https://cdn.example.com/f403.jpg",
+    });
+
+    expect(result.ok).toBe(true);
+    createdMediaIds.push(result.mediaId!);
+    const media = await prisma.media.findUniqueOrThrow({ where: { id: result.mediaId! } });
+    expect(media.reuseNotes).toMatch(/403/);
+    expect(media.sourceUrl).toBe("https://cdn.example.com/f403.jpg");
+  });
+
+  it("still reports honestly when the page is blocked and the feed has no image", async () => {
+    const item = await makeSourceItem("https://news.example.com/story/nothing");
+    safeFetchMock.mockImplementation(async (url: string) =>
+      url.endsWith("/robots.txt") ? okText("User-agent: *\nDisallow: /") : okText("<html></html>"),
+    );
+
+    const result = await acquireImageForSourceItem({ id: item.id, sourceUrl: item.sourceUrl, headline: item.headline });
+
+    expect(result.ok).toBe(false);
+    expect(result.outcome).toBe("PAGE_BLOCKED_NO_FEED_IMAGE");
+    expect(saveUploadMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an HTML response served from an image URL", async () => {
+    // A URL ending in .jpg is not proof of an image — validate the bytes.
+    const item = await makeSourceItem("https://news.example.com/story/html-as-image");
+    safeFetchMock.mockImplementation(async (url: string) =>
+      url.endsWith("/robots.txt") ? notFoundText() : okText("<html><body>Login required</body></html>"),
+    );
+    safeFetchBinaryMock.mockResolvedValue(
+      okBytes(Buffer.from("<!doctype html><html><body>not an image</body></html>"), "https://cdn.example.com/fake.jpg"),
+    );
+
+    const result = await acquireImageForSourceItem({
+      id: item.id,
+      sourceUrl: item.sourceUrl,
+      headline: item.headline,
+      feedImageUrl: "https://cdn.example.com/fake.jpg",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(saveUploadMock).not.toHaveBeenCalled();
+  });
+
+  it("prefers the feed image over a page candidate when both exist", async () => {
+    const item = await makeSourceItem("https://news.example.com/story/both");
+    safeFetchMock.mockImplementation(async (url: string) =>
+      url.endsWith("/robots.txt")
+        ? notFoundText()
+        : okText(`<meta property="og:image" content="https://cdn.example.com/og.jpg">`),
+    );
+    safeFetchBinaryMock.mockImplementation(async (url: string) =>
+      okBytes(buildMinimalJpeg(1500, 844), url),
+    );
+    saveUploadMock.mockResolvedValue({ url: "https://r2.example/stored/both.jpg" });
+
+    const result = await acquireImageForSourceItem({
+      id: item.id,
+      sourceUrl: item.sourceUrl,
+      headline: item.headline,
+      feedImageUrl: "https://cdn.example.com/from-feed.jpg",
+    });
+
+    expect(result.ok).toBe(true);
+    createdMediaIds.push(result.mediaId!);
+    const media = await prisma.media.findUniqueOrThrow({ where: { id: result.mediaId! } });
+    expect(media.sourceUrl).toBe("https://cdn.example.com/from-feed.jpg");
+  });
+
+  it("ignores a malformed feed image URL instead of failing acquisition", async () => {
+    const item = await makeSourceItem("https://news.example.com/story/bad-feed-url");
+    safeFetchMock.mockImplementation(async (url: string) =>
+      url.endsWith("/robots.txt")
+        ? notFoundText()
+        : okText(`<meta property="og:image" content="https://cdn.example.com/ok.jpg">`),
+    );
+    safeFetchBinaryMock.mockResolvedValue(okBytes(buildMinimalJpeg(1300, 730), "https://cdn.example.com/ok.jpg"));
+    saveUploadMock.mockResolvedValue({ url: "https://r2.example/stored/ok.jpg" });
+
+    const result = await acquireImageForSourceItem({
+      id: item.id,
+      sourceUrl: item.sourceUrl,
+      headline: item.headline,
+      feedImageUrl: "javascript:alert(1)",
+    });
+
+    expect(result.ok).toBe(true);
+    createdMediaIds.push(result.mediaId!);
+    const media = await prisma.media.findUniqueOrThrow({ where: { id: result.mediaId! } });
+    expect(media.sourceUrl).toBe("https://cdn.example.com/ok.jpg");
+  });
+});

@@ -2,7 +2,6 @@ import "server-only";
 import { writeFile, mkdir, unlink } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { put, del } from "@vercel/blob";
 
 const ALLOWED_MIME_TYPES: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -67,14 +66,13 @@ function r2Config(): {
 /**
  * The single source of truth the upload route AND the admin UI both check
  * before allowing an upload. Provider-aware and never silently falls back:
- * "local" is unavailable on Vercel's ephemeral filesystem, and "vercel-blob"
- * and "r2" are each unavailable until their own credentials are actually
- * present.
+ * "local" is unavailable on Vercel's ephemeral filesystem, and "r2" is
+ * unavailable until its own credentials are actually present. The
+ * "vercel-blob" provider has been removed entirely — see saveUpload.
  */
 export function isMediaUploadAvailable(): boolean {
   const provider = getStorageProvider();
   if (provider === "local") return !isEphemeralFilesystemEnvironment();
-  if (provider === "vercel-blob") return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
   if (provider === "r2") return r2Config() !== null;
   return false; // unknown provider value
 }
@@ -120,15 +118,6 @@ async function saveUploadLocal(file: File, ext: string): Promise<SavedUpload> {
   const buffer = Buffer.from(await file.arrayBuffer());
   await writeFile(filePath, buffer);
   return { url: `/${key}` };
-}
-
-async function saveUploadVercelBlob(file: File, ext: string): Promise<SavedUpload> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    throw new StorageNotAvailableError("BLOB_READ_WRITE_TOKEN is not configured.");
-  }
-  const key = uploadKey(ext);
-  const blob = await put(key, file, { access: "public", contentType: file.type });
-  return { url: blob.url };
 }
 
 /**
@@ -204,11 +193,6 @@ async function deleteUploadLocal(url: string): Promise<void> {
   await unlink(resolved).catch(() => {});
 }
 
-async function deleteUploadVercelBlob(url: string): Promise<void> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return;
-  await del(url).catch(() => {});
-}
-
 /**
  * Provider-switched behind this one interface — the abstraction every
  * caller (ArticleEditor.tsx, MediaUploadButton.tsx,
@@ -226,15 +210,23 @@ export async function saveUpload(file: File, _kind: "article" | "author" | "ad")
 
   const provider = getStorageProvider();
   if (provider === "local") return saveUploadLocal(file, ext);
-  if (provider === "vercel-blob") return saveUploadVercelBlob(file, ext);
   if (provider === "r2") return saveUploadR2(file, ext);
+  if (provider === "vercel-blob") {
+    // Deliberately removed, not merely unconfigured. Eager acquisition wrote
+    // ~1,900 images/day into this store until it was suspended and every
+    // image on the live site began returning 403. R2 is the authoritative
+    // media store; leaving a reachable Blob write path would let that
+    // failure mode return silently on one environment-variable change.
+    throw new StorageNotAvailableError(
+      "STORAGE_PROVIDER=vercel-blob is no longer supported — Cloudflare R2 is the authoritative media store. Set STORAGE_PROVIDER=r2.",
+    );
+  }
   throw new StorageNotAvailableError(`Storage provider "${provider}" has no adapter implemented.`);
 }
 
 export async function deleteUpload(url: string): Promise<void> {
   const provider = getStorageProvider();
   if (provider === "local") return deleteUploadLocal(url);
-  if (provider === "vercel-blob") return deleteUploadVercelBlob(url);
   if (provider === "r2") return deleteUploadR2(url);
   // Unknown provider — nothing we can safely delete from.
 }

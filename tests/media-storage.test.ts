@@ -135,11 +135,18 @@ describe("media storage — Vercel ephemeral-filesystem guard", () => {
     await expect(saveUpload(file, "article")).rejects.toThrow(/durable object storage/i);
   });
 
-  it("is available on Vercel once STORAGE_PROVIDER=vercel-blob and a token is configured", () => {
+  it("never treats the removed vercel-blob provider as available, token or not", async () => {
+    // Eager acquisition wrote ~1,900 images/day into Vercel Blob until the
+    // store was suspended and every image on the site 403d. The adapter is
+    // gone; this asserts one stray environment variable cannot bring that
+    // write path back.
     process.env.VERCEL = "1";
     process.env.STORAGE_PROVIDER = "vercel-blob";
     process.env.BLOB_READ_WRITE_TOKEN = "fake-token-for-tests";
-    expect(isMediaUploadAvailable()).toBe(true);
+    expect(isMediaUploadAvailable()).toBe(false);
+
+    const file = makeFile("x.jpg", "image/jpeg", 1024);
+    await expect(saveUpload(file, "article")).rejects.toThrow(/durable object storage/i);
     delete process.env.BLOB_READ_WRITE_TOKEN;
   });
 
