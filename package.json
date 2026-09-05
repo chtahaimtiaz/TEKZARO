@@ -16,6 +16,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1127.0",
     "@neondatabase/serverless": "1.1.0",
     "@prisma/adapter-neon": "7.10.0",
     "@prisma/client": "7.10.0",

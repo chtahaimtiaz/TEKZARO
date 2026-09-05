@@ -46,17 +46,36 @@ export function isDurableStorageConfigured(): boolean {
   return getStorageProvider() !== "local";
 }
 
+/** Every credential the R2 adapter needs, or null when any is missing —
+ *  so "configured" is one check rather than five scattered ones. */
+function r2Config(): {
+  accountId: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  bucket: string;
+  publicBaseUrl: string;
+} | null {
+  const accountId = process.env.R2_ACCOUNT_ID;
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+  const bucket = process.env.R2_BUCKET;
+  const publicBaseUrl = process.env.R2_PUBLIC_BASE_URL;
+  if (!accountId || !accessKeyId || !secretAccessKey || !bucket || !publicBaseUrl) return null;
+  return { accountId, accessKeyId, secretAccessKey, bucket, publicBaseUrl: publicBaseUrl.replace(/\/+$/, "") };
+}
+
 /**
  * The single source of truth the upload route AND the admin UI both check
- * before allowing an upload. Provider-aware: "local" is never available on
- * Vercel's ephemeral filesystem; "vercel-blob" is only available once its
- * required credential is actually present — never silently falls back to
- * local storage in either case.
+ * before allowing an upload. Provider-aware and never silently falls back:
+ * "local" is unavailable on Vercel's ephemeral filesystem, and "vercel-blob"
+ * and "r2" are each unavailable until their own credentials are actually
+ * present.
  */
 export function isMediaUploadAvailable(): boolean {
   const provider = getStorageProvider();
   if (provider === "local") return !isEphemeralFilesystemEnvironment();
   if (provider === "vercel-blob") return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+  if (provider === "r2") return r2Config() !== null;
   return false; // unknown provider value
 }
 
@@ -112,6 +131,70 @@ async function saveUploadVercelBlob(file: File, ext: string): Promise<SavedUploa
   return { url: blob.url };
 }
 
+/**
+ * Cloudflare R2 over its S3-compatible API.
+ *
+ * The client is built per call rather than held in a module-level
+ * singleton: these run in serverless functions that are frozen and thawed
+ * between invocations, and a long-lived socket pool across that boundary is
+ * a source of stale-connection errors. Construction is cheap; the
+ * connection is not reused across invocations anyway.
+ *
+ * region "auto" is what R2 expects — it has no regions in the S3 sense, but
+ * the SigV4 signer requires the field to be set to something.
+ *
+ * Reads never go through this adapter or through R2's API: objects are
+ * served directly from the bucket's public base URL, which is why R2's zero
+ * egress fee applies to essentially all of the traffic.
+ */
+async function saveUploadR2(file: File, ext: string): Promise<SavedUpload> {
+  const cfg = r2Config();
+  if (!cfg) throw new StorageNotAvailableError("R2 is selected but its credentials are incomplete.");
+
+  const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
+  const s3 = new S3Client({
+    region: "auto",
+    endpoint: `https://${cfg.accountId}.r2.cloudflarestorage.com`,
+    credentials: { accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey },
+  });
+
+  const key = uploadKey(ext);
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: cfg.bucket,
+      Key: key,
+      Body: Buffer.from(await file.arrayBuffer()),
+      ContentType: file.type,
+      // Long, immutable caching is safe because the key is a fresh UUID on
+      // every upload — a given key's bytes never change.
+      CacheControl: "public, max-age=31536000, immutable",
+    }),
+  );
+
+  return { url: `${cfg.publicBaseUrl}/${key}` };
+}
+
+async function deleteUploadR2(url: string): Promise<void> {
+  const cfg = r2Config();
+  if (!cfg) return;
+  // Only ever delete something this adapter wrote: derive the key from our
+  // own public base URL and refuse anything that doesn't start with it,
+  // rather than trusting an arbitrary URL to name an object in the bucket.
+  if (!url.startsWith(`${cfg.publicBaseUrl}/`)) return;
+  const key = url.slice(cfg.publicBaseUrl.length + 1);
+  if (!key.startsWith("uploads/")) return;
+
+  const { S3Client, DeleteObjectCommand } = await import("@aws-sdk/client-s3");
+  const s3 = new S3Client({
+    region: "auto",
+    endpoint: `https://${cfg.accountId}.r2.cloudflarestorage.com`,
+    credentials: { accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey },
+  });
+  // Matches the other adapters: a failed delete must never break the
+  // editorial action that triggered it.
+  await s3.send(new DeleteObjectCommand({ Bucket: cfg.bucket, Key: key })).catch(() => {});
+}
+
 async function deleteUploadLocal(url: string): Promise<void> {
   if (!url.startsWith("/uploads/")) return;
   const resolved = path.resolve(path.join(process.cwd(), "public", url));
@@ -144,6 +227,7 @@ export async function saveUpload(file: File, _kind: "article" | "author" | "ad")
   const provider = getStorageProvider();
   if (provider === "local") return saveUploadLocal(file, ext);
   if (provider === "vercel-blob") return saveUploadVercelBlob(file, ext);
+  if (provider === "r2") return saveUploadR2(file, ext);
   throw new StorageNotAvailableError(`Storage provider "${provider}" has no adapter implemented.`);
 }
 
@@ -151,5 +235,6 @@ export async function deleteUpload(url: string): Promise<void> {
   const provider = getStorageProvider();
   if (provider === "local") return deleteUploadLocal(url);
   if (provider === "vercel-blob") return deleteUploadVercelBlob(url);
+  if (provider === "r2") return deleteUploadR2(url);
   // Unknown provider — nothing we can safely delete from.
 }

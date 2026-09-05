@@ -33,13 +33,21 @@ const SECURITY_HEADERS = [
 
 const nextConfig: NextConfig = {
   images: {
-    // Narrow allowlist: only our own Vercel Blob store (STORAGE_PROVIDER=
-    // vercel-blob) gets real next/image optimization. Every other external
-    // URL (RSS-sourced images, an editor-pasted URL) is handled safely via
-    // lib/image-src.ts's isOptimizableImageSrc, which falls back to
-    // `unoptimized` instead of crashing the page — never add a bare "*"
+    // Narrow allowlist: only our own object stores get real next/image
+    // optimization — Vercel Blob (STORAGE_PROVIDER=vercel-blob) and
+    // Cloudflare R2's public subdomain (STORAGE_PROVIDER=r2). Every other
+    // external URL (RSS-sourced images, an editor-pasted URL) is handled
+    // safely via lib/image-src.ts's isOptimizableImageSrc, which falls back
+    // to `unoptimized` instead of crashing the page — never add a bare "*"
     // hostname here.
-    remotePatterns: [{ protocol: "https", hostname: "*.public.blob.vercel-storage.com" }],
+    //
+    // Keep this in step with isOptimizableImageSrc: the two encode the same
+    // allowlist, and a host trusted in one but not the other either crashes
+    // the page or silently skips optimization.
+    remotePatterns: [
+      { protocol: "https", hostname: "*.public.blob.vercel-storage.com" },
+      { protocol: "https", hostname: "*.r2.dev" },
+    ],
   },
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];

@@ -18,13 +18,17 @@ export function isOptimizableImageSrc(src: string | null | undefined): boolean {
   // never needs a remotePattern entry for these.
   if (src.startsWith("/")) return true;
 
-  // Our own Vercel Blob store (STORAGE_PROVIDER=vercel-blob) is trusted —
-  // matched by hostname via URL parsing, not a substring check, and matches
-  // next.config.ts's images.remotePatterns entry for the same host pattern.
-  // Any other external host (RSS-sourced images, an editor-pasted URL,
-  // anything else) stays unoptimized rather than being added here.
+  // Our own object stores are trusted — Vercel Blob
+  // (STORAGE_PROVIDER=vercel-blob) and Cloudflare R2's public subdomain
+  // (STORAGE_PROVIDER=r2). Matched by hostname via URL parsing, not a
+  // substring check, and mirroring next.config.ts's images.remotePatterns
+  // entries exactly; the two must stay in step, since a host trusted in one
+  // but not the other either crashes the page or silently skips
+  // optimization. Any other external host (RSS-sourced images, an
+  // editor-pasted URL) stays unoptimized rather than being added here.
   try {
-    return new URL(src).hostname.endsWith(".public.blob.vercel-storage.com");
+    const { hostname } = new URL(src);
+    return hostname.endsWith(".public.blob.vercel-storage.com") || hostname.endsWith(".r2.dev");
   } catch {
     return false;
   }
