@@ -14,7 +14,7 @@ const INTEGRATIONS = [
   {
     name: "AI assistance",
     detail: "Claims summaries, Pakistan-impact drafts, verify-and-synthesize, discovery drafts",
-    envVar: "AI_API_KEY",
+    envVar: "AI_API_KEY (Vercel AI Gateway) or CF_AI_GATEWAY_TOKEN + CF_AI_GATEWAY_ID (Cloudflare AI Gateway)",
     check: isAIConfigured,
   },
   {

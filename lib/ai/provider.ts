@@ -2,7 +2,9 @@ import "server-only";
 
 export class AIProviderNotConfiguredError extends Error {
   constructor() {
-    super("AI assistance requires AI_API_KEY to be configured in .env.");
+    super(
+      "AI assistance is not configured. Set AI_API_KEY (Vercel AI Gateway), or CF_AI_GATEWAY_TOKEN + CF_AI_GATEWAY_ID (+ CF_AI_GATEWAY_ACCOUNT_ID, defaulting to R2_ACCOUNT_ID) for Cloudflare AI Gateway.",
+    );
     this.name = "AIProviderNotConfiguredError";
   }
 }
@@ -15,10 +17,56 @@ export const AI_MODEL = "claude-sonnet-5";
 
 // Vercel AI Gateway's own model identifier convention: "<provider>/<model>".
 const GATEWAY_MODEL = "anthropic/claude-sonnet-5";
-const GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions";
+
+/**
+ * Which gateway to call, or null when none is configured.
+ *
+ * Both gateways speak the same OpenAI-compatible chat-completions shape, so
+ * only the URL and the auth header differ — the request body and response
+ * parsing below are shared. Cloudflare is preferred when fully configured
+ * because it is the more explicit choice (three variables, all required);
+ * AI_API_KEY alone keeps the original Vercel behaviour untouched.
+ *
+ * Neither token grants model access by itself. Vercel AI Gateway bills the
+ * Vercel account; Cloudflare AI Gateway needs either wholesale credits or a
+ * provider key stored in the gateway via Bring Your Own Keys, and returns
+ * HTTP 402 "Insufficient wholesale credits" until one of those exists.
+ */
+function gatewayConfig(): { url: string; headers: Record<string, string>; label: string } | null {
+  const cfToken = process.env.CF_AI_GATEWAY_TOKEN;
+  // Falls back to the R2 account id: AI Gateway lives in the same Cloudflare
+  // account, so requiring it to be re-entered would only invite a mismatch.
+  const cfAccount = process.env.CF_AI_GATEWAY_ACCOUNT_ID || process.env.R2_ACCOUNT_ID;
+  const cfGateway = process.env.CF_AI_GATEWAY_ID;
+  if (cfToken && cfAccount && cfGateway) {
+    return {
+      url: `https://gateway.ai.cloudflare.com/v1/${cfAccount}/${cfGateway}/compat/chat/completions`,
+      headers: { "cf-aig-authorization": `Bearer ${cfToken}` },
+      label: "cloudflare",
+    };
+  }
+
+  const vercelKey = process.env.AI_API_KEY;
+  if (vercelKey) {
+    return {
+      url: "https://ai-gateway.vercel.sh/v1/chat/completions",
+      headers: { authorization: `Bearer ${vercelKey}` },
+      label: "vercel",
+    };
+  }
+
+  return null;
+}
 
 export function isAIConfigured(): boolean {
-  return Boolean(process.env.AI_API_KEY);
+  return gatewayConfig() !== null;
+}
+
+/** Which gateway a request would use right now — for the admin monitoring
+ * panel, so "Configured" can say which provider it actually resolved to
+ * rather than leaving an operator to guess. */
+export function activeAIGateway(): string | null {
+  return gatewayConfig()?.label ?? null;
 }
 
 /**
@@ -32,14 +80,14 @@ export function isAIConfigured(): boolean {
  * configured" state, never a fake result.
  */
 export async function generateWithAI(systemPrompt: string, userPrompt: string): Promise<string> {
-  const apiKey = process.env.AI_API_KEY;
-  if (!apiKey) throw new AIProviderNotConfiguredError();
+  const gateway = gatewayConfig();
+  if (!gateway) throw new AIProviderNotConfiguredError();
 
-  const response = await fetch(GATEWAY_URL, {
+  const response = await fetch(gateway.url, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${apiKey}`,
+      ...gateway.headers,
     },
     body: JSON.stringify({
       model: GATEWAY_MODEL,
