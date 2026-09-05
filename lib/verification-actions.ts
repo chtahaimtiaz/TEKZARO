@@ -151,6 +151,22 @@ export async function processVerificationBatch(
 
       if (!result.draft) {
         summary.skippedNoDraft += 1;
+        // Log why. verifyAndSynthesize returns its reason in notes — an
+        // unconfigured API key, a failed search, an unparseable model
+        // response, no confirmable primary source — and discarding it made
+        // a pipeline producing zero drafts completely undiagnosable: the
+        // batch summary could only say "skipped (no draft)" N times.
+        await logSystemEvent({
+          level: "WARN",
+          source: "verification.batch",
+          message: `No draft produced for SourceItem ${item.id}: ${result.notes}`,
+          context: {
+            sourceItemId: item.id,
+            headline: item.headline,
+            verificationStatus: result.verificationStatus,
+            generationId: result.generationId,
+          },
+        });
         continue;
       }
 
