@@ -10,7 +10,6 @@ import { classifyTechRelevance } from "../discovery/tech-relevance";
 import { computePriorityScore } from "../discovery/priority";
 import { logAction } from "../audit";
 import { logSystemEvent } from "../monitoring";
-import { acquireImageForSourceItem } from "../images/acquire";
 import type { Prisma, Source } from "@prisma/client";
 
 const RECENT_CANDIDATE_WINDOW_DAYS = 14;
@@ -25,9 +24,6 @@ export interface IngestResult {
    * (see lib/discovery/priority.ts), never dropped; still a normal
    * SourceItem an editor can find and promote in /admin/discovery. */
   itemsDeprioritizedNonTech: number;
-  imagesAcquired: number;
-  imagesNeedingReview: number;
-  imagesFailed: number;
   error?: string;
 }
 
@@ -38,9 +34,6 @@ function emptyResult(error?: string): IngestResult {
     itemsCreated: 0,
     itemsSkippedExisting: 0,
     itemsDeprioritizedNonTech: 0,
-    imagesAcquired: 0,
-    imagesNeedingReview: 0,
-    imagesFailed: 0,
     error,
   };
 }
@@ -60,9 +53,6 @@ export interface ProcessedItemsStats {
   created: number;
   skippedExisting: number;
   deprioritizedNonTech: number;
-  imagesAcquired: number;
-  imagesNeedingReview: number;
-  imagesFailed: number;
 }
 
 /**
@@ -87,9 +77,6 @@ export async function processIngestedItems(source: Source, items: ParsedFeedItem
   let created = 0;
   let skippedExisting = 0;
   let deprioritizedNonTech = 0;
-  let imagesAcquired = 0;
-  let imagesNeedingReview = 0;
-  let imagesFailed = 0;
 
   for (const item of items) {
     const existing = await prisma.sourceItem.findUnique({
@@ -163,41 +150,12 @@ export async function processIngestedItems(source: Source, items: ParsedFeedItem
       },
     });
 
-    // Isolated on purpose: an image problem (bad HTML, unreachable host,
-    // no usable candidate, storage failure) must never abort ingestion of
-    // this item or the batch — acquireImageForSourceItem itself already
-    // never throws, this try/catch is defense-in-depth on top of that.
-    try {
-      const acquisition = await acquireImageForSourceItem({
-        id: createdItem.id,
-        sourceUrl: createdItem.sourceUrl,
-        headline: createdItem.headline,
-      });
-      if (acquisition.ok) {
-        if (acquisition.reuseStatus === "REQUIRES_REVIEW" || acquisition.reuseStatus === "UNKNOWN") {
-          imagesNeedingReview++;
-        } else {
-          imagesAcquired++;
-        }
-      } else {
-        imagesFailed++;
-        await logSystemEvent({
-          level: "INFO",
-          source: "images.acquire",
-          message: `No image acquired for source item ${createdItem.id}: ${acquisition.reason}`,
-          context: { sourceItemId: createdItem.id, sourceUrl: createdItem.sourceUrl },
-        });
-      }
-    } catch (err) {
-      imagesFailed++;
-      const message = err instanceof Error ? err.message : String(err);
-      await logSystemEvent({
-        level: "WARN",
-        source: "images.acquire",
-        message: `Image acquisition threw unexpectedly for source item ${createdItem.id}: ${message}`,
-        context: { sourceItemId: createdItem.id, sourceUrl: createdItem.sourceUrl },
-      });
-    }
+    // Images are deliberately NOT acquired here. Doing so ran acquisition
+    // for every ingested item (~1,900/day) when only a handful ever become
+    // articles — 1,975 of 1,999 stored images were attached to no article,
+    // which is what exhausted the blob store's quota and broke every image
+    // on the site. Acquisition now runs lazily, in featuredImageFieldsFor,
+    // at the moment an item actually becomes an article.
 
     const clusterBefore = await prisma.storyCluster.findUniqueOrThrow({
       where: { id: clusterId },
@@ -215,7 +173,7 @@ export async function processIngestedItems(source: Source, items: ParsedFeedItem
     created++;
   }
 
-  return { created, skippedExisting, deprioritizedNonTech, imagesAcquired, imagesNeedingReview, imagesFailed };
+  return { created, skippedExisting, deprioritizedNonTech };
 }
 
 /**
@@ -279,9 +237,6 @@ export async function ingestSource(sourceId: string, requestedById: string): Pro
       itemsCreated: stats.created,
       itemsSkippedExisting: stats.skippedExisting,
       itemsDeprioritizedNonTech: stats.deprioritizedNonTech,
-      imagesAcquired: stats.imagesAcquired,
-      imagesNeedingReview: stats.imagesNeedingReview,
-      imagesFailed: stats.imagesFailed,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

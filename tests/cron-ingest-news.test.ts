@@ -103,9 +103,6 @@ describe("GET /api/cron/ingest-news", () => {
       itemsCreated: 0,
       itemsSkippedExisting: 0,
       itemsDeprioritizedNonTech: 0,
-      imagesAcquired: 0,
-      imagesNeedingReview: 0,
-      imagesFailed: 0,
     });
   });
 

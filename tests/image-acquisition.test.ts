@@ -16,6 +16,8 @@ vi.mock("../lib/media/storage", () => ({
 }));
 
 const { acquireImageForSourceItem } = await import("../lib/images/acquire");
+const { featuredImageFieldsFor } = await import("../lib/images/featured-image");
+const { isPublishableReuseStatus } = await import("../lib/publication-checks");
 const { clearRobotsCache } = await import("../lib/ingestion/robots");
 const { prisma } = await import("../lib/prisma");
 const { getSystemUserId } = await import("../lib/system-actor");
@@ -242,33 +244,79 @@ describe("acquireImageForSourceItem", () => {
   });
 });
 
-describe("acquireImageForSourceItem — licence gate before storage", () => {
-  it("stores nothing when the source page carries no reuse grant", async () => {
-    // The behaviour this replaces stored every candidate and marked it
-    // REQUIRES_REVIEW for later approval. In production that filled the
-    // blob store with images that could never be published — 1,884 of
-    // 1,999 stored files, 98.8% attached to no article — until the store
-    // was suspended and every image on the live site started 403ing.
+describe("acquireImageForSourceItem — reuse status decides publishability, not storage", () => {
+  it("stores an unlicensed image as REQUIRES_REVIEW rather than discarding it", async () => {
+    // Blocking storage outright here was tried and reverted: it starved the
+    // editor review queue, so every new article published with no image at
+    // all. Storing it is safe because reuseStatus, not the presence of the
+    // row, is what gates publication — see the featuredImageFieldsFor test
+    // below and the image-rights publication check.
     const item = await makeSourceItem("https://news.example.com/story/unlicensed");
     safeFetchMock.mockImplementation(async (url: string) =>
       url.endsWith("/robots.txt")
         ? notFoundText()
         : okText(`<meta property="og:image" content="https://cdn.example.com/copyrighted.jpg">`),
     );
-    safeFetchBinaryMock.mockResolvedValue(okBytes(buildMinimalJpeg(1200, 675), "https://cdn.example.com/copyrighted.jpg"));
+    safeFetchBinaryMock.mockResolvedValue(okBytes(buildMinimalJpeg(1216, 684), "https://cdn.example.com/copyrighted.jpg"));
+    saveUploadMock.mockResolvedValue({ url: "https://blob.example/stored/unlicensed.jpg" });
 
-    const before = await prisma.media.count();
     const result = await acquireImageForSourceItem({ id: item.id, sourceUrl: item.sourceUrl, headline: item.headline });
 
-    expect(result.ok).toBe(false);
-    expect(result.reason).toMatch(/licence does not permit reuse/i);
-    expect(result.mediaId).toBeUndefined();
+    expect(result.ok).toBe(true);
+    createdMediaIds.push(result.mediaId!);
+    expect(result.reuseStatus).toBe("REQUIRES_REVIEW");
 
-    // The important assertions: no upload, no row, no bandwidth spent on
-    // downloading a candidate we were never allowed to use.
-    expect(saveUploadMock).not.toHaveBeenCalled();
-    expect(safeFetchBinaryMock).not.toHaveBeenCalled();
-    expect(await prisma.media.count()).toBe(before);
+    // Stored, but honestly marked — never silently upgraded to publishable.
+    const media = await prisma.media.findUniqueOrThrow({ where: { id: result.mediaId! } });
+    expect(isPublishableReuseStatus(media.reuseStatus)).toBe(false);
+  });
+
+  it("does not expose a REQUIRES_REVIEW image as an article's rendered featured image", async () => {
+    // The actual safety boundary: featuredMediaId is set so an editor sees
+    // "found, needs review", but featuredImageUrl — the field the public
+    // site renders — stays null until a human clears the image.
+    const item = await makeSourceItem("https://news.example.com/story/needs-review");
+    safeFetchMock.mockImplementation(async (url: string) =>
+      url.endsWith("/robots.txt")
+        ? notFoundText()
+        : okText(`<meta property="og:image" content="https://cdn.example.com/review.jpg">`),
+    );
+    safeFetchBinaryMock.mockResolvedValue(okBytes(buildMinimalJpeg(1013, 607), "https://cdn.example.com/review.jpg"));
+    saveUploadMock.mockResolvedValue({ url: "https://blob.example/stored/review.jpg" });
+
+    const acquired = await acquireImageForSourceItem({ id: item.id, sourceUrl: item.sourceUrl, headline: item.headline });
+    createdMediaIds.push(acquired.mediaId!);
+
+    const fields = await featuredImageFieldsFor(item.id);
+    expect(fields.featuredMediaId).toBe(acquired.mediaId);
+    expect(fields.featuredImageUrl).toBeNull();
+    expect(fields.featuredImageAlt).toBeNull();
+  });
+
+  it("acquires lazily — featuredImageFieldsFor fetches an image that ingestion never stored", async () => {
+    // Acquisition no longer runs for every ingested item; it runs when an
+    // item genuinely becomes an article. So a source item with no Media row
+    // must still end up with an image at conversion time.
+    const item = await makeSourceItem("https://news.example.com/story/lazy");
+    safeFetchMock.mockImplementation(async (url: string) =>
+      url.endsWith("/robots.txt")
+        ? notFoundText()
+        : okText(
+            `<link rel="license" href="https://creativecommons.org/licenses/by/4.0/">
+             <meta property="og:image" content="https://cdn.example.com/lazy.jpg">`,
+          ),
+    );
+    safeFetchBinaryMock.mockResolvedValue(okBytes(buildMinimalJpeg(1400, 800), "https://cdn.example.com/lazy.jpg"));
+    saveUploadMock.mockResolvedValue({ url: "https://blob.example/stored/lazy.jpg" });
+
+    expect(await prisma.media.count({ where: { sourceItemId: item.id } })).toBe(0);
+
+    const fields = await featuredImageFieldsFor(item.id);
+
+    expect(fields.featuredMediaId).toBeTruthy();
+    createdMediaIds.push(fields.featuredMediaId!);
+    // A real CC grant, so this one is publishable and does render.
+    expect(fields.featuredImageUrl).toBe("https://blob.example/stored/lazy.jpg");
   });
 
   it("still stores when an explicit Creative Commons grant is present", async () => {

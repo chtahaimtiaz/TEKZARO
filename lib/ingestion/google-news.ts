@@ -110,9 +110,6 @@ export async function ingestGoogleNewsSource(sourceId: string, requestedById: st
     itemsCreated: 0,
     itemsSkippedExisting: 0,
     itemsDeprioritizedNonTech: 0,
-    imagesAcquired: 0,
-    imagesNeedingReview: 0,
-    imagesFailed: 0,
     error,
   });
 
@@ -168,9 +165,6 @@ export async function ingestGoogleNewsSource(sourceId: string, requestedById: st
       itemsCreated: stats.created,
       itemsSkippedExisting: stats.skippedExisting,
       itemsDeprioritizedNonTech: stats.deprioritizedNonTech,
-      imagesAcquired: stats.imagesAcquired,
-      imagesNeedingReview: stats.imagesNeedingReview,
-      imagesFailed: stats.imagesFailed,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

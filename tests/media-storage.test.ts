@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { readdir, rm } from "node:fs/promises";
 import path from "node:path";
 import {
@@ -14,11 +14,42 @@ import {
 const UPLOADS_ROOT = path.join(process.cwd(), "public", "uploads");
 const savedUrls: string[] = [];
 
+// This suite exercises the LOCAL disk adapter specifically, so it pins the
+// provider instead of inheriting whatever the ambient environment sets.
+// Without this a developer .env carrying STORAGE_PROVIDER=r2 silently
+// redirects these tests at the real production bucket — they then fail on
+// the URL-shape assertions, but only after having written junk objects into
+// it. Tests that touch storage must name the adapter they mean.
+const STORAGE_ENV = [
+  "STORAGE_PROVIDER",
+  "R2_ACCOUNT_ID",
+  "R2_ACCESS_KEY_ID",
+  "R2_SECRET_ACCESS_KEY",
+  "R2_BUCKET",
+  "R2_PUBLIC_BASE_URL",
+  "BLOB_READ_WRITE_TOKEN",
+] as const;
+const savedEnv: Record<string, string | undefined> = {};
+
+beforeEach(() => {
+  for (const k of STORAGE_ENV) {
+    savedEnv[k] = process.env[k];
+    delete process.env[k];
+  }
+  process.env.STORAGE_PROVIDER = "local";
+});
+
 afterEach(async () => {
+  // Cleanup runs while the local provider is still pinned, so deleteUpload
+  // targets the same adapter that wrote the file.
   for (const url of savedUrls) {
     await deleteUpload(url);
   }
   savedUrls.length = 0;
+  for (const k of STORAGE_ENV) {
+    if (savedEnv[k] === undefined) delete process.env[k];
+    else process.env[k] = savedEnv[k];
+  }
 });
 
 function makeFile(name: string, type: string, bytes: number): File {

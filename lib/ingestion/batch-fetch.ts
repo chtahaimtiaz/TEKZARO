@@ -29,9 +29,6 @@ export interface BatchIngestionSummary {
   itemsCreated: number;
   itemsSkippedExisting: number;
   itemsDeprioritizedNonTech: number;
-  imagesAcquired: number;
-  imagesNeedingReview: number;
-  imagesFailed: number;
   /** Per-source outcome, for admin-facing "which ones failed and why" —
    * the cron route ignores this and only logs the aggregate; the admin
    * action surfaces it directly. */
@@ -56,9 +53,6 @@ export async function runBatchIngestion(
   let itemsCreated = 0;
   let itemsSkippedExisting = 0;
   let itemsDeprioritizedNonTech = 0;
-  let imagesAcquired = 0;
-  let imagesNeedingReview = 0;
-  let imagesFailed = 0;
   let sourcesFailed = 0;
   const perSource: BatchIngestionSummary["perSource"] = [];
 
@@ -72,9 +66,6 @@ export async function runBatchIngestion(
         itemsCreated += result.itemsCreated;
         itemsSkippedExisting += result.itemsSkippedExisting;
         itemsDeprioritizedNonTech += result.itemsDeprioritizedNonTech;
-        imagesAcquired += result.imagesAcquired;
-        imagesNeedingReview += result.imagesNeedingReview;
-        imagesFailed += result.imagesFailed;
         perSource.push({ sourceId: source.id, name: source.name, ok: true });
       } else {
         sourcesFailed++;
@@ -95,9 +86,6 @@ export async function runBatchIngestion(
     itemsCreated,
     itemsSkippedExisting,
     itemsDeprioritizedNonTech,
-    imagesAcquired,
-    imagesNeedingReview,
-    imagesFailed,
     perSource,
   };
 }
