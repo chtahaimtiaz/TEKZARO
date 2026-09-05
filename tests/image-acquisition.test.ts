@@ -63,7 +63,7 @@ describe("acquireImageForSourceItem", () => {
   it("acquires the best-ranked candidate, stores it, and records full provenance", async () => {
     const item = await makeSourceItem("https://news.example.com/story/full-provenance");
     safeFetchMock.mockImplementation(async (url: string) =>
-      url.endsWith("/robots.txt") ? notFoundText() : okText(`<meta property="og:image" content="https://cdn.example.com/hero.jpg">`),
+      url.endsWith("/robots.txt") ? notFoundText() : okText(`<link rel="license" href="https://creativecommons.org/licenses/by/4.0/"><meta property="og:image" content="https://cdn.example.com/hero.jpg">`),
     );
     safeFetchBinaryMock.mockResolvedValue(okBytes(buildMinimalJpeg(1200, 675), "https://cdn.example.com/hero.jpg"));
     saveUploadMock.mockResolvedValue({ url: "https://blob.example/stored/hero.jpg" });
@@ -80,9 +80,10 @@ describe("acquireImageForSourceItem", () => {
     expect(media.sourceArticleUrl).toBe(item.sourceUrl);
     expect(media.sourceDomain).toBe("news.example.com");
     expect(media.contentHash).toMatch(/^[0-9a-f]{64}$/);
-    // No license info on the page — must land in REQUIRES_REVIEW, never
-    // auto-publishable. This is the core of the Non-negotiable invariant.
-    expect(media.reuseStatus).toBe("REQUIRES_REVIEW");
+    // The page carries an explicit CC grant, so the image is storable and
+    // publishable. An unlicensed page is covered by its own test below,
+    // where nothing is stored at all.
+    expect(media.reuseStatus).toBe("LICENSED");
     expect(media.selectionScore).toBeGreaterThan(0);
     expect(media.selectionReasons).toBeTruthy();
     expect(media.width).toBe(1200);
@@ -122,7 +123,7 @@ describe("acquireImageForSourceItem", () => {
       url.endsWith("/robots.txt")
         ? notFoundText()
         : okText(
-            `<meta property="og:image" content="https://cdn.example.com/top-pick.jpg">
+            `<link rel="license" href="https://creativecommons.org/licenses/by/4.0/"><meta property="og:image" content="https://cdn.example.com/top-pick.jpg">
              <img src="https://cdn.example.com/fallback-pick.jpg" alt="fallback" width="800" height="450">`,
           ),
     );
@@ -151,7 +152,7 @@ describe("acquireImageForSourceItem", () => {
       url.endsWith("/robots.txt")
         ? notFoundText()
         : okText(
-            `<meta property="og:image" content="https://cdn.example.com/not-an-image.jpg">
+            `<link rel="license" href="https://creativecommons.org/licenses/by/4.0/"><meta property="og:image" content="https://cdn.example.com/not-an-image.jpg">
              <img src="https://cdn.example.com/real-photo.jpg" alt="real" width="640" height="360">`,
           ),
     );
@@ -190,7 +191,7 @@ describe("acquireImageForSourceItem", () => {
 
     const item = await makeSourceItem("https://news.example.com/story/dedup");
     safeFetchMock.mockImplementation(async (url: string) =>
-      url.endsWith("/robots.txt") ? notFoundText() : okText(`<meta property="og:image" content="https://cdn.example.com/dup.jpg">`),
+      url.endsWith("/robots.txt") ? notFoundText() : okText(`<link rel="license" href="https://creativecommons.org/licenses/by/4.0/"><meta property="og:image" content="https://cdn.example.com/dup.jpg">`),
     );
     safeFetchBinaryMock.mockResolvedValue(okBytes(bytes, "https://cdn.example.com/dup.jpg"));
 
@@ -238,5 +239,55 @@ describe("acquireImageForSourceItem", () => {
     await expect(
       acquireImageForSourceItem({ id: item.id, sourceUrl: item.sourceUrl, headline: item.headline }),
     ).resolves.toEqual(expect.objectContaining({ ok: false }));
+  });
+});
+
+describe("acquireImageForSourceItem — licence gate before storage", () => {
+  it("stores nothing when the source page carries no reuse grant", async () => {
+    // The behaviour this replaces stored every candidate and marked it
+    // REQUIRES_REVIEW for later approval. In production that filled the
+    // blob store with images that could never be published — 1,884 of
+    // 1,999 stored files, 98.8% attached to no article — until the store
+    // was suspended and every image on the live site started 403ing.
+    const item = await makeSourceItem("https://news.example.com/story/unlicensed");
+    safeFetchMock.mockImplementation(async (url: string) =>
+      url.endsWith("/robots.txt")
+        ? notFoundText()
+        : okText(`<meta property="og:image" content="https://cdn.example.com/copyrighted.jpg">`),
+    );
+    safeFetchBinaryMock.mockResolvedValue(okBytes(buildMinimalJpeg(1200, 675), "https://cdn.example.com/copyrighted.jpg"));
+
+    const before = await prisma.media.count();
+    const result = await acquireImageForSourceItem({ id: item.id, sourceUrl: item.sourceUrl, headline: item.headline });
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toMatch(/licence does not permit reuse/i);
+    expect(result.mediaId).toBeUndefined();
+
+    // The important assertions: no upload, no row, no bandwidth spent on
+    // downloading a candidate we were never allowed to use.
+    expect(saveUploadMock).not.toHaveBeenCalled();
+    expect(safeFetchBinaryMock).not.toHaveBeenCalled();
+    expect(await prisma.media.count()).toBe(before);
+  });
+
+  it("still stores when an explicit Creative Commons grant is present", async () => {
+    const item = await makeSourceItem("https://news.example.com/story/cc-grant");
+    safeFetchMock.mockImplementation(async (url: string) =>
+      url.endsWith("/robots.txt")
+        ? notFoundText()
+        : okText(
+            `<link rel="license" href="https://creativecommons.org/licenses/by-sa/4.0/">
+             <meta property="og:image" content="https://cdn.example.com/cc.jpg">`,
+          ),
+    );
+    safeFetchBinaryMock.mockResolvedValue(okBytes(buildMinimalJpeg(900, 600), "https://cdn.example.com/cc.jpg"));
+    saveUploadMock.mockResolvedValue({ url: "https://blob.example/stored/cc.jpg" });
+
+    const result = await acquireImageForSourceItem({ id: item.id, sourceUrl: item.sourceUrl, headline: item.headline });
+    expect(result.ok).toBe(true);
+    createdMediaIds.push(result.mediaId!);
+    expect(result.reuseStatus).toBe("LICENSED");
+    expect(saveUploadMock).toHaveBeenCalled();
   });
 });

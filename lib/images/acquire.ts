@@ -10,6 +10,7 @@ import { rankImageCandidates } from "./filter-rank";
 import { evaluateReuseStatus } from "./rights";
 import { sniffImage, type SniffedImage } from "./sniff";
 import type { Prisma, ImageReuseStatus } from "@prisma/client";
+import { isPublishableReuseStatus } from "../publication-checks";
 
 const MIME_BY_FORMAT: Record<SniffedImage["format"], string> = {
   jpeg: "image/jpeg",
@@ -89,6 +90,29 @@ export async function acquireImageForSourceItem(item: AcquireImageInput): Promis
     }
 
     const rights = evaluateReuseStatus(page.text);
+
+    // Nothing is downloaded or stored unless the licence actually permits
+    // reuse. Rights are known from the source page before any candidate is
+    // fetched, so a page we could never publish from costs no bandwidth and
+    // no storage.
+    //
+    // This previously stored every candidate regardless, marking non-CC
+    // ones REQUIRES_REVIEW for an editor to approve later. In practice that
+    // filled the blob store with material that could not be used: of 1,999
+    // stored images, 1,884 were REQUIRES_REVIEW and 1,975 were attached to
+    // no article at all — 98.8% waste, at roughly 359 new files a day,
+    // which is what suspended the store and broke every image on the site.
+    // An editor can still upload an image by hand; what is removed is the
+    // automatic hoarding of images the licence forbids us from publishing.
+    // isPublishableReuseStatus is the same predicate the publication gate
+    // uses, so "worth storing" and "allowed to publish" can never drift
+    // apart into storing things that could never ship.
+    if (!isPublishableReuseStatus(rights.status)) {
+      return await finish({
+        ok: false,
+        reason: `Source page licence does not permit reuse (${rights.status}) — no image stored. ${rights.notes ?? ""}`.trim(),
+      });
+    }
 
     for (const { candidate, score, reasons } of ranked) {
       const entry: CandidateAuditEntry = {
