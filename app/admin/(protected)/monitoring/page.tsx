@@ -26,7 +26,7 @@ const INTEGRATIONS = [
   {
     name: "Media uploads",
     detail: "Editor image uploads and automated image acquisition storage",
-    envVar: "STORAGE_PROVIDER + BLOB_READ_WRITE_TOKEN (or local disk in dev)",
+    envVar: "STORAGE_PROVIDER=r2 + R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_BUCKET / R2_PUBLIC_BASE_URL (or local disk in dev)",
     check: isMediaUploadAvailable,
   },
   {
