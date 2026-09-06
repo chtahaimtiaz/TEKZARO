@@ -1,8 +1,90 @@
 import "server-only";
 import { prisma } from "../prisma";
 import { isPublishableReuseStatus } from "../publication-checks";
-import { acquireImageForSourceItem } from "./acquire";
+import { acquireImageForSourceItem, type AcquisitionOutcome } from "./acquire";
 import { logSystemEvent } from "../monitoring";
+import type { ImageReuseStatus } from "@prisma/client";
+
+export interface FeaturedImageFields {
+  featuredMediaId?: string;
+  featuredImageUrl?: string | null;
+  featuredImageAlt?: string | null;
+  featuredImageCredit?: string | null;
+}
+
+export interface FeaturedImageDiagnostics {
+  fields: FeaturedImageFields;
+  /** null when a Media row already existed (nothing was attempted this
+   * call — see featuredImageFieldsFor's own idempotency note) or the item
+   * had no sourceUrl to try at all. */
+  outcome: AcquisitionOutcome | null;
+  reuseStatus: ImageReuseStatus | null;
+  latencyMs: number;
+}
+
+/**
+ * Same acquisition lookup as featuredImageFieldsFor, but also returns *why*
+ * — the raw acquisition outcome, the resulting reuse status, and how long it
+ * took. Callers that only need the Prisma-column fields (createDraftFromItemAction,
+ * lib/cluster-actions.ts) keep using featuredImageFieldsFor unchanged below;
+ * this is for callers that also want to record what happened, e.g. onto
+ * GenerationMetric's image* columns.
+ */
+export async function featuredImageFieldsWithDiagnostics(sourceItemId: string): Promise<FeaturedImageDiagnostics> {
+  const t0 = Date.now();
+  let media = await prisma.media.findFirst({
+    where: { sourceItemId },
+    orderBy: { createdAt: "desc" },
+  });
+  let outcome: AcquisitionOutcome | null = null;
+
+  if (!media) {
+    try {
+      const item = await prisma.sourceItem.findUnique({
+        where: { id: sourceItemId },
+        select: { id: true, sourceUrl: true, headline: true, imageUrl: true },
+      });
+      if (item?.sourceUrl) {
+        const acquisition = await acquireImageForSourceItem({ ...item, feedImageUrl: item.imageUrl });
+        outcome = acquisition.outcome ?? (acquisition.ok ? "ATTACHED" : "ERROR");
+        if (acquisition.ok) {
+          media = await prisma.media.findFirst({ where: { sourceItemId }, orderBy: { createdAt: "desc" } });
+        } else {
+          await logSystemEvent({
+            level: "INFO",
+            source: "images.acquire",
+            message: `No image acquired for source item ${sourceItemId}: ${acquisition.reason}`,
+            context: { sourceItemId, sourceUrl: item.sourceUrl },
+          });
+        }
+      }
+    } catch (err) {
+      outcome = "ERROR";
+      await logSystemEvent({
+        level: "WARN",
+        source: "images.acquire",
+        message: `Image acquisition threw unexpectedly for source item ${sourceItemId}: ${err instanceof Error ? err.message : String(err)}`,
+        context: { sourceItemId },
+      });
+    }
+  }
+
+  const latencyMs = Date.now() - t0;
+  if (!media) return { fields: {}, outcome, reuseStatus: null, latencyMs };
+
+  const publishable = isPublishableReuseStatus(media.reuseStatus);
+  return {
+    fields: {
+      featuredMediaId: media.id,
+      featuredImageUrl: publishable ? media.url : null,
+      featuredImageAlt: publishable ? media.altText : null,
+      featuredImageCredit: publishable ? (media.credit ?? media.sourceDomain ?? null) : null,
+    },
+    outcome,
+    reuseStatus: media.reuseStatus,
+    latencyMs,
+  };
+}
 
 /** Builds the featured-image fields for a new draft from whatever image
  * lib/images/acquire.ts found for a source item, if any. Shared by
@@ -22,57 +104,13 @@ import { logSystemEvent } from "../monitoring";
  * featuredImageUrl — the actual rendering field — is only populated when
  * the linked Media's reuseStatus is honestly publishable. Never throws; a
  * missing/absent image just yields no image fields, exactly like today's
- * pre-acquisition behavior. */
-export async function featuredImageFieldsFor(sourceItemId: string) {
-  let media = await prisma.media.findFirst({
-    where: { sourceItemId },
-    orderBy: { createdAt: "desc" },
-  });
-
-  if (!media) {
-    // Isolated exactly as the old ingest-time call site was: an image
-    // problem (bad HTML, unreachable host, no usable candidate, storage
-    // failure) must never abort the conversion this is part of.
-    // acquireImageForSourceItem already never throws; this is
-    // defense-in-depth on top of that.
-    try {
-      const item = await prisma.sourceItem.findUnique({
-        where: { id: sourceItemId },
-        // imageUrl is the publisher's own feed image. Passing it is what
-        // lets acquisition succeed when the article page is unreachable,
-        // which is the majority case.
-        select: { id: true, sourceUrl: true, headline: true, imageUrl: true },
-      });
-      if (item?.sourceUrl) {
-        const acquisition = await acquireImageForSourceItem({ ...item, feedImageUrl: item.imageUrl });
-        if (acquisition.ok) {
-          media = await prisma.media.findFirst({ where: { sourceItemId }, orderBy: { createdAt: "desc" } });
-        } else {
-          await logSystemEvent({
-            level: "INFO",
-            source: "images.acquire",
-            message: `No image acquired for source item ${sourceItemId}: ${acquisition.reason}`,
-            context: { sourceItemId, sourceUrl: item.sourceUrl },
-          });
-        }
-      }
-    } catch (err) {
-      await logSystemEvent({
-        level: "WARN",
-        source: "images.acquire",
-        message: `Image acquisition threw unexpectedly for source item ${sourceItemId}: ${err instanceof Error ? err.message : String(err)}`,
-        context: { sourceItemId },
-      });
-    }
-  }
-
-  if (!media) return {};
-
-  const publishable = isPublishableReuseStatus(media.reuseStatus);
-  return {
-    featuredMediaId: media.id,
-    featuredImageUrl: publishable ? media.url : null,
-    featuredImageAlt: publishable ? media.altText : null,
-    featuredImageCredit: publishable ? (media.credit ?? media.sourceDomain ?? null) : null,
-  };
+ * pre-acquisition behavior.
+ *
+ * A thin wrapper over featuredImageFieldsWithDiagnostics, kept so every
+ * existing caller's `...featuredImageFieldsFor(id)` spread into a Prisma
+ * `data:` object keeps working unchanged — adding diagnostic keys directly
+ * to this return value would break those calls the moment Prisma saw an
+ * unrecognised column. */
+export async function featuredImageFieldsFor(sourceItemId: string): Promise<FeaturedImageFields> {
+  return (await featuredImageFieldsWithDiagnostics(sourceItemId)).fields;
 }

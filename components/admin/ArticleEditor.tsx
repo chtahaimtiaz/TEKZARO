@@ -6,6 +6,7 @@ import Link from "next/link";
 import { BlockEditor } from "./BlockEditor";
 import { PublicationChecklist } from "./PublicationChecklist";
 import { SuggestionsPanel } from "./SuggestionsPanel";
+import { ImproveArticleButton } from "./ImproveArticleButton";
 import { MediaUploadButton } from "./MediaUploadButton";
 import { ArticleMediaPicker } from "./ArticleMediaPicker";
 import { SocialPostPanel } from "./SocialPostPanel";
@@ -314,6 +315,13 @@ export function ArticleEditor({
             <p className="mb-2 text-sm font-bold">Publication checklist</p>
             <PublicationChecklist checks={checks} />
           </div>
+
+          {articleId && (
+            <div className="rounded-xl border border-border bg-paper-raised p-4">
+              <p className="mb-2 text-sm font-bold">AI assistance</p>
+              <ImproveArticleButton articleId={articleId} />
+            </div>
+          )}
 
           <SuggestionsPanel
             title={form.title}

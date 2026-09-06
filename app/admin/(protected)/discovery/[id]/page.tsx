@@ -6,6 +6,7 @@ import { CAN_VIEW_DISCOVERY, CAN_RESEARCH, CAN_CREATE_DRAFT_FROM_DISCOVERY } fro
 import { researchItemAction, saveReviewNoteAction, setDiscoveryStatusAction, createDraftFromItemAction } from "@/lib/discovery-actions";
 import { suggestPakistanImpactAction } from "@/lib/ai-actions";
 import { CreateDraftButton } from "@/components/admin/CreateDraftButton";
+import { WriteWithAIButton } from "@/components/admin/WriteWithAIButton";
 import { AIAssistPanel } from "@/components/admin/AIAssistPanel";
 import { formatDateTime } from "@/lib/format";
 
@@ -115,7 +116,18 @@ export default async function DiscoveryItemPage({ params }: { params: Promise<{ 
         </form>
       )}
 
-      <div className="mt-6 flex flex-wrap gap-3">
+      {canDraft && (
+        <div className="mt-6 rounded-xl border border-border bg-paper-raised p-4">
+          <p className="mb-3 text-sm font-bold">Write with AI</p>
+          <WriteWithAIButton
+            itemId={item.id}
+            existingArticleId={item.convertedArticleId}
+            initialAiStatus={item.aiStatus}
+          />
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-wrap gap-3">
         {canResearch && item.status === "NEW" && (
           <form action={researchItemAction.bind(null, item.id)}>
             <button type="submit" className="rounded-md border border-border-strong px-4 py-2.5 text-sm font-semibold hover:border-accent">
@@ -137,13 +149,8 @@ export default async function DiscoveryItemPage({ params }: { params: Promise<{ 
             </button>
           </form>
         )}
-        {canDraft && item.status !== "CONVERTED_TO_DRAFT" && (
-          <CreateDraftButton action={createDraftFromItemAction.bind(null, item.id)} />
-        )}
-        {item.status === "CONVERTED_TO_DRAFT" && item.convertedArticleId && (
-          <Link href={`/admin/articles/${item.convertedArticleId}`} className="rounded-md bg-ink px-4 py-2.5 text-sm font-semibold text-white hover:bg-ink-soft dark:text-paper">
-            Open draft →
-          </Link>
+        {canDraft && !item.convertedArticleId && (
+          <CreateDraftButton action={createDraftFromItemAction.bind(null, item.id)} label="Quick Draft (no AI verification)" />
         )}
       </div>
     </div>

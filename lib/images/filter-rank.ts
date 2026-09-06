@@ -24,6 +24,11 @@ const METADATA_SOURCE_POINTS: Record<ImageCandidate["metadataSource"], { points:
   og: { points: 30, reason: "Declared as the page's og:image" },
   jsonld: { points: 25, reason: "Declared in the article's structured data (JSON-LD) as its image" },
   twitter: { points: 20, reason: "Declared as the page's twitter:image" },
+  // Ranked above a bare img-tag: a <figure> wrapper is a deliberate
+  // "this illustrates the article" editorial signal, not an incidental
+  // <img> that happens to appear somewhere on the page (a related-content
+  // thumbnail, a UI icon).
+  figure: { points: 15, reason: "Appears inside a <figure> element in the article body" },
   "img-tag": { points: 8, reason: "Appears directly in the article body" },
 };
 

@@ -91,7 +91,12 @@ async function fetchAndExtract(url: string, isOriginating: boolean): Promise<Evi
   }
 }
 
-function classifyRichness(docs: EvidenceDocument[], totalChars: number): EvidenceRichness {
+/** Exported so a bundle reconstructed from persisted EvidenceRecord rows
+ * (lib/ai/improve-article.ts, rebuilding evidence for an existing article
+ * rather than gathering it fresh) classifies richness by the identical
+ * rule gatherEvidence itself uses — one definition, not two that could
+ * drift apart. */
+export function classifyRichness(docs: EvidenceDocument[], totalChars: number): EvidenceRichness {
   if (docs.length === 0 || totalChars < 800) return "THIN";
   const hasPrimary = docs.some((d) => isPrimaryRank(d.rank));
   if (docs.length >= 2 && hasPrimary && totalChars >= 6000) return "VERY_RICH";

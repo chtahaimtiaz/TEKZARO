@@ -5,10 +5,10 @@ vi.mock("../lib/ai/verify-and-synthesize", () => ({
   verifyAndSynthesize: verifyAndSynthesizeMock,
 }));
 
-const { processVerificationBatch, UNCATEGORIZED_CATEGORY_SLUG } = await import("../lib/verification-actions");
+const { processVerificationBatch, verifySourceItem, UNCATEGORIZED_CATEGORY_SLUG } = await import("../lib/verification-actions");
 const { prisma } = await import("../lib/prisma");
 const { getSystemUserId } = await import("../lib/system-actor");
-const { cleanupTestData } = await import("./helpers");
+const { cleanupTestData, createTestUser, trackUser } = await import("./helpers");
 
 const confirmedDraft = {
   headline: `Auto-publish gate test headline ${Date.now()}`,
@@ -540,5 +540,96 @@ describe("quality gate — additional publication gate", () => {
     expect(metric.sentToReview).toBe(false);
     expect(metric.autoPublished).toBe(false);
     expect(metric.rejectionReason).toMatch(/no source material/i);
+  });
+});
+
+describe("verifySourceItem — the single-item entry point behind Write with AI", () => {
+  it("processes a named item regardless of its DiscoveryStatus, unlike the NEW-only batch", async () => {
+    const category = await getUsableCategory();
+    await ensureAuthorExists();
+    const item = await makeSourceItem(category.id);
+    // Deliberately not NEW — processVerificationBatch's own query would
+    // never select this item at all.
+    await prisma.sourceItem.update({ where: { id: item.id }, data: { status: "VERIFIED" } });
+    const generationId = await makeGeneration();
+    createdGenerationIds.push(generationId);
+
+    verifyAndSynthesizeMock.mockResolvedValue({
+      verificationStatus: "PRIMARY_SOURCE_NOT_FOUND",
+      primarySourceUrl: null,
+      secondarySourceUrl: null,
+      verificationConfidence: 50,
+      claimsChecked: [],
+      notes: "ok",
+      draft: { ...confirmedDraft, headline: `Single-item test ${Date.now()}` },
+      originalityScore: 0,
+      generationId,
+      evidence: null,
+      retryCount: 0,
+    });
+
+    const editor = await createTestUser("EDITOR", "single-item-actor");
+    trackUser(editor.id);
+
+    const outcome = await verifySourceItem({ itemId: item.id, actorId: editor.id, triggerType: "write_with_ai" });
+    expect(outcome.ok).toBe(true);
+    createdArticleIds.push(outcome.articleId!);
+
+    const article = await prisma.article.findUniqueOrThrow({ where: { id: outcome.articleId! } });
+    // Attributed to the editor who clicked the button, not the SYSTEM actor
+    // the batch cron always uses — the real semantic difference between
+    // the two entry points sharing this same pipeline.
+    expect(article.createdById).toBe(editor.id);
+
+    const metric = await prisma.generationMetric.findUniqueOrThrow({ where: { generationId } });
+    expect(metric.triggerType).toBe("write_with_ai");
+  });
+
+  it("returns a not_found outcome for a nonexistent item instead of throwing", async () => {
+    const editor = await createTestUser("EDITOR", "single-item-missing");
+    trackUser(editor.id);
+    const outcome = await verifySourceItem({ itemId: "does-not-exist", actorId: editor.id, triggerType: "write_with_ai" });
+    expect(outcome.ok).toBe(false);
+    expect(outcome.skipReason).toBe("not_found");
+  });
+
+  it("creates a second, separate article when called again for an already-converted item — Generate New Version", async () => {
+    const category = await getUsableCategory();
+    await ensureAuthorExists();
+    const item = await makeSourceItem(category.id);
+    const editor = await createTestUser("EDITOR", "single-item-regenerate");
+    trackUser(editor.id);
+
+    const firstGenerationId = await makeGeneration();
+    createdGenerationIds.push(firstGenerationId);
+    verifyAndSynthesizeMock.mockResolvedValueOnce({
+      verificationStatus: "PRIMARY_SOURCE_NOT_FOUND", primarySourceUrl: null, secondarySourceUrl: null,
+      verificationConfidence: 40, claimsChecked: [], notes: "first pass",
+      draft: { ...confirmedDraft, headline: `Version one ${Date.now()}` },
+      originalityScore: 0, generationId: firstGenerationId, evidence: null, retryCount: 0,
+    });
+    const first = await verifySourceItem({ itemId: item.id, actorId: editor.id, triggerType: "write_with_ai" });
+    expect(first.ok).toBe(true);
+    createdArticleIds.push(first.articleId!);
+
+    const secondGenerationId = await makeGeneration();
+    createdGenerationIds.push(secondGenerationId);
+    verifyAndSynthesizeMock.mockResolvedValueOnce({
+      verificationStatus: "PRIMARY_SOURCE_NOT_FOUND", primarySourceUrl: null, secondarySourceUrl: null,
+      verificationConfidence: 60, claimsChecked: [], notes: "second pass",
+      draft: { ...confirmedDraft, headline: `Version two ${Date.now()}` },
+      originalityScore: 0, generationId: secondGenerationId, evidence: null, retryCount: 0,
+    });
+    const second = await verifySourceItem({ itemId: item.id, actorId: editor.id, triggerType: "write_with_ai" });
+    expect(second.ok).toBe(true);
+    createdArticleIds.push(second.articleId!);
+
+    expect(second.articleId).not.toBe(first.articleId);
+    const updatedItem = await prisma.sourceItem.findUniqueOrThrow({ where: { id: item.id } });
+    expect(updatedItem.convertedArticleId).toBe(second.articleId);
+    // The first article is untouched, not deleted — never silently discard
+    // editorial work already done on an earlier generation.
+    const firstArticleStillExists = await prisma.article.findUnique({ where: { id: first.articleId! } });
+    expect(firstArticleStillExists).not.toBeNull();
   });
 });

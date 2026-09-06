@@ -91,7 +91,9 @@ export function countHeadings(blocks: ContentBlock[]): number {
 
 export async function recordGenerationMetric(params: {
   generationId: string;
-  sourceItemId: string;
+  /** Null for a generation with no Discovery origin at all — e.g. an
+   * "Improve Article" pass on a manually authored article. */
+  sourceItemId: string | null;
   articleId: string | null;
   modelId: string;
   evidence: EvidenceBundle | null;
@@ -102,6 +104,21 @@ export async function recordGenerationMetric(params: {
   sentToReview: boolean;
   autoPublished: boolean;
   rejectionReason: string | null;
+  /** What triggered this generation — "batch_cron", "write_with_ai",
+   * "improve_article", etc. Defaults to "batch_cron" only because that
+   * matches the column's own DB default for pre-existing rows; every new
+   * caller should pass its own real value rather than rely on this. */
+  triggerType?: string;
+  /** Whether the Discovery item's OWN originating page was itself
+   * successfully extracted — distinct from the evidence bundle having ANY
+   * documents, since those could be entirely from other sources while the
+   * item's own page was blocked. Null when no evidence bundle exists at all
+   * (nothing was ever attempted). */
+  sourceExtractionSuccess?: boolean | null;
+  imageOutcome?: string | null;
+  imageStatus?: string | null;
+  imageFailureReason?: string | null;
+  imageLatencyMs?: number | null;
 }): Promise<void> {
   const docs = params.evidence?.documents ?? [];
   await prisma.generationMetric.create({
@@ -126,6 +143,12 @@ export async function recordGenerationMetric(params: {
       sentToReview: params.sentToReview,
       autoPublished: params.autoPublished,
       rejectionReason: params.rejectionReason,
+      ...(params.triggerType !== undefined ? { triggerType: params.triggerType } : {}),
+      sourceExtractionSuccess: params.sourceExtractionSuccess ?? null,
+      imageOutcome: params.imageOutcome ?? null,
+      imageStatus: params.imageStatus ?? null,
+      imageFailureReason: params.imageFailureReason ?? null,
+      imageLatencyMs: params.imageLatencyMs ?? null,
     },
   });
 }

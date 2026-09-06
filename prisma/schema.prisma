@@ -795,14 +795,27 @@ model GenerationMetric {
   articleId    String?      @unique
   article      Article?     @relation(fields: [articleId], references: [id], onDelete: SetNull)
 
-  modelId              String
-  sourceCount          Int     @default(0)
-  primarySourceCount   Int     @default(0)
-  secondarySourceCount Int     @default(0)
-  sourceCharCount      Int     @default(0)
-  articleWordCount     Int?
-  headingCount         Int?
-  evidenceRichness     String?
+  // What triggered this generation — an editor's "Write with AI" click on a
+  // Discovery item, the hourly batch cron, an "Improve Article" pass on an
+  // existing article, etc. Plain string rather than an enum: this is a
+  // label for observability queries, not a workflow state anything branches
+  // on, and the set of trigger points will keep growing.
+  triggerType String @default("batch_cron")
+
+  modelId                 String
+  sourceCount             Int      @default(0)
+  primarySourceCount      Int      @default(0)
+  secondarySourceCount    Int      @default(0)
+  sourceCharCount         Int      @default(0)
+  // Whether the Discovery item's OWN originating page (not just some other
+  // source in the bundle) was successfully extracted — the one signal that
+  // distinguishes "the story had good secondary sources but its own page
+  // was blocked" from "nothing at all was reachable", which is otherwise
+  // invisible once everything is flattened into a single evidence bundle.
+  sourceExtractionSuccess Boolean?
+  articleWordCount        Int?
+  headingCount            Int?
+  evidenceRichness        String?
 
   qualityScore    Float?
   qualityFailures Json?
@@ -811,6 +824,18 @@ model GenerationMetric {
   jsonParseOk Boolean @default(true)
   retryCount  Int     @default(0)
   latencyMs   Int     @default(0)
+
+  // Image pipeline outcome for this generation, kept alongside the article
+  // pipeline's own metrics rather than folded into a shared column — see
+  // lib/images/status.ts for how imageStatus (the reader-facing label:
+  // IMAGE_FOUND / IMAGE_LICENSE_UNKNOWN / IMAGE_LICENSE_VERIFIED /
+  // IMAGE_FETCH_FAILED / IMAGE_NOT_FOUND) is derived from imageOutcome (the
+  // raw AcquisitionOutcome) rather than stored as a second, potentially
+  // drifting source of truth.
+  imageOutcome       String?
+  imageStatus        String?
+  imageFailureReason String?
+  imageLatencyMs     Int?
 
   sentToReview    Boolean @default(false)
   autoPublished   Boolean @default(false)
@@ -821,6 +846,7 @@ model GenerationMetric {
   @@index([modelId])
   @@index([createdAt])
   @@index([evidenceRichness])
+  @@index([triggerType])
 }
 
 model Keyword {
