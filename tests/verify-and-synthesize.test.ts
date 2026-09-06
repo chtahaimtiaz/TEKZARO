@@ -103,7 +103,7 @@ describe("verifyAndSynthesize — search not configured", () => {
   });
 });
 
-describe("verifyAndSynthesize — configured, no TIER_1 domain match", () => {
+describe("verifyAndSynthesize — configured, no usable primary source", () => {
   it("forces PRIMARY_SOURCE_NOT_FOUND even if the model claims otherwise (deterministic override, no auto-confirm on self-report)", async () => {
     isSearchConfiguredMock.mockReturnValue(true);
     searchWebMock.mockResolvedValue([{ title: "Some report", url: "https://random-blog.test/story", snippet: "..." }]);
@@ -117,7 +117,9 @@ describe("verifyAndSynthesize — configured, no TIER_1 domain match", () => {
 
     const result = await verifyAndSynthesize({ requestedById: user.id, item: { ...item, source } });
 
-    expect(safeFetchMock).not.toHaveBeenCalled();
+    // An unrecognised domain can never be the primary source, however the
+    // model self-reports. Fetching still happens: the originating outlet's
+    // article is gathered as evidence regardless of what search returned.
     expect(result.verificationStatus).toBe("PRIMARY_SOURCE_NOT_FOUND");
     expect(result.primarySourceUrl).toBeNull();
     // A draft can still be produced for human review even without a
@@ -128,7 +130,7 @@ describe("verifyAndSynthesize — configured, no TIER_1 domain match", () => {
   it("excludes a candidate on the discovered item's own source domain, even if that domain is TIER_1", async () => {
     isSearchConfiguredMock.mockReturnValue(true);
     await makeTier1Source("https://self-outlet.test");
-    searchWebMock.mockResolvedValue([{ title: "Self report", url: "https://self-outlet.test/story", snippet: "..." }]);
+    searchWebMock.mockResolvedValue([{ title: "Self report", url: "https://self-outlet.test/press-release", snippet: "..." }]);
     generateWithAIMock.mockResolvedValue(
       JSON.stringify({ verificationStatus: "UNVERIFIED", notes: "No independent primary source.", draft: null }),
     );
@@ -139,12 +141,15 @@ describe("verifyAndSynthesize — configured, no TIER_1 domain match", () => {
 
     const result = await verifyAndSynthesize({ requestedById: user.id, item: { ...item, source } });
 
-    expect(safeFetchMock).not.toHaveBeenCalled();
+    // The candidate sits on the item's own domain, so it cannot corroborate
+    // the item — an outlet is never its own independent primary source, even
+    // when the URL would otherwise classify as a first-party announcement.
+    expect(result.primarySourceUrl).toBeNull();
     expect(result.verificationStatus).toBe("PRIMARY_SOURCE_NOT_FOUND");
   });
 });
 
-describe("verifyAndSynthesize — configured, TIER_1 domain match found", () => {
+describe("verifyAndSynthesize — configured, primary source available", () => {
   it("fetches the matched primary source and reflects the model's confirmation", async () => {
     isSearchConfiguredMock.mockReturnValue(true);
     await makeTier1Source("https://official-newsroom.test");
@@ -180,10 +185,10 @@ describe("verifyAndSynthesize — configured, TIER_1 domain match found", () => 
   it("also finds and fetches a TIER_2 secondary source, and passes verificationConfidence/claimsChecked through from the model", async () => {
     isSearchConfiguredMock.mockReturnValue(true);
     await makeTier1Source("https://official-newsroom.test");
-    await makeTier2Source("https://reputable-tech-media.test");
+    await makeTier2Source("https://techcrunch.com");
     searchWebMock.mockResolvedValue([
       { title: "Official statement", url: "https://official-newsroom.test/press-release", snippet: "..." },
-      { title: "Independent report", url: "https://reputable-tech-media.test/story", snippet: "..." },
+      { title: "Independent report", url: "https://techcrunch.com/2026/09/05/independent-report/", snippet: "..." },
     ]);
     safeFetchMock.mockImplementation(async (url: string) => ({
       status: 200,
@@ -208,9 +213,9 @@ describe("verifyAndSynthesize — configured, TIER_1 domain match found", () => 
     const result = await verifyAndSynthesize({ requestedById: user.id, item: { ...item, source } });
 
     expect(safeFetchMock).toHaveBeenCalledWith("https://official-newsroom.test/press-release");
-    expect(safeFetchMock).toHaveBeenCalledWith("https://reputable-tech-media.test/story");
+    expect(safeFetchMock).toHaveBeenCalledWith("https://techcrunch.com/2026/09/05/independent-report/");
     expect(result.verificationStatus).toBe("PRIMARY_SOURCE_CONFIRMED");
-    expect(result.secondarySourceUrl).toBe("https://reputable-tech-media.test/story");
+    expect(result.secondarySourceUrl).toBe("https://techcrunch.com/2026/09/05/independent-report/");
     expect(result.verificationConfidence).toBe(88);
     expect(result.claimsChecked).toEqual(["The company announced the product.", "It ships next month."]);
   });
@@ -218,15 +223,15 @@ describe("verifyAndSynthesize — configured, TIER_1 domain match found", () => 
   it("does not let a secondary source unlock PRIMARY_SOURCE_CONFIRMED on its own — primary is still required", async () => {
     isSearchConfiguredMock.mockReturnValue(true);
     // No TIER_1 source registered at all — only a TIER_2 secondary match exists.
-    await makeTier2Source("https://reputable-tech-media.test");
+    await makeTier2Source("https://techcrunch.com");
     searchWebMock.mockResolvedValue([
-      { title: "Independent report", url: "https://reputable-tech-media.test/story", snippet: "..." },
+      { title: "Independent report", url: "https://techcrunch.com/2026/09/05/independent-report/", snippet: "..." },
     ]);
     safeFetchMock.mockResolvedValue({
       status: 200,
       headers: new Headers(),
       text: "Independent report text. The company confirmed the details in a statement issued to reporters, describing the timeline, the parties involved, and the expected impact on customers in the region. The company confirmed the details in a statement issued to reporters, describing the timeline, the parties involved, and the expected impact on customers in the region. The company confirmed the details in a statement issued to reporters, describing the timeline, the parties involved, and the expected impact on customers in the region. The company confirmed the details in a statement issued to reporters, describing the timeline, the parties involved, and the expected impact on customers in the region. The company confirmed the details in a statement issued to reporters, describing the timeline, the parties involved, and the expected impact on customers in the region. The company confirmed the details in a statement issued to reporters, describing the timeline, the parties involved, and the expected impact on customers in the region. The company confirmed the details in a statement issued to reporters, describing the timeline, the parties involved, and the expected impact on customers in the region. ",
-      finalUrl: "https://reputable-tech-media.test/story",
+      finalUrl: "https://techcrunch.com/2026/09/05/independent-report/",
     });
     generateWithAIMock.mockResolvedValue(
       JSON.stringify({
@@ -244,7 +249,7 @@ describe("verifyAndSynthesize — configured, TIER_1 domain match found", () => 
 
     expect(result.verificationStatus).toBe("PRIMARY_SOURCE_NOT_FOUND");
     expect(result.primarySourceUrl).toBeNull();
-    expect(result.secondarySourceUrl).toBe("https://reputable-tech-media.test/story");
+    expect(result.secondarySourceUrl).toBe("https://techcrunch.com/2026/09/05/independent-report/");
   });
 
   it("treats an unreachable candidate as not-found rather than trusting a URL it never actually read", async () => {
@@ -316,9 +321,9 @@ describe("secondary-source drafting policy", () => {
     // withholding it removed an editor's option rather than protecting a
     // reader.
     isSearchConfiguredMock.mockReturnValue(true);
-    await makeTier2Source("https://reputable-tech-media.test");
+    await makeTier2Source("https://techcrunch.com");
     searchWebMock.mockResolvedValue([
-      { title: "Independent report", url: "https://reputable-tech-media.test/story", snippet: "..." },
+      { title: "Independent report", url: "https://techcrunch.com/2026/09/05/independent-report/", snippet: "..." },
     ]);
     safeFetchMock.mockImplementation(async (url: string) => ({
       status: 200,
@@ -346,7 +351,7 @@ describe("secondary-source drafting policy", () => {
 
     expect(result.draft).not.toBeNull();
     expect(result.verificationStatus).toBe("PRIMARY_SOURCE_NOT_FOUND");
-    expect(result.secondarySourceUrl).toBe("https://reputable-tech-media.test/story");
+    expect(result.secondarySourceUrl).toBe("https://techcrunch.com/2026/09/05/independent-report/");
     expect(result.primarySourceUrl).toBeNull();
   });
 
