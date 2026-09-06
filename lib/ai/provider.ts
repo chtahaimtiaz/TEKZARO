@@ -1,22 +1,35 @@
 import "server-only";
+import { SITE_NAME, siteUrl } from "../constants";
 
 export class AIProviderNotConfiguredError extends Error {
   constructor() {
     super(
-      "AI assistance is not configured. Set AI_API_KEY (Vercel AI Gateway), or CF_AI_GATEWAY_TOKEN + CF_AI_GATEWAY_ID (+ CF_AI_GATEWAY_ACCOUNT_ID, defaulting to R2_ACCOUNT_ID) for Cloudflare AI Gateway.",
+      "AI assistance is not configured. Set one of: OPENROUTER_API_KEY (OpenRouter), CF_AI_GATEWAY_TOKEN + CF_AI_GATEWAY_ID (Cloudflare AI Gateway), or AI_API_KEY (Vercel AI Gateway).",
     );
     this.name = "AIProviderNotConfiguredError";
   }
 }
 
-// Audit-log-friendly label — recorded verbatim on AIGeneration.model (see
-// lib/ai/tasks.ts's runTask). Kept separate from GATEWAY_MODEL below so
-// that display/audit trail stays a clean, provider-agnostic name even
-// though the real request needs the gateway's provider-prefixed form.
-export const AI_MODEL = "claude-sonnet-5";
+/**
+ * The model slug sent to the gateway, and the label recorded on
+ * AIGeneration.model for audit.
+ *
+ * Configurable because the three supported gateways are all
+ * OpenAI-compatible routers that address models by slug, and the useful
+ * slug differs by situation: "anthropic/claude-sonnet-5" is the intended
+ * production model, but a zero-cost slug (e.g. "minimax/minimax-m3:free"
+ * on OpenRouter) lets the whole pipeline be exercised end to end before any
+ * billing is set up. Changing it is one environment variable, not a deploy.
+ */
+export function aiModelId(): string {
+  return process.env.AI_MODEL_ID || "anthropic/claude-sonnet-5";
+}
 
-// Vercel AI Gateway's own model identifier convention: "<provider>/<model>".
-const GATEWAY_MODEL = "anthropic/claude-sonnet-5";
+/** Audit-log label — recorded verbatim on AIGeneration.model (see
+ * lib/ai/tasks.ts's runTask) so the audit trail always names the model that
+ * actually ran, including when a non-default one is configured. */
+export const AI_MODEL = aiModelId();
+
 
 /**
  * Which gateway to call, or null when none is configured.
@@ -33,6 +46,25 @@ const GATEWAY_MODEL = "anthropic/claude-sonnet-5";
  * HTTP 402 "Insufficient wholesale credits" until one of those exists.
  */
 function gatewayConfig(): { url: string; headers: Record<string, string>; label: string } | null {
+  // OpenRouter first: unlike the other two it is a model provider in its own
+  // right — the key both authenticates and pays — so when one is present it
+  // is unambiguously the intended route. The others are proxies that still
+  // need funding behind them.
+  const openRouterKey = process.env.OPENROUTER_API_KEY;
+  if (openRouterKey) {
+    return {
+      url: "https://openrouter.ai/api/v1/chat/completions",
+      headers: {
+        authorization: `Bearer ${openRouterKey}`,
+        // OpenRouter attributes traffic by these; both optional, and neither
+        // carries anything secret.
+        "http-referer": siteUrl(),
+        "x-title": SITE_NAME,
+      },
+      label: "openrouter",
+    };
+  }
+
   const cfToken = process.env.CF_AI_GATEWAY_TOKEN;
   // Falls back to the R2 account id: AI Gateway lives in the same Cloudflare
   // account, so requiring it to be re-entered would only invite a mismatch.
@@ -72,7 +104,7 @@ export function activeAIGateway(): string | null {
 /**
  * Calls Vercel AI Gateway's OpenAI-compatible chat-completions endpoint —
  * a single gateway in front of the actual model provider (Anthropic, via
- * GATEWAY_MODEL's "anthropic/" prefix), rather than Anthropic's API
+ * the model slug's "anthropic/" prefix), rather than Anthropic's API
  * directly. Deliberately not an SDK dependency (same reasoning as skipping
  * NextAuth in Phase 3: don't add an unverified package when a documented
  * HTTP API does the job). Throws AIProviderNotConfiguredError if
@@ -90,7 +122,7 @@ export async function generateWithAI(systemPrompt: string, userPrompt: string): 
       ...gateway.headers,
     },
     body: JSON.stringify({
-      model: GATEWAY_MODEL,
+      model: aiModelId(),
       max_tokens: 1024,
       messages: [
         { role: "system", content: systemPrompt },

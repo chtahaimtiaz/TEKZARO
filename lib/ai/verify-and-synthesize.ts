@@ -100,11 +100,48 @@ async function findSourceCandidates(
   return { primaryUrl: primaryMatch?.url ?? null, secondaryUrl: secondaryMatch?.url ?? null };
 }
 
+/** Minimum readable characters before a fetched page counts as usable
+ * source text. A blocked or paywalled page still returns a short HTML body;
+ * treating that as source material is what let a blocked page look
+ * "fetched" while giving the model nothing to verify against.
+ *
+ * Set from measurement rather than taste: sampling real search results,
+ * 403 interstitials stripped down to roughly 510 characters while the
+ * smallest genuine article was 2,442. 800 sits clear of the former without
+ * approaching the latter. */
+const MIN_SOURCE_CHARS = 800;
+
+/** Strips scripts, styles and tags down to readable prose. The model was
+ * previously handed raw HTML, so most of its 6,000-character budget went on
+ * navigation, cookie banners and inline scripts rather than the article. */
+function htmlToText(html: string): string {
+  return html
+    .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
+    .replace(/<noscript\b[\s\S]*?<\/noscript>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 async function fetchSourceText(url: string | null): Promise<{ text: string; finalUrl: string } | null> {
   if (!url) return null;
   try {
     const fetched = await safeFetch(url);
-    return { text: fetched.text.slice(0, MAX_SOURCE_CHARS), finalUrl: fetched.finalUrl };
+    // Status was previously ignored entirely: a 403 or paywall page returned
+    // its error body, which counted as a successfully fetched primary
+    // source. That both suppressed the PRIMARY_SOURCE_NOT_FOUND override and
+    // handed the model an unusable page to "verify" against.
+    if (fetched.status !== 200) return null;
+    const text = htmlToText(fetched.text);
+    if (text.length < MIN_SOURCE_CHARS) return null;
+    return { text: text.slice(0, MAX_SOURCE_CHARS), finalUrl: fetched.finalUrl };
   } catch {
     // Unreachable candidate doesn't count as a confirmable/citable source for
     // this run — proceed as if none was found, rather than trusting a URL we

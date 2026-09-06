@@ -153,7 +153,7 @@ describe("verifyAndSynthesize — configured, TIER_1 domain match found", () => 
     safeFetchMock.mockResolvedValue({
       status: 200,
       headers: new Headers(),
-      text: "Official statement text confirming the story.",
+      text: "Official statement text confirming the story. The company confirmed the details in a statement issued to reporters, describing the timeline, the parties involved, and the expected impact on customers in the region. The company confirmed the details in a statement issued to reporters, describing the timeline, the parties involved, and the expected impact on customers in the region. The company confirmed the details in a statement issued to reporters, describing the timeline, the parties involved, and the expected impact on customers in the region. The company confirmed the details in a statement issued to reporters, describing the timeline, the parties involved, and the expected impact on customers in the region. The company confirmed the details in a statement issued to reporters, describing the timeline, the parties involved, and the expected impact on customers in the region. The company confirmed the details in a statement issued to reporters, describing the timeline, the parties involved, and the expected impact on customers in the region. The company confirmed the details in a statement issued to reporters, describing the timeline, the parties involved, and the expected impact on customers in the region. ",
       finalUrl: "https://official-newsroom.test/press-release",
     });
     generateWithAIMock.mockResolvedValue(
@@ -187,7 +187,7 @@ describe("verifyAndSynthesize — configured, TIER_1 domain match found", () => 
     safeFetchMock.mockImplementation(async (url: string) => ({
       status: 200,
       headers: new Headers(),
-      text: `Text fetched from ${url}`,
+      text: `Text fetched from ${url}. ` + "The company confirmed the details in a statement issued to reporters, describing the timeline, the parties involved, and the expected impact on customers in the region. ".repeat(7),
       finalUrl: url,
     }));
     generateWithAIMock.mockResolvedValue(
@@ -224,7 +224,7 @@ describe("verifyAndSynthesize — configured, TIER_1 domain match found", () => 
     safeFetchMock.mockResolvedValue({
       status: 200,
       headers: new Headers(),
-      text: "Independent report text.",
+      text: "Independent report text. The company confirmed the details in a statement issued to reporters, describing the timeline, the parties involved, and the expected impact on customers in the region. The company confirmed the details in a statement issued to reporters, describing the timeline, the parties involved, and the expected impact on customers in the region. The company confirmed the details in a statement issued to reporters, describing the timeline, the parties involved, and the expected impact on customers in the region. The company confirmed the details in a statement issued to reporters, describing the timeline, the parties involved, and the expected impact on customers in the region. The company confirmed the details in a statement issued to reporters, describing the timeline, the parties involved, and the expected impact on customers in the region. The company confirmed the details in a statement issued to reporters, describing the timeline, the parties involved, and the expected impact on customers in the region. The company confirmed the details in a statement issued to reporters, describing the timeline, the parties involved, and the expected impact on customers in the region. ",
       finalUrl: "https://reputable-tech-media.test/story",
     });
     generateWithAIMock.mockResolvedValue(
