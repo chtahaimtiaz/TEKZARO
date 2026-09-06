@@ -1,4 +1,5 @@
 import "server-only";
+import { readEnvSecret } from "../env-secret";
 
 export class SearchProviderNotConfiguredError extends Error {
   constructor() {
@@ -14,7 +15,7 @@ export interface WebSearchResult {
 }
 
 export function isSearchConfigured(): boolean {
-  return Boolean(process.env.SEARCH_API_KEY);
+  return Boolean(readEnvSecret("SEARCH_API_KEY"));
 }
 
 interface TavilySearchResultItem {
@@ -38,7 +39,7 @@ interface TavilySearchResponse {
  * fabricate results.
  */
 export async function searchWeb(query: string): Promise<WebSearchResult[]> {
-  const apiKey = process.env.SEARCH_API_KEY;
+  const apiKey = readEnvSecret("SEARCH_API_KEY");
   if (!apiKey) throw new SearchProviderNotConfiguredError();
 
   const response = await fetch("https://api.tavily.com/search", {

@@ -1,6 +1,7 @@
 import "server-only";
 import nodemailer from "nodemailer";
 import { prisma } from "../prisma";
+import { readEnvSecret } from "../env-secret";
 
 export interface SendEmailInput {
   to: string;
@@ -20,7 +21,7 @@ export type SendEmailResult =
 let cachedTransporter: ReturnType<typeof nodemailer.createTransport> | null = null;
 
 function isResendConfigured(): boolean {
-  return Boolean(process.env.RESEND_API_KEY);
+  return Boolean(readEnvSecret("RESEND_API_KEY"));
 }
 
 function isSmtpConfigured(): boolean {
@@ -113,7 +114,7 @@ async function sendViaResend(input: SendEmailInput): Promise<SendAttempt> {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.RESEND_API_KEY!}`,
+      Authorization: `Bearer ${readEnvSecret("RESEND_API_KEY")!}`,
       "content-type": "application/json",
     },
     body: JSON.stringify({

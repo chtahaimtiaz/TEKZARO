@@ -1,5 +1,6 @@
 import "server-only";
 import { SITE_NAME, siteUrl } from "../constants";
+import { readEnvSecret } from "../env-secret";
 
 export class AIProviderNotConfiguredError extends Error {
   constructor() {
@@ -50,7 +51,7 @@ function gatewayConfig(): { url: string; headers: Record<string, string>; label:
   // right — the key both authenticates and pays — so when one is present it
   // is unambiguously the intended route. The others are proxies that still
   // need funding behind them.
-  const openRouterKey = process.env.OPENROUTER_API_KEY;
+  const openRouterKey = readEnvSecret("OPENROUTER_API_KEY");
   if (openRouterKey) {
     return {
       url: "https://openrouter.ai/api/v1/chat/completions",
@@ -65,7 +66,7 @@ function gatewayConfig(): { url: string; headers: Record<string, string>; label:
     };
   }
 
-  const cfToken = process.env.CF_AI_GATEWAY_TOKEN;
+  const cfToken = readEnvSecret("CF_AI_GATEWAY_TOKEN");
   // Falls back to the R2 account id: AI Gateway lives in the same Cloudflare
   // account, so requiring it to be re-entered would only invite a mismatch.
   const cfAccount = process.env.CF_AI_GATEWAY_ACCOUNT_ID || process.env.R2_ACCOUNT_ID;
@@ -78,7 +79,7 @@ function gatewayConfig(): { url: string; headers: Record<string, string>; label:
     };
   }
 
-  const vercelKey = process.env.AI_API_KEY;
+  const vercelKey = readEnvSecret("AI_API_KEY");
   if (vercelKey) {
     return {
       url: "https://ai-gateway.vercel.sh/v1/chat/completions",
