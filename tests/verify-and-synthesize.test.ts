@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
+import { readFileSync } from "node:fs";
 
 const isSearchConfiguredMock = vi.fn();
 const searchWebMock = vi.fn();
@@ -301,5 +302,61 @@ describe("verifyAndSynthesize — malformed AI output", () => {
 
     expect(result.verificationStatus).toBe("UNVERIFIED");
     expect(result.draft).toBeNull();
+  });
+});
+
+describe("secondary-source drafting policy", () => {
+  it("still returns a draft when only a secondary source could be read, marked PRIMARY_SOURCE_NOT_FOUND", async () => {
+    // The pipeline previously produced nothing at all for these stories: the
+    // model was told to null the draft without "enough material", and with
+    // only five TIER_1 hostnames in the source list a primary source is
+    // rarely found, so almost every item ended as "skipped (no draft)".
+    // Such a draft is routed to a human editor and can never auto-publish
+    // (see the auto-publish gate test in verification-actions.test.ts), so
+    // withholding it removed an editor's option rather than protecting a
+    // reader.
+    isSearchConfiguredMock.mockReturnValue(true);
+    await makeTier2Source("https://reputable-tech-media.test");
+    searchWebMock.mockResolvedValue([
+      { title: "Independent report", url: "https://reputable-tech-media.test/story", snippet: "..." },
+    ]);
+    safeFetchMock.mockImplementation(async (url: string) => ({
+      status: 200,
+      headers: new Headers(),
+      text:
+        `Report fetched from ${url}. ` +
+        "The company confirmed the details in a statement issued to reporters, describing the timeline, the parties involved, and the expected impact on customers in the region. ".repeat(7),
+      finalUrl: url,
+    }));
+    generateWithAIMock.mockResolvedValue(
+      JSON.stringify({
+        verificationStatus: "PRIMARY_SOURCE_NOT_FOUND",
+        verificationConfidence: 60,
+        claimsChecked: ["The company announced the product."],
+        notes: "Only an independent outlet's report was available; attributed throughout.",
+        draft: validDraft,
+      }),
+    );
+
+    const user = await createTestUser("EDITOR", "vs-secondary-draft");
+    trackUser(user.id);
+    const { source, item } = await makeSourceAndItem("https://example-outlet.test");
+
+    const result = await verifyAndSynthesize({ requestedById: user.id, item: { ...item, source } });
+
+    expect(result.draft).not.toBeNull();
+    expect(result.verificationStatus).toBe("PRIMARY_SOURCE_NOT_FOUND");
+    expect(result.secondarySourceUrl).toBe("https://reputable-tech-media.test/story");
+    expect(result.primarySourceUrl).toBeNull();
+  });
+
+  it("tells the model to draft on a secondary source and to attribute every claim", () => {
+    // The behaviour above depends on prompt wording that is easy to delete by
+    // accident, and its loss would be silent — the pipeline would simply stop
+    // producing drafts again, exactly as before.
+    const src = readFileSync("lib/ai/verify-and-synthesize.ts", "utf8");
+    expect(src).toMatch(/PRIMARY_SOURCE_NOT_FOUND"\. A draft in that state is routed to a human editor/);
+    expect(src).toMatch(/MUST attribute every substantive claim to the outlet that reported it/);
+    expect(src).toMatch(/MUST NOT introduce any detail, figure, name or date/);
   });
 });

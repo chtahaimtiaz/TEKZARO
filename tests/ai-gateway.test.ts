@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { isAIConfigured, activeAIGateway } from "../lib/ai/provider";
 
 const VARS = [
+  "OPENROUTER_API_KEY",
+  "AI_MODEL_ID",
   "AI_API_KEY",
   "CF_AI_GATEWAY_TOKEN",
   "CF_AI_GATEWAY_ID",

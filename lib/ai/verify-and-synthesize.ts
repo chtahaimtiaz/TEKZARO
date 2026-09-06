@@ -238,7 +238,8 @@ Rules:
 - Use "CONTRADICTION_FOUND" if any provided source's text contradicts the discovered claims.
 - Write ORIGINAL prose in TEKZARO's own voice for "draft". Never copy sentences verbatim from the source material provided — summarize and re-report, don't reproduce.
 - Include an inline attribution line naming where this was first reported and every official/independent source it was verified against (e.g. "According to Samsung's newsroom... TechCrunch first reported this development, and it was independently corroborated by The Verge").
-- Set "draft" to null if you don't have enough material to write a genuine, factual article.
+- Write the draft whenever you have usable material, and report its status honestly. If no primary source text was provided but a secondary source's text was — or the discovering outlet's own report carries real substance beyond a bare headline — still write the draft and set "verificationStatus" to "PRIMARY_SOURCE_NOT_FOUND". A draft in that state is routed to a human editor and can never be published automatically, so withholding it removes an editor's option rather than protecting a reader. Reserve "draft": null for genuinely unusable input: no source text at all and nothing but a headline.
+- When no primary source text was provided, the draft MUST attribute every substantive claim to the outlet that reported it ("TechCrunch reports that…", "According to ProPakistani…") rather than asserting it as independently established fact, and MUST NOT introduce any detail, figure, name or date that appears nowhere in the material provided to you.
 `.trim();
 
 export async function verifyAndSynthesize(params: {
