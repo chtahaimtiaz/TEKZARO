@@ -10,6 +10,7 @@ import { assertTransition, type TransitionName, WorkflowError } from "./workflow
 import { evaluatePublicationChecks } from "./publication-checks";
 import { ensureUniqueSlug, slugify } from "./slug";
 import { joinPakistanImpact, splitPakistanImpact, type ContentBlock } from "./content-blocks";
+import { canonicalizeInlineRichText } from "./editor/inline-rich-text";
 import { estimateReadingTime } from "./reading-time";
 import { logAction } from "./audit";
 import { notify } from "./notifications";
@@ -101,6 +102,23 @@ export interface ActionResult<T = undefined> {
 
 function nullable(value: string): string | null {
   return value.trim() ? value.trim() : null;
+}
+
+/**
+ * Canonicalizes inline formatting (**bold**, _italic_, [text](url)) in every
+ * text-bearing canvas block before persisting. The decoder's own href-scheme
+ * check (lib/editor/inline-rich-text.ts) is the actual safety boundary —
+ * this is defense in depth, so stored content can never depend on every
+ * future write path remembering to sanitize on its own.
+ */
+function sanitizeContentBlocks(blocks: ContentBlock[]): ContentBlock[] {
+  return blocks.map((b) => {
+    if (b.type === "paragraph" || b.type === "heading" || b.type === "quote") {
+      return { ...b, text: canonicalizeInlineRichText(b.text) };
+    }
+    if (b.type === "list") return { ...b, items: b.items.map(canonicalizeInlineRichText) };
+    return b;
+  });
 }
 
 async function syncTags(articleId: string, tagNames: string[]): Promise<void> {
@@ -228,7 +246,7 @@ export async function createArticleAction(raw: ArticleFormInput): Promise<Action
   if (!eligibility.ok) return { ok: false, error: eligibility.error };
 
   const slug = await ensureUniqueSlug(input.slug || input.title);
-  const blocks = joinPakistanImpact(input.blocks, input.pakistanImpact);
+  const blocks = joinPakistanImpact(sanitizeContentBlocks(input.blocks), input.pakistanImpact);
   const featuredMediaId = await verifiedFeaturedMediaId(input.featuredMediaId, input.featuredImageUrl);
 
   const article = await prisma.article.create({
@@ -310,7 +328,7 @@ export async function updateArticleAction(articleId: string, raw: ArticleFormInp
 
   const slug =
     slugify(input.slug) === existing.slug ? existing.slug : await ensureUniqueSlug(input.slug, articleId);
-  const blocks = joinPakistanImpact(input.blocks, input.pakistanImpact);
+  const blocks = joinPakistanImpact(sanitizeContentBlocks(input.blocks), input.pakistanImpact);
   const featuredMediaId = await verifiedFeaturedMediaId(input.featuredMediaId, input.featuredImageUrl);
 
   const article = await prisma.article.update({

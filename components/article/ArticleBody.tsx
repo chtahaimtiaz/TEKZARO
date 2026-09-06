@@ -2,6 +2,7 @@ import Image from "next/image";
 import type { ContentBlock } from "@/lib/content-blocks";
 import { PakistanImpactCallout } from "./PakistanImpactCallout";
 import { isOptimizableImageSrc } from "@/lib/image-src";
+import { InlineRichText } from "./InlineRichText";
 
 interface ArticleBodyProps {
   blocks: ContentBlock[];
@@ -13,19 +14,25 @@ export function ArticleBody({ blocks }: ArticleBodyProps) {
       {blocks.map((block, i) => {
         switch (block.type) {
           case "paragraph":
-            return <p key={i}>{block.text}</p>;
+            return (
+              <p key={i}>
+                <InlineRichText text={block.text} />
+              </p>
+            );
           case "heading": {
             const Tag = block.level === 2 ? "h2" : "h3";
             return (
               <Tag key={i} className={block.level === 2 ? "pt-2 text-2xl font-bold text-ink" : "pt-1 text-xl font-bold text-ink"}>
-                {block.text}
+                <InlineRichText text={block.text} />
               </Tag>
             );
           }
           case "quote":
             return (
               <blockquote key={i} className="border-l-4 border-accent pl-4 italic text-ink">
-                <p>&ldquo;{block.text}&rdquo;</p>
+                <p>
+                  &ldquo;<InlineRichText text={block.text} />&rdquo;
+                </p>
                 {block.cite && <cite className="mt-1 block text-sm not-italic text-ink-muted">— {block.cite}</cite>}
               </blockquote>
             );
@@ -34,7 +41,9 @@ export function ArticleBody({ blocks }: ArticleBodyProps) {
             return (
               <ListTag key={i} className={block.style === "number" ? "list-decimal space-y-1 pl-6" : "list-disc space-y-1 pl-6"}>
                 {block.items.map((item, j) => (
-                  <li key={j}>{item}</li>
+                  <li key={j}>
+                    <InlineRichText text={item} />
+                  </li>
                 ))}
               </ListTag>
             );

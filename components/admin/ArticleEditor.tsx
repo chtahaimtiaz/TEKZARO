@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { BlockEditor } from "./BlockEditor";
+import { RichArticleEditor } from "./RichArticleEditor";
 import { PublicationChecklist } from "./PublicationChecklist";
 import { SuggestionsPanel } from "./SuggestionsPanel";
 import { ImproveArticleButton } from "./ImproveArticleButton";
@@ -15,7 +16,7 @@ import { evaluatePublicationChecks, allChecksPassed } from "@/lib/publication-ch
 import { ORIGINALITY_BLOCK_THRESHOLD } from "@/lib/ai/originality-check";
 import { absoluteUrl } from "@/lib/seo";
 import { slugify } from "@/lib/slugify";
-import { splitPakistanImpact } from "@/lib/content-blocks";
+import { splitPakistanImpact, splitCanvasBlocks, joinCanvasBlocks, type StructuredBlockAnchor } from "@/lib/content-blocks";
 import { isAuthorEligibleForCategory } from "@/lib/author-eligibility-shared";
 import { TRANSITION_LABELS, type TransitionName } from "@/lib/workflow";
 import {
@@ -124,6 +125,37 @@ export function ArticleEditor({
   const [pakistanImpact, setPakistanImpact] = useState(initialImpact);
   const [tagsText, setTagsText] = useState(initial.tagNames.join(", "));
   const [featuredMedia, setFeaturedMedia] = useState<FeaturedMediaInfo | null>(initialFeaturedMedia);
+
+  // The new rich-text canvas edits only paragraph/heading/quote/list/image
+  // blocks; fact-table/faq keep their existing mini-editor UI in a
+  // separate section, at their original position relative to the canvas
+  // content (see splitCanvasBlocks/joinCanvasBlocks — an anchor recording
+  // how many canvas blocks preceded each one, not a flat append-to-end).
+  const { canvas: canvasBlocks, structured: structuredBlocks } = useMemo(() => splitCanvasBlocks(blocks), [blocks]);
+
+  function handleCanvasChange(next: ContentBlock[]) {
+    setBlocks(joinCanvasBlocks(next, structuredBlocks));
+  }
+
+  function handleStructuredChange(nextBlocks: ContentBlock[]) {
+    const prevAnchorByRef = new Map(structuredBlocks.map((a) => [a.block, a.precedingCanvasCount]));
+    const nextAnchors: StructuredBlockAnchor[] = nextBlocks.map((block, i) => ({
+      block,
+      // Reference still known (BlockEditor's move/remove leave every other
+      // entry's object reference untouched) -> keep its own anchor, which
+      // is what lets a block's canvas position travel WITH it when the
+      // mini-editor's up/down buttons reorder it relative to other
+      // structured blocks. Reference unknown (an edit-in-place replaced it
+      // with a shallow copy at the same index, or "+ Add" appended a
+      // brand-new block) -> fall back to whatever anchor already sits at
+      // this index, correct for an edit (position didn't change) and safe
+      // for a genuinely new one (BlockEditor.addBlock always appends last,
+      // so it falls through to canvasBlocks.length — after all current
+      // canvas content, the only sensible default here).
+      precedingCanvasCount: prevAnchorByRef.get(block) ?? structuredBlocks[i]?.precedingCanvasCount ?? canvasBlocks.length,
+    }));
+    setBlocks(joinCanvasBlocks(canvasBlocks, nextAnchors));
+  }
 
   function patch(next: Partial<Omit<ArticleFormInput, "blocks" | "pakistanImpact">>) {
     setForm((f) => ({ ...f, ...next }));
@@ -293,8 +325,35 @@ export function ArticleEditor({
 
           <div>
             <p className="mb-2 text-sm font-semibold text-ink-soft">Body</p>
-            <BlockEditor blocks={blocks} onChange={setBlocks} />
+            <RichArticleEditor
+              blocks={canvasBlocks}
+              onChange={handleCanvasChange}
+              titleIsEmpty={form.title.trim().length === 0}
+              onTitleDetected={handleTitleChange}
+              articleId={articleId}
+              mediaUploadAvailable={mediaUploadAvailable}
+              articleMediaOptions={articleMediaOptions}
+              canManageMedia={canManageMedia}
+            />
           </div>
+
+          <div>
+            <p className="mb-2 text-sm font-semibold text-ink-soft">
+              Structured content <span className="font-normal text-ink-muted">(fact table &amp; FAQ, optional)</span>
+            </p>
+            <BlockEditor
+              blocks={structuredBlocks.map((a) => a.block)}
+              onChange={handleStructuredChange}
+              allowedTypes={["fact-table", "faq"]}
+            />
+          </div>
+
+          <details className="rounded-lg border border-border-strong p-3">
+            <summary className="cursor-pointer text-sm font-semibold text-ink-soft">Advanced: edit raw blocks</summary>
+            <div className="mt-3">
+              <BlockEditor blocks={blocks} onChange={setBlocks} />
+            </div>
+          </details>
 
           <div>
             <label className="mb-1 block text-sm font-semibold text-ink-soft" htmlFor="pk-impact">

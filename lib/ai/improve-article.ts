@@ -6,6 +6,7 @@ import { classifyRichness, type EvidenceBundle, type EvidenceDocument } from "./
 import { extractNumericClaims } from "./claim-extraction";
 import { isSynthesizableBlock } from "./synthesizable-blocks";
 import { BLOCK_SHAPE_EXAMPLE, BLOCK_SHAPE_RULES } from "./block-schema-doc";
+import { stripInlineRichText } from "../editor/inline-rich-text";
 import type { ContentBlock } from "../content-blocks";
 
 /**
@@ -116,13 +117,17 @@ function validateImprovedDraft(value: unknown): RawImprovedDraft | null {
 }
 
 function formatCurrentArticle(article: ImprovableArticle): string {
+  // Marks (**bold**, _italic_, [text](url)) are stripped before this reaches
+  // the model — it was never told about that syntax in any prompt, so
+  // showing it raw risks the model treating the markers as literal text to
+  // preserve rather than formatting to disregard.
   const blockText = (b: ContentBlock): string => {
-    if (b.type === "heading") return `\n## ${b.text}\n`;
-    if (b.type === "list") return b.items.map((i) => `- ${i}`).join("\n");
-    if (b.type === "quote") return `> ${b.text}`;
+    if (b.type === "heading") return `\n## ${stripInlineRichText(b.text)}\n`;
+    if (b.type === "list") return b.items.map((i) => `- ${stripInlineRichText(i)}`).join("\n");
+    if (b.type === "quote") return `> ${stripInlineRichText(b.text)}`;
     if (b.type === "fact-table") return b.rows.map((r) => `| ${r.label} | ${r.value} |`).join("\n");
     if (b.type === "faq") return b.items.map((qa) => `Q: ${qa.question}\nA: ${qa.answer}`).join("\n\n");
-    return "text" in b ? b.text : "";
+    return "text" in b ? stripInlineRichText(b.text) : "";
   };
   return `Headline: ${article.title}\nExcerpt: ${article.excerpt}\n\n${article.blocks.map(blockText).join("\n")}`;
 }

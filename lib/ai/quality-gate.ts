@@ -1,4 +1,5 @@
 import { blockPlainText, type ContentBlock } from "../content-blocks";
+import { stripInlineRichText } from "../editor/inline-rich-text";
 import type { EvidenceBundle } from "./evidence";
 import { extractNumericClaims, hasHedgeLanguage, type ExtractedClaim } from "./claim-extraction";
 import { detectNumericConflicts, type SourceConflict } from "./source-conflicts";
@@ -86,7 +87,7 @@ function wordCount(blocks: ContentBlock[]): number {
 
 function checkGenericHeadings(blocks: ContentBlock[]): { failure: QualityFailure | null; score: number } {
   const headings = blocks.filter((b) => b.type === "heading");
-  const generic = headings.filter((h) => GENERIC_HEADINGS.has(h.text.trim().toLowerCase()));
+  const generic = headings.filter((h) => GENERIC_HEADINGS.has(stripInlineRichText(h.text).trim().toLowerCase()));
   if (generic.length > 0) {
     return {
       failure: { code: "GENERIC_HEADINGS", detail: `Generic heading(s) carry no subject: ${generic.map((h) => `"${h.text}"`).join(", ")}` },

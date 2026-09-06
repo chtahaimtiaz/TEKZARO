@@ -49,6 +49,28 @@ describe("evaluatePublicationChecks", () => {
     expect(checks.find((c) => c.id === "body")!.passed).toBe(false);
   });
 
+  it("passes the body check for an article whose entire content is a fact-table or FAQ", () => {
+    const factTableOnly = evaluatePublicationChecks({
+      ...baseInput,
+      blocks: [{ type: "fact-table", rows: [{ label: "Price", value: "$999" }] }],
+    });
+    expect(factTableOnly.find((c) => c.id === "body")!.passed).toBe(true);
+
+    const faqOnly = evaluatePublicationChecks({
+      ...baseInput,
+      blocks: [{ type: "faq", items: [{ question: "Is it available?", answer: "Yes." }] }],
+    });
+    expect(faqOnly.find((c) => c.id === "body")!.passed).toBe(true);
+  });
+
+  it("still fails the body check for a fact-table/FAQ with only blank fields", () => {
+    const checks = evaluatePublicationChecks({
+      ...baseInput,
+      blocks: [{ type: "fact-table", rows: [{ label: "  ", value: "  " }] }],
+    });
+    expect(checks.find((c) => c.id === "body")!.passed).toBe(false);
+  });
+
   it("fails the image-alt check only when an image URL exists without alt text", () => {
     const withImageNoAlt = evaluatePublicationChecks({ ...baseInput, featuredImageUrl: "https://example.com/x.jpg", featuredImageAlt: null });
     expect(withImageNoAlt.find((c) => c.id === "image-alt")!.passed).toBe(false);

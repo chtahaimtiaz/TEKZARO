@@ -122,6 +122,15 @@ describe("quality gate — failure detection", () => {
     expect(result.failures.map((f) => f.code)).toContain("UNSUPPORTED_CLAIM");
   });
 
+  it("still flags a generic heading even when it carries inline formatting marks", () => {
+    const blocks: ContentBlock[] = [
+      { type: "heading", level: 2, text: "**What Happened**" },
+      para("The company shipped an update to all regions on Tuesday, according to its release notes."),
+    ];
+    const result = runQualityGate({ headline: "h", excerpt: "e", blocks, evidence: bundle([doc("The company shipped an update to all regions on Tuesday.")]) });
+    expect(result.failures.map((f) => f.code)).toContain("GENERIC_HEADINGS");
+  });
+
   it("passes a well-supported FAQ answer and does not treat it as invisible to the word count", () => {
     const blocks: ContentBlock[] = [
       heading("Frequently asked questions"),

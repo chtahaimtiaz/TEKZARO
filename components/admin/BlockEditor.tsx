@@ -5,6 +5,13 @@ import type { ContentBlock } from "@/lib/content-blocks";
 interface BlockEditorProps {
   blocks: ContentBlock[];
   onChange: (blocks: ContentBlock[]) => void;
+  /** Restricts the "+ Add block" button row to only these types — everything
+   * else (per-block editing UI, move/remove) is unaffected. Omitted ->
+   * byte-identical to before (used by the "Advanced: edit raw blocks"
+   * disclosure). Passed ["fact-table","faq"] -> the Structured-content
+   * section only offers those two, since paragraph/heading/quote/list/image
+   * are now created via the rich-text canvas instead. */
+  allowedTypes?: ContentBlock["type"][];
 }
 
 const BLOCK_TYPES: { value: ContentBlock["type"]; label: string }[] = [
@@ -38,7 +45,8 @@ function emptyBlock(type: ContentBlock["type"]): ContentBlock {
   }
 }
 
-export function BlockEditor({ blocks, onChange }: BlockEditorProps) {
+export function BlockEditor({ blocks, onChange, allowedTypes }: BlockEditorProps) {
+  const addButtonTypes = allowedTypes ? BLOCK_TYPES.filter((t) => allowedTypes.includes(t.value)) : BLOCK_TYPES;
   function updateBlock(index: number, next: ContentBlock) {
     onChange(blocks.map((b, i) => (i === index ? next : b)));
   }
@@ -272,7 +280,7 @@ export function BlockEditor({ blocks, onChange }: BlockEditorProps) {
       ))}
 
       <div className="flex flex-wrap gap-2 border-t border-border pt-3">
-        {BLOCK_TYPES.map((t) => (
+        {addButtonTypes.map((t) => (
           <button
             key={t.value}
             type="button"

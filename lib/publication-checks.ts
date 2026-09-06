@@ -75,7 +75,17 @@ function blockHasText(block: ContentBlock): boolean {
       return block.items.some((i) => i.trim().length > 0);
     case "image":
       return true;
+    case "fact-table":
+      return block.rows.some((r) => r.label.trim().length > 0 || r.value.trim().length > 0);
+    case "faq":
+      return block.items.some((i) => i.question.trim().length > 0 || i.answer.trim().length > 0);
     default:
+      // Same runtime safety net as the other exhaustive switches this
+      // session — a real new ContentBlock member fails to compile here if
+      // unhandled (block.type narrows to something other than `never`
+      // below), while genuinely unrecognized input still returns false
+      // instead of falling through unnoticed.
+      block satisfies never;
       return false;
   }
 }

@@ -2,6 +2,8 @@
 // Kept intentionally small — only what the article renderer and AI Newsroom
 // draft generator (Phase 3+) both need to agree on.
 
+import { stripInlineRichText } from "./editor/inline-rich-text";
+
 export interface ParagraphBlock {
   type: "paragraph";
   text: string;
@@ -81,13 +83,16 @@ export type ContentBlock =
  */
 export function blockPlainText(block: ContentBlock): string {
   switch (block.type) {
+    // Marks must never leak into claim-checking/word-counts/prompts — none
+    // of these three have a WYSIWYG surface, so an incidental "**" a human
+    // typed with no formatting intent must never be misread as syntax.
     case "paragraph":
     case "heading":
     case "quote":
     case "pakistan-impact":
-      return block.text;
+      return stripInlineRichText(block.text);
     case "list":
-      return block.items.join(". ");
+      return block.items.map(stripInlineRichText).join(". ");
     case "fact-table":
       return block.rows.map((r) => `${r.label}: ${r.value}`).join(". ");
     case "faq":
@@ -109,6 +114,63 @@ export function blockPlainText(block: ContentBlock): string {
       block satisfies never;
       return "";
   }
+}
+
+/** Types edited in the new rich-text canvas (RichArticleEditor) — the ones
+ * the user's request actually covers. fact-table/faq/pakistan-impact are
+ * unaffected and keep their existing small mini-editor UI. */
+export const CANVAS_BLOCK_TYPES = new Set<ContentBlock["type"]>(["paragraph", "heading", "quote", "list", "image"]);
+
+export function isCanvasBlock(block: ContentBlock): boolean {
+  return CANVAS_BLOCK_TYPES.has(block.type);
+}
+
+/** A structured (fact-table/faq/pakistan-impact) block's original position,
+ * recorded as how many canvas blocks preceded it — lets it be spliced back
+ * to the same relative position (see joinCanvasBlocks) instead of always
+ * landing at the end. */
+export interface StructuredBlockAnchor {
+  block: ContentBlock;
+  precedingCanvasCount: number;
+}
+
+export function splitCanvasBlocks(blocks: ContentBlock[]): { canvas: ContentBlock[]; structured: StructuredBlockAnchor[] } {
+  const canvas: ContentBlock[] = [];
+  const structured: StructuredBlockAnchor[] = [];
+  for (const b of blocks) {
+    if (isCanvasBlock(b)) canvas.push(b);
+    else structured.push({ block: b, precedingCanvasCount: canvas.length });
+  }
+  return { canvas, structured };
+}
+
+/**
+ * Inverse of splitCanvasBlocks. Each structured block is re-inserted right
+ * after the Nth canvas block its anchor names, clamped to the current
+ * canvas length — so if canvas edits removed blocks that used to precede
+ * it, it lands as far in as its anchor still reaches (at the very end if
+ * all of them are gone) rather than throwing or being dropped. If canvas
+ * edits inserted new blocks earlier, an already-anchored structured block
+ * stays pinned to the same specific neighboring content, not "the Nth
+ * block, whatever that now is". splitCanvasBlocks(joinCanvasBlocks(canvas,
+ * structured)) reproduces the exact same anchors — the anchor is *defined*
+ * as "count canvas blocks seen so far", the same rule this function uses
+ * to place each one.
+ */
+export function joinCanvasBlocks(canvas: ContentBlock[], structured: StructuredBlockAnchor[]): ContentBlock[] {
+  const byIndex = new Map<number, ContentBlock[]>();
+  for (const { block, precedingCanvasCount } of structured) {
+    const idx = Math.min(precedingCanvasCount, canvas.length);
+    const bucket = byIndex.get(idx);
+    if (bucket) bucket.push(block);
+    else byIndex.set(idx, [block]);
+  }
+  const result: ContentBlock[] = [];
+  for (let i = 0; i <= canvas.length; i++) {
+    for (const block of byIndex.get(i) ?? []) result.push(block);
+    if (i < canvas.length) result.push(canvas[i]);
+  }
+  return result;
 }
 
 export interface ArticleContent {

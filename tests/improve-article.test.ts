@@ -142,6 +142,35 @@ describe("improveArticleDraft", () => {
     if (result.generationId) createdGenerationIds.push(result.generationId);
   });
 
+  it("strips inline formatting marks from the current article's text before it reaches the model prompt", async () => {
+    const user = await createTestUser("EDITOR", "improve-marks-stripped");
+    trackUser(user.id);
+    generateWithAIMock.mockResolvedValue(
+      JSON.stringify({
+        headline: "Headline",
+        excerpt: "Excerpt",
+        blocks: [{ type: "paragraph", text: "The company raised $50 million, according to TechCrunch." }],
+      }),
+    );
+    const evidence = {
+      documents: [{ url: "https://techcrunch.com/x", hostname: "techcrunch.com", rank: 3, rankLabel: "x", title: null, author: null, publishedAt: null, text: "The company raised $50 million.", isOriginatingOutlet: true }],
+      richness: "MODERATE" as const, totalChars: 40, primary: null, corroborating: null, notes: [],
+    };
+
+    const result = await improveArticleDraft({
+      requestedById: user.id,
+      articleId: "article-marks",
+      current: { title: "Original", excerpt: "Original excerpt", blocks: [{ type: "paragraph", text: "The company raised **$50 million**, according to _TechCrunch_." }] },
+      evidence,
+    });
+    if (result.generationId) createdGenerationIds.push(result.generationId);
+
+    const [, userPrompt] = generateWithAIMock.mock.calls[0];
+    expect(userPrompt).toContain("The company raised $50 million, according to TechCrunch.");
+    expect(userPrompt).not.toContain("**$50 million**");
+    expect(userPrompt).not.toContain("_TechCrunch_");
+  });
+
   it("does not reject when the improved draft carries the SAME already-unsupported claims as the original, just reworded", async () => {
     const user = await createTestUser("EDITOR", "improve-same-claims");
     trackUser(user.id);
