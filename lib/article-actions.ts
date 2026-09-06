@@ -46,6 +46,14 @@ const blockSchema = z.discriminatedUnion("type", [
     credit: z.string().optional(),
   }),
   z.object({ type: z.literal("pakistan-impact"), text: z.string() }),
+  z.object({
+    type: z.literal("fact-table"),
+    rows: z.array(z.object({ label: z.string(), value: z.string() })),
+  }),
+  z.object({
+    type: z.literal("faq"),
+    items: z.array(z.object({ question: z.string(), answer: z.string() })),
+  }),
 ]) satisfies z.ZodType<ContentBlock>;
 
 const articleInputSchema = z.object({

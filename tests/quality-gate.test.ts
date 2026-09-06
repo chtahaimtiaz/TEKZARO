@@ -110,6 +110,26 @@ describe("quality gate — failure detection", () => {
     const result = runQualityGate({ headline: "h", excerpt: "e", blocks, evidence: bundle([doc("The company confirmed the update ships this week.")], "THIN") });
     expect(result.failures.map((f) => f.code)).not.toContain("INSUFFICIENT_CONTEXT");
   });
+
+  it("fails an article whose only unsupported figure is buried in a fact-table row", () => {
+    // A fabricated number in a table cell is exactly as dangerous as one in
+    // a sentence — proseBlocks/extractNumericClaims must reach both.
+    const blocks: ContentBlock[] = [
+      heading("Specifications"),
+      { type: "fact-table", rows: [{ label: "Price", value: "$999, unconfirmed anywhere in the source material" }] },
+    ];
+    const result = runQualityGate({ headline: "h", excerpt: "e", blocks, evidence: bundle([doc("The company has not disclosed pricing.")]) });
+    expect(result.failures.map((f) => f.code)).toContain("UNSUPPORTED_CLAIM");
+  });
+
+  it("passes a well-supported FAQ answer and does not treat it as invisible to the word count", () => {
+    const blocks: ContentBlock[] = [
+      heading("Frequently asked questions"),
+      { type: "faq", items: [{ question: "How much faster is it?", answer: "The company said the chip is 40% faster than the previous generation." }] },
+    ];
+    const result = runQualityGate({ headline: "h", excerpt: "e", blocks, evidence: bundle([doc("The company said the chip is 40% faster than the previous generation.")]) });
+    expect(result.failures.map((f) => f.code)).not.toContain("UNSUPPORTED_CLAIM");
+  });
 });
 
 describe("quality gate — scoring", () => {

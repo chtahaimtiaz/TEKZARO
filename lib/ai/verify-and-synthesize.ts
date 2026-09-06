@@ -4,6 +4,7 @@ import { EDITORIAL_STANDARD } from "./editorial-standard";
 import { gatherEvidence, formatEvidence, type EvidenceBundle } from "./evidence";
 import { isSearchConfigured, searchWeb } from "../search/web-search";
 import { isSynthesizableBlock } from "./synthesizable-blocks";
+import { BLOCK_SHAPE_EXAMPLE, BLOCK_SHAPE_RULES } from "./block-schema-doc";
 import { checkOriginality } from "./originality-check";
 import type { ContentBlock } from "../content-blocks";
 import type { ArticleVerificationStatus, SourceItem, Source } from "@prisma/client";
@@ -146,7 +147,7 @@ Respond with ONLY a single JSON object — no markdown code fences, no commentar
   "draft": null | {
     "headline": "specific and accurate, in TEKZARO's own words — never clickbait, and never claiming more than the article substantiates",
     "excerpt": "the standfirst: 1-2 sentences that ADD information rather than restating the headline, and give the reader a reason to continue",
-    "blocks": [ { "type": "paragraph", "text": "..." }, { "type": "heading", "level": 2, "text": "..." }, { "type": "list", "style": "bullet", "items": ["..."] }, { "type": "quote", "text": "...", "cite": "optional" }, { "type": "pakistan-impact", "text": "..." } ]
+    "blocks": ${BLOCK_SHAPE_EXAMPLE}
   }
 }
 Rules:
@@ -154,11 +155,12 @@ Rules:
 - "verificationConfidence": your own honest confidence (0-100) that this story is accurately reported. This is recorded for editorial transparency ONLY and never by itself decides whether anything gets published — do not inflate it.
 - Use "verificationStatus": "PRIMARY_SOURCE_CONFIRMED" ONLY if a primary source's text was actually provided to you below AND it corroborates the story. A secondary source, if provided, strengthens this but is NEVER required — an official primary source is sufficient on its own. If no primary source text was provided, you MUST NOT claim PRIMARY_SOURCE_CONFIRMED, even if a secondary source was provided.
 - Use "CONTRADICTION_FOUND" if any provided source's text contradicts the discovered claims.
-- Open the body with 2-4 paragraph blocks, then alternate heading blocks with the paragraphs beneath them. A "heading" block always uses level 2. Use "pakistan-impact" at most once, only when a real, evidenced Pakistan implication exists in the source material — it renders as a "What This Means for Pakistan" callout, so never emit it merely because the article is otherwise global.
+- Open the body with 2-4 paragraph blocks, then alternate heading blocks with the paragraphs beneath them. A "heading" block always uses level 2.
 - Write ORIGINAL prose in TEKZARO's own voice for "draft". Never copy sentences verbatim from the source material provided — summarize and re-report, don't reproduce.
 - Include an inline attribution line naming where this was first reported and every official/independent source it was verified against (e.g. "According to Samsung's newsroom... TechCrunch first reported this development, and it was independently corroborated by The Verge").
 - Write the draft whenever you have usable material, and report its status honestly. If no primary source text was provided but a secondary source's text was — or the discovering outlet's own report carries real substance beyond a bare headline — still write the draft and set "verificationStatus" to "PRIMARY_SOURCE_NOT_FOUND". A draft in that state is routed to a human editor and can never be published automatically, so withholding it removes an editor's option rather than protecting a reader. Reserve "draft": null for genuinely unusable input: no source text at all and nothing but a headline.
 - When no primary source text was provided, the draft MUST attribute every substantive claim to the outlet that reported it ("TechCrunch reports that…", "According to ProPakistani…") rather than asserting it as independently established fact, and MUST NOT introduce any detail, figure, name or date that appears nowhere in the material provided to you.
+${BLOCK_SHAPE_RULES}
 `.trim();
 
 export async function verifyAndSynthesize(params: {

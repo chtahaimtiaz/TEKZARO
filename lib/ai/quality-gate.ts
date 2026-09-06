@@ -1,4 +1,4 @@
-import type { ContentBlock } from "../content-blocks";
+import { blockPlainText, type ContentBlock } from "../content-blocks";
 import type { EvidenceBundle } from "./evidence";
 import { extractNumericClaims, hasHedgeLanguage, type ExtractedClaim } from "./claim-extraction";
 import { detectNumericConflicts, type SourceConflict } from "./source-conflicts";
@@ -67,20 +67,18 @@ const GENERIC_HEADINGS = new Set([
   "conclusion", "overview", "summary", "background", "details", "the details",
 ]);
 
-function blockText(block: ContentBlock): string {
-  if (block.type === "paragraph" || block.type === "heading" || block.type === "quote") return block.text;
-  if (block.type === "list") return block.items.join(". ");
-  if (block.type === "pakistan-impact") return block.text;
-  return "";
-}
-
 function proseBlocks(blocks: ContentBlock[]): ContentBlock[] {
-  return blocks.filter((b) => b.type === "paragraph" || b.type === "list" || b.type === "quote");
+  // fact-table and faq carry real, checkable prose (a fabricated price in a
+  // table row is exactly as dangerous as one buried in a sentence) — see
+  // claim-extraction.ts and blockPlainText's own comment for why these
+  // routes were consolidated onto one shared function instead of staying as
+  // four separate copies that could each independently forget a new type.
+  return blocks.filter((b) => b.type === "paragraph" || b.type === "list" || b.type === "quote" || b.type === "fact-table" || b.type === "faq");
 }
 
 function wordCount(blocks: ContentBlock[]): number {
   return proseBlocks(blocks)
-    .map(blockText)
+    .map(blockPlainText)
     .join(" ")
     .split(/\s+/)
     .filter(Boolean).length;
@@ -104,7 +102,7 @@ function checkGenericHeadings(blocks: ContentBlock[]): { failure: QualityFailure
  * article instead of against a source. */
 function checkRepetition(blocks: ContentBlock[]): { failure: QualityFailure | null; score: number } {
   const texts = proseBlocks(blocks)
-    .map(blockText)
+    .map(blockPlainText)
     .filter((t) => t.split(/\s+/).length >= SHINGLE_SIZE + 3);
   let worst = 0;
   let pair: [string, string] | null = null;

@@ -105,6 +105,23 @@ describe("numeric claim extraction", () => {
     const claims = extractNumericClaims([para("The company announced a partnership with a regional telecom operator.")], bundle([doc("x")]));
     expect(claims).toHaveLength(0);
   });
+
+  it("extracts from fact-table rows and FAQ answers, not only prose blocks", () => {
+    const blocks: ContentBlock[] = [
+      { type: "fact-table", rows: [{ label: "Peak bandwidth", value: "4.8 TB/s, according to the manufacturer" }] },
+      { type: "faq", items: [{ question: "How much faster is it?", answer: "Independent testing found a 23% improvement." }] },
+    ];
+    const claims = extractNumericClaims(blocks, bundle([doc("The part reaches 4.8 TB/s. Independent testing found a 23% improvement.")]));
+    expect(claims.some((c) => c.claimText.includes("4.8 TB"))).toBe(true);
+    expect(claims.some((c) => c.claimText.includes("23%"))).toBe(true);
+  });
+
+  it("flags a fabricated figure in a fact-table row as UNSUPPORTED, exactly like one in prose", () => {
+    const blocks: ContentBlock[] = [{ type: "fact-table", rows: [{ label: "Price", value: "$999, unconfirmed anywhere" }] }];
+    const claims = extractNumericClaims(blocks, bundle([doc("The company has not disclosed pricing.")]));
+    const c = claims.find((c) => c.claimText.includes("999"));
+    expect(c?.claimType).toBe("UNSUPPORTED");
+  });
 });
 
 describe("hedge language detection", () => {

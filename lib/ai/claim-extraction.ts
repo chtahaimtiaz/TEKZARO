@@ -1,4 +1,4 @@
-import type { ContentBlock } from "../content-blocks";
+import { blockPlainText, type ContentBlock } from "../content-blocks";
 import type { EvidenceBundle, EvidenceDocument } from "./evidence";
 import { tryDeriveMatch } from "./derived-numbers";
 
@@ -109,12 +109,6 @@ function findInEvidence(value: number, documents: EvidenceDocument[]): { doc: Ev
   return null;
 }
 
-function blockText(block: ContentBlock): string {
-  if (block.type === "paragraph" || block.type === "heading" || block.type === "quote") return block.text;
-  if (block.type === "list") return block.items.join(". ");
-  return "";
-}
-
 /** Splits block text into claim-sized windows (roughly sentences) so an
  * attribution phrase or hedge is checked against the claim that actually
  * contains it, not the whole article. */
@@ -130,7 +124,7 @@ export function extractNumericClaims(blocks: ContentBlock[], evidence: EvidenceB
   const seen = new Set<string>();
 
   for (const block of blocks) {
-    const text = blockText(block);
+    const text = blockPlainText(block);
     if (!text) continue;
 
     for (const sentence of sentencesOf(text)) {
@@ -212,5 +206,5 @@ export function extractNumericClaims(blocks: ContentBlock[], evidence: EvidenceB
 }
 
 export function hasHedgeLanguage(blocks: ContentBlock[]): boolean {
-  return blocks.some((b) => HEDGE_RE.test(blockText(b)));
+  return blocks.some((b) => HEDGE_RE.test(blockPlainText(b)));
 }

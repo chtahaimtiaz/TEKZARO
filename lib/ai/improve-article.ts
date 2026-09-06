@@ -5,6 +5,7 @@ import { EDITORIAL_STANDARD } from "./editorial-standard";
 import { classifyRichness, type EvidenceBundle, type EvidenceDocument } from "./evidence";
 import { extractNumericClaims } from "./claim-extraction";
 import { isSynthesizableBlock } from "./synthesizable-blocks";
+import { BLOCK_SHAPE_EXAMPLE, BLOCK_SHAPE_RULES } from "./block-schema-doc";
 import type { ContentBlock } from "../content-blocks";
 
 /**
@@ -90,12 +91,13 @@ Respond with ONLY a single JSON object — no markdown code fences, no commentar
 {
   "headline": "the article's headline, unchanged unless a genuine improvement is warranted",
   "excerpt": "the standfirst/dek",
-  "blocks": [ { "type": "paragraph", "text": "..." }, { "type": "heading", "level": 2, "text": "..." }, { "type": "list", "style": "bullet", "items": ["..."] }, { "type": "quote", "text": "...", "cite": "optional" }, { "type": "pakistan-impact", "text": "..." } ]
+  "blocks": ${BLOCK_SHAPE_EXAMPLE}
 }
 Rules:
 - You are IMPROVING an existing article's writing quality — tightening prose, clarifying structure, strengthening headings, improving flow. You are not writing a new article from scratch.
 - You MUST NOT introduce any fact, figure, name, date, quote, or specification that does not already appear in the CURRENT ARTICLE below or in the SOURCE EVIDENCE below. If the current article already contains a claim the evidence doesn't support, you may keep it as-is or remove it, but never add a new one.
 - If the current draft is already good, make only the improvements that are genuinely warranted — do not rewrite for the sake of rewriting.
+${BLOCK_SHAPE_RULES}
 `.trim();
 
 interface RawImprovedDraft {
@@ -114,8 +116,14 @@ function validateImprovedDraft(value: unknown): RawImprovedDraft | null {
 }
 
 function formatCurrentArticle(article: ImprovableArticle): string {
-  const blockText = (b: ContentBlock) =>
-    b.type === "heading" ? `\n## ${b.text}\n` : b.type === "list" ? b.items.map((i) => `- ${i}`).join("\n") : b.type === "quote" ? `> ${b.text}` : "text" in b ? b.text : "";
+  const blockText = (b: ContentBlock): string => {
+    if (b.type === "heading") return `\n## ${b.text}\n`;
+    if (b.type === "list") return b.items.map((i) => `- ${i}`).join("\n");
+    if (b.type === "quote") return `> ${b.text}`;
+    if (b.type === "fact-table") return b.rows.map((r) => `| ${r.label} | ${r.value} |`).join("\n");
+    if (b.type === "faq") return b.items.map((qa) => `Q: ${qa.question}\nA: ${qa.answer}`).join("\n\n");
+    return "text" in b ? b.text : "";
+  };
   return `Headline: ${article.title}\nExcerpt: ${article.excerpt}\n\n${article.blocks.map(blockText).join("\n")}`;
 }
 

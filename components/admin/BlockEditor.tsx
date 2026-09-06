@@ -12,6 +12,8 @@ const BLOCK_TYPES: { value: ContentBlock["type"]; label: string }[] = [
   { value: "heading", label: "Heading" },
   { value: "quote", label: "Quote" },
   { value: "list", label: "List" },
+  { value: "fact-table", label: "Fact Table" },
+  { value: "faq", label: "FAQ" },
   { value: "image", label: "Image" },
 ];
 
@@ -25,6 +27,10 @@ function emptyBlock(type: ContentBlock["type"]): ContentBlock {
       return { type: "quote", text: "", cite: "" };
     case "list":
       return { type: "list", style: "bullet", items: [""] };
+    case "fact-table":
+      return { type: "fact-table", rows: [{ label: "", value: "" }] };
+    case "faq":
+      return { type: "faq", items: [{ question: "", answer: "" }] };
     case "image":
       return { type: "image", url: "", alt: "", caption: "", credit: "" };
     case "pakistan-impact":
@@ -141,6 +147,95 @@ export function BlockEditor({ blocks, onChange }: BlockEditorProps) {
                 className="w-fit text-xs font-semibold text-accent hover:underline"
               >
                 + Add item
+              </button>
+            </div>
+          )}
+
+          {block.type === "fact-table" && (
+            <div className="flex flex-col gap-2">
+              {block.rows.map((row, i) => (
+                <div key={i} className="flex gap-2">
+                  <input
+                    value={row.label}
+                    onChange={(e) => {
+                      const rows = [...block.rows];
+                      rows[i] = { ...rows[i], label: e.target.value };
+                      updateBlock(index, { ...block, rows });
+                    }}
+                    placeholder="Label (e.g. Price)"
+                    className="w-2/5 rounded-md border border-border-strong p-2 text-sm focus:border-accent"
+                  />
+                  <input
+                    value={row.value}
+                    onChange={(e) => {
+                      const rows = [...block.rows];
+                      rows[i] = { ...rows[i], value: e.target.value };
+                      updateBlock(index, { ...block, rows });
+                    }}
+                    placeholder="Value"
+                    className="w-full rounded-md border border-border-strong p-2 text-sm focus:border-accent"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => updateBlock(index, { ...block, rows: block.rows.filter((_, j) => j !== i) })}
+                    className="rounded border border-border px-2 text-xs text-red-600 hover:border-red-400 dark:text-red-400 dark:hover:border-red-700"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => updateBlock(index, { ...block, rows: [...block.rows, { label: "", value: "" }] })}
+                className="w-fit text-xs font-semibold text-accent hover:underline"
+              >
+                + Add row
+              </button>
+            </div>
+          )}
+
+          {block.type === "faq" && (
+            <div className="flex flex-col gap-3">
+              {block.items.map((qa, i) => (
+                <div key={i} className="flex flex-col gap-1 rounded-md border border-border p-2">
+                  <div className="flex gap-2">
+                    <input
+                      value={qa.question}
+                      onChange={(e) => {
+                        const items = [...block.items];
+                        items[i] = { ...items[i], question: e.target.value };
+                        updateBlock(index, { ...block, items });
+                      }}
+                      placeholder="Question"
+                      className="w-full rounded-md border border-border-strong p-2 text-sm font-semibold focus:border-accent"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => updateBlock(index, { ...block, items: block.items.filter((_, j) => j !== i) })}
+                      className="shrink-0 rounded border border-border px-2 text-xs text-red-600 hover:border-red-400 dark:text-red-400 dark:hover:border-red-700"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <textarea
+                    value={qa.answer}
+                    onChange={(e) => {
+                      const items = [...block.items];
+                      items[i] = { ...items[i], answer: e.target.value };
+                      updateBlock(index, { ...block, items });
+                    }}
+                    rows={2}
+                    placeholder="Answer"
+                    className="w-full rounded-md border border-border-strong p-2 text-sm focus:border-accent"
+                  />
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => updateBlock(index, { ...block, items: [...block.items, { question: "", answer: "" }] })}
+                className="w-fit text-xs font-semibold text-accent hover:underline"
+              >
+                + Add question
               </button>
             </div>
           )}

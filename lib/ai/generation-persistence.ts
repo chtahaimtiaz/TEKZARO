@@ -3,7 +3,7 @@ import { prisma } from "../prisma";
 import type { EvidenceBundle } from "./evidence";
 import type { ExtractedClaim } from "./claim-extraction";
 import type { QualityGateResult } from "./quality-gate";
-import type { ContentBlock } from "../content-blocks";
+import { blockPlainText, type ContentBlock } from "../content-blocks";
 import type { Prisma } from "@prisma/client";
 
 /**
@@ -69,17 +69,10 @@ export async function persistEvidenceAndClaims(params: {
   }
 }
 
-function blockText(block: ContentBlock): string {
-  if (block.type === "paragraph" || block.type === "heading" || block.type === "quote") return block.text;
-  if (block.type === "list") return block.items.join(". ");
-  if (block.type === "pakistan-impact") return block.text;
-  return "";
-}
-
 export function countWords(blocks: ContentBlock[]): number {
   return blocks
     .filter((b) => b.type !== "heading")
-    .map(blockText)
+    .map(blockPlainText)
     .join(" ")
     .split(/\s+/)
     .filter(Boolean).length;

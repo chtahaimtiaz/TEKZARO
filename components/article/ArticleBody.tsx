@@ -52,8 +52,28 @@ export function ArticleBody({ blocks }: ArticleBodyProps) {
             );
           case "pakistan-impact":
             return <PakistanImpactCallout key={i} text={block.text} />;
-          default:
-            return null;
+          case "fact-table":
+            return (
+              <dl key={i} className="grid grid-cols-1 gap-x-6 gap-y-2 rounded-lg border border-border bg-paper-raised p-4 sm:grid-cols-2">
+                {block.rows.map((row, j) => (
+                  <div key={j} className="flex justify-between gap-3 border-b border-border/60 py-1 last:border-0 sm:border-0 sm:py-0">
+                    <dt className="font-semibold text-ink">{row.label}</dt>
+                    <dd className="text-right text-ink-soft">{row.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            );
+          case "faq":
+            return (
+              <div key={i} className="flex flex-col gap-4">
+                {block.items.map((qa, j) => (
+                  <div key={j}>
+                    <p className="font-bold text-ink">{qa.question}</p>
+                    <p className="mt-1">{qa.answer}</p>
+                  </div>
+                ))}
+              </div>
+            );
         }
       })}
     </div>

@@ -3,6 +3,8 @@ import { generateStructuredCompletion } from "./structured-completion";
 import { runQualityGate, type QualityGateResult } from "./quality-gate";
 import { NEWSROOM_SYSTEM_PROMPT } from "./tasks";
 import { EDITORIAL_STANDARD } from "./editorial-standard";
+import { BLOCK_SHAPE_EXAMPLE, BLOCK_SHAPE_RULES } from "./block-schema-doc";
+import { blockPlainText } from "../content-blocks";
 import type { EvidenceBundle, EvidenceDocument } from "./evidence";
 import { SourceRank } from "./source-classification";
 
@@ -25,13 +27,14 @@ Respond with ONLY a single JSON object — no markdown code fences, no commentar
   "draft": null | {
     "headline": "specific and accurate, in TEKZARO's own words",
     "excerpt": "1-2 sentences that add information rather than restating the headline",
-    "blocks": [ { "type": "paragraph", "text": "..." }, { "type": "heading", "level": 2, "text": "..." }, { "type": "list", "style": "bullet", "items": ["..."] }, { "type": "quote", "text": "...", "cite": "optional" }, { "type": "pakistan-impact", "text": "..." } ]
+    "blocks": ${BLOCK_SHAPE_EXAMPLE}
   }
 }
 Rules:
 - Use "PRIMARY_SOURCE_CONFIRMED" ONLY if a primary source's text was actually provided below AND it corroborates the story.
 - Write the draft whenever you have usable material; set "draft" to null only for genuinely unusable input.
 - When no primary source was provided, attribute every substantive claim to the outlet that reported it.
+${BLOCK_SHAPE_RULES}
 `.trim();
 
 function doc(partial: Partial<EvidenceDocument> & Pick<EvidenceDocument, "text" | "hostname" | "rank">): EvidenceDocument {
@@ -241,7 +244,7 @@ export async function runModelBenchmark(
       });
       const wordCount = blocks
         .filter((b) => b.type !== "heading")
-        .map((b) => ("text" in b ? b.text : "items" in b ? b.items.join(" ") : ""))
+        .map(blockPlainText)
         .join(" ")
         .split(/\s+/)
         .filter(Boolean).length;
