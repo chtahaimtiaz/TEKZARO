@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "../prisma";
 import { runTask, NEWSROOM_SYSTEM_PROMPT } from "./tasks";
+import { EDITORIAL_STANDARD } from "./editorial-standard";
 import { isSearchConfigured, searchWeb } from "../search/web-search";
 import { safeFetch } from "../security/safe-fetch";
 import { isSynthesizableBlock } from "./synthesizable-blocks";
@@ -48,7 +49,11 @@ function emptyResult(notes: string, generationId: string | null = null): VerifyA
   };
 }
 
-const MAX_SOURCE_CHARS = 6000;
+// Raised alongside the editorial standard: an article carrying real
+// technical context and comparison needs more of the source than a
+// three-paragraph rewrite did. Both gateways front models with large
+// context windows, so the cost is tokens rather than truncation.
+const MAX_SOURCE_CHARS = 12000;
 
 function hostnameOf(url: string): string | null {
   try {
@@ -226,9 +231,9 @@ Respond with ONLY a single JSON object — no markdown code fences, no commentar
   "claimsChecked": ["specific factual claim you compared against the source(s)", "..."],
   "notes": "plain-English explanation of your reasoning, for a human editor",
   "draft": null | {
-    "headline": "original headline in TEKZARO's own words",
-    "excerpt": "1-2 sentence summary",
-    "blocks": [ { "type": "paragraph", "text": "..." }, { "type": "heading", "level": 2, "text": "..." }, { "type": "list", "style": "bullet", "items": ["..."] }, { "type": "quote", "text": "...", "cite": "optional" } ]
+    "headline": "specific and accurate, in TEKZARO's own words — never clickbait, and never claiming more than the article substantiates",
+    "excerpt": "the standfirst: 1-2 sentences that ADD information rather than restating the headline, and give the reader a reason to continue",
+    "blocks": [ { "type": "paragraph", "text": "..." }, { "type": "heading", "level": 2, "text": "..." }, { "type": "list", "style": "bullet", "items": ["..."] }, { "type": "quote", "text": "...", "cite": "optional" }, { "type": "pakistan-impact", "text": "..." } ]
   }
 }
 Rules:
@@ -236,6 +241,7 @@ Rules:
 - "verificationConfidence": your own honest confidence (0-100) that this story is accurately reported. This is recorded for editorial transparency ONLY and never by itself decides whether anything gets published — do not inflate it.
 - Use "verificationStatus": "PRIMARY_SOURCE_CONFIRMED" ONLY if a primary source's text was actually provided to you below AND it corroborates the story. A secondary source, if provided, strengthens this but is NEVER required — an official primary source is sufficient on its own. If no primary source text was provided, you MUST NOT claim PRIMARY_SOURCE_CONFIRMED, even if a secondary source was provided.
 - Use "CONTRADICTION_FOUND" if any provided source's text contradicts the discovered claims.
+- Open the body with 2-4 paragraph blocks, then alternate heading blocks with the paragraphs beneath them. A "heading" block always uses level 2. Use "pakistan-impact" at most once, only when a real, evidenced Pakistan implication exists in the source material — it renders as a "What This Means for Pakistan" callout, so never emit it merely because the article is otherwise global.
 - Write ORIGINAL prose in TEKZARO's own voice for "draft". Never copy sentences verbatim from the source material provided — summarize and re-report, don't reproduce.
 - Include an inline attribution line naming where this was first reported and every official/independent source it was verified against (e.g. "According to Samsung's newsroom... TechCrunch first reported this development, and it was independently corroborated by The Verge").
 - Write the draft whenever you have usable material, and report its status honestly. If no primary source text was provided but a secondary source's text was — or the discovering outlet's own report carries real substance beyond a bare headline — still write the draft and set "verificationStatus" to "PRIMARY_SOURCE_NOT_FOUND". A draft in that state is routed to a human editor and can never be published automatically, so withholding it removes an editor's option rather than protecting a reader. Reserve "draft": null for genuinely unusable input: no source text at all and nothing but a headline.
@@ -284,7 +290,7 @@ export async function verifyAndSynthesize(params: {
     task: "VERIFY_PRIMARY_SOURCE",
     requestedById,
     inputRef: { sourceItemId: item.id, primarySourceUrl: primaryFetched?.finalUrl ?? null, secondarySourceUrl: secondaryFetched?.finalUrl ?? null },
-    systemPrompt: `${NEWSROOM_SYSTEM_PROMPT}\n\n${RESPONSE_SCHEMA_INSTRUCTIONS}`,
+    systemPrompt: `${NEWSROOM_SYSTEM_PROMPT}\n\n${EDITORIAL_STANDARD}\n\n${RESPONSE_SCHEMA_INSTRUCTIONS}`,
     userPrompt,
   });
 

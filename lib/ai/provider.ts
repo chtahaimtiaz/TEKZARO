@@ -123,7 +123,10 @@ export async function generateWithAI(systemPrompt: string, userPrompt: string): 
     },
     body: JSON.stringify({
       model: aiModelId(),
-      max_tokens: 1024,
+      // A 700-1,200 word article plus its JSON scaffolding (claims, notes,
+      // block structure) does not fit in 1024 tokens — that ceiling capped
+      // drafts near 200 words regardless of what the prompt asked for.
+      max_tokens: 4096,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
