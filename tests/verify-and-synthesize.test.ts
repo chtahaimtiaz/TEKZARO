@@ -290,8 +290,15 @@ describe("verifyAndSynthesize — malformed AI output", () => {
     expect(result.draft).toBeNull();
     expect(result.generationId).not.toBeNull();
 
+    // Correctly FAILED, not COMPLETE: runStructuredTask (lib/ai/tasks.ts)
+    // owns retry-and-validate as one unit, so a response that could never
+    // be turned into usable output — even after the one allowed retry — is
+    // an honestly failed generation, not a successful one that merely
+    // produced unusable text. Matches the JSON-reliability requirement that
+    // a retry-exhausted generation is marked failed, never silently COMPLETE.
     const generation = await prisma.aIGeneration.findUniqueOrThrow({ where: { id: result.generationId! } });
-    expect(generation.status).toBe("COMPLETE"); // the call itself succeeded; only parsing failed
+    expect(generation.status).toBe("FAILED");
+    expect(generation.errorMessage).toMatch(/not.*(?:parsed|valid)|invalid/i);
   });
 
   it("degrades to UNVERIFIED/draft:null when the model's JSON is valid but missing required fields", async () => {

@@ -397,3 +397,148 @@ describe("processVerificationBatch — the auto-publish gate", () => {
     expect(summary.skippedNoCategory).toBe(0);
   });
 });
+
+describe("quality gate — additional publication gate", () => {
+  it("blocks auto-publish when the draft contains a numeric claim with no supporting evidence, even though every other check passes", async () => {
+    const category = await getUsableCategory();
+    await ensureAuthorExists();
+    process.env.AUTO_PUBLISH_CATEGORY_SLUGS = category.slug;
+    const item = await makeSourceItem(category.id);
+    const generationId = await makeGeneration();
+    createdGenerationIds.push(generationId);
+
+    verifyAndSynthesizeMock.mockResolvedValue({
+      verificationStatus: "PRIMARY_SOURCE_CONFIRMED",
+      primarySourceUrl: "https://official-newsroom.test/press-release-unsupported",
+      secondarySourceUrl: null,
+      verificationConfidence: 90,
+      claimsChecked: [],
+      notes: "Looks confirmed.",
+      draft: {
+        headline: `Unsupported claim gate test ${Date.now()}`,
+        excerpt: "A short excerpt.",
+        blocks: [
+          { type: "paragraph", text: "Sales reportedly grew 85% this quarter, though no source confirms this figure." },
+        ],
+      },
+      originalityScore: 0,
+      generationId,
+      // A real document IS present — this is what makes 85% genuinely
+      // UNSUPPORTED rather than UNCERTAIN: the claim was checkable against
+      // real evidence and failed, as opposed to there being nothing to
+      // check it against at all (a materially different, non-hard-fail
+      // case — see tests/claim-extraction.test.ts).
+      evidence: {
+        documents: [
+          {
+            url: "https://official-newsroom.test/press-release-unsupported", hostname: "official-newsroom.test",
+            rank: 1, rankLabel: "Official company source", title: "Statement", author: null, publishedAt: null,
+            text: "The company said sales improved compared with last year, without giving a specific figure.",
+            isOriginatingOutlet: false,
+          },
+        ],
+        richness: "MODERATE", totalChars: 90, primary: null, corroborating: null, notes: [],
+      },
+      retryCount: 0,
+    });
+
+    await claimOnly(item.id, 1);
+    const updatedItem = await prisma.sourceItem.findUnique({ where: { id: item.id } });
+    if (!updatedItem?.convertedArticleId) throw new Error("Test setup assumption failed.");
+    createdArticleIds.push(updatedItem.convertedArticleId);
+
+    const article = await prisma.article.findUniqueOrThrow({ where: { id: updatedItem.convertedArticleId } });
+    expect(article.status).not.toBe("PUBLISHED");
+    expect(article.autoPublished).toBe(false);
+
+    const metric = await prisma.generationMetric.findUnique({ where: { generationId } });
+    expect(metric?.autoPublished).toBe(false);
+    expect((metric?.qualityFailures as string[] | null)?.includes("UNSUPPORTED_CLAIM")).toBe(true);
+  });
+
+  it("persists an EvidenceRecord and an ArticleClaim traceable back to the generation and article", async () => {
+    const category = await getUsableCategory();
+    await ensureAuthorExists();
+    const item = await makeSourceItem(category.id);
+    const generationId = await makeGeneration();
+    createdGenerationIds.push(generationId);
+
+    verifyAndSynthesizeMock.mockResolvedValue({
+      verificationStatus: "PRIMARY_SOURCE_NOT_FOUND",
+      primarySourceUrl: null,
+      secondarySourceUrl: "https://techcrunch.com/story",
+      verificationConfidence: 40,
+      claimsChecked: [],
+      notes: "Only a secondary source.",
+      draft: {
+        headline: `Evidence traceability test ${Date.now()}`,
+        excerpt: "A short excerpt.",
+        blocks: [{ type: "paragraph", text: "The company reached 412 million users this quarter, TechCrunch reported." }],
+      },
+      originalityScore: 0,
+      generationId,
+      evidence: {
+        documents: [
+          {
+            url: "https://techcrunch.com/story", hostname: "techcrunch.com", rank: 3, rankLabel: "Specialist",
+            title: "Story", author: null, publishedAt: null,
+            text: "The company reached 412 million users this quarter, according to a spokesperson.",
+            isOriginatingOutlet: false,
+          },
+        ],
+        richness: "MODERATE", totalChars: 80, primary: null, corroborating: null, notes: [],
+      },
+      retryCount: 1,
+    });
+
+    await claimOnly(item.id, 1);
+    const updatedItem = await prisma.sourceItem.findUnique({ where: { id: item.id } });
+    if (!updatedItem?.convertedArticleId) throw new Error("Test setup assumption failed.");
+    createdArticleIds.push(updatedItem.convertedArticleId);
+
+    const evidenceRows = await prisma.evidenceRecord.findMany({ where: { generationId } });
+    expect(evidenceRows).toHaveLength(1);
+    expect(evidenceRows[0].hostname).toBe("techcrunch.com");
+    expect(evidenceRows[0].articleId).toBe(updatedItem.convertedArticleId);
+
+    const claimRows = await prisma.articleClaim.findMany({ where: { generationId } });
+    expect(claimRows.length).toBeGreaterThan(0);
+    expect(claimRows[0].supportingEvidenceId).toBe(evidenceRows[0].id);
+
+    const metric = await prisma.generationMetric.findUniqueOrThrow({ where: { generationId } });
+    expect(metric.retryCount).toBe(1);
+    expect(metric.sourceCount).toBe(1);
+    expect(metric.evidenceRichness).toBe("MODERATE");
+  });
+
+  it("records a GenerationMetric row even when no draft is produced at all", async () => {
+    const category = await getUsableCategory();
+    await ensureAuthorExists();
+    const item = await makeSourceItem(category.id);
+    const generationId = await makeGeneration();
+    createdGenerationIds.push(generationId);
+
+    verifyAndSynthesizeMock.mockResolvedValue({
+      verificationStatus: "UNVERIFIED",
+      primarySourceUrl: null,
+      secondarySourceUrl: null,
+      verificationConfidence: null,
+      claimsChecked: [],
+      notes: "No source material could be retrieved.",
+      draft: null,
+      originalityScore: null,
+      generationId,
+      evidence: { documents: [], richness: "THIN", totalChars: 0, primary: null, corroborating: null, notes: ["nothing fetched"] },
+      retryCount: 0,
+    });
+
+    const summary = await claimOnly(item.id, 1);
+    expect(summary.skippedNoDraft).toBe(1);
+
+    const metric = await prisma.generationMetric.findUniqueOrThrow({ where: { generationId } });
+    expect(metric.articleId).toBeNull();
+    expect(metric.sentToReview).toBe(false);
+    expect(metric.autoPublished).toBe(false);
+    expect(metric.rejectionReason).toMatch(/no source material/i);
+  });
+});

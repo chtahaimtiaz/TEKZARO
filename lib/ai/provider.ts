@@ -111,7 +111,11 @@ export function activeAIGateway(): string | null {
  * AI_API_KEY isn't set — callers must handle that and show an honest "not
  * configured" state, never a fake result.
  */
-export async function generateWithAI(systemPrompt: string, userPrompt: string): Promise<string> {
+export async function generateWithAI(
+  systemPrompt: string,
+  userPrompt: string,
+  options?: { jsonMode?: boolean },
+): Promise<string> {
   const gateway = gatewayConfig();
   if (!gateway) throw new AIProviderNotConfiguredError();
 
@@ -131,8 +135,17 @@ export async function generateWithAI(systemPrompt: string, userPrompt: string): 
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
+      // OpenAI-compatible JSON mode. Requested whenever the caller expects
+      // structured output — harmless to include even against a model that
+      // ignores it (verified: OpenRouter's free tier accepts the field and
+      // still returns prose, exactly as it would with the field omitted),
+      // and it is honored by models that do support it (Claude via the
+      // Vercel/Cloudflare gateways, and paid OpenRouter models with
+      // structured_outputs). See lib/ai/structured-completion.ts for the
+      // retry that handles the case where a model ignores this anyway.
+      ...(options?.jsonMode ? { response_format: { type: "json_object" as const } } : {}),
     }),
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(45_000),
   });
 
   if (!response.ok) {

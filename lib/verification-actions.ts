@@ -9,7 +9,17 @@ import { evaluatePublicationChecks, allChecksPassed } from "./publication-checks
 import { snapshotVersion, buildSnapshotFromArticleRow } from "./article-snapshot";
 import { logAction } from "./audit";
 import { logSystemEvent } from "./monitoring";
+import { runQualityGate } from "./ai/quality-gate";
+import { persistEvidenceAndClaims, recordGenerationMetric } from "./ai/generation-persistence";
+import { aiModelId } from "./ai/provider";
+import type { EvidenceBundle } from "./ai/evidence";
 import type { Prisma } from "@prisma/client";
+
+/** Used only when verifyAndSynthesize returns no evidence bundle at all
+ * (search unconfigured, or it failed before any fetch was attempted) — the
+ * quality gate always wants a concrete bundle, and "nothing was gathered"
+ * is exactly what an empty one already means. */
+const EMPTY_EVIDENCE: EvidenceBundle = { documents: [], richness: "THIN", totalChars: 0, primary: null, corroborating: null, notes: [] };
 
 export interface VerificationBatchSummary {
   itemsProcessed: number;
@@ -147,10 +157,37 @@ export async function processVerificationBatch(
         continue;
       }
 
+      const generationStartedAt = Date.now();
       const result = await verifyAndSynthesize({ requestedById: systemUserId, item });
+      const latencyMs = Date.now() - generationStartedAt;
 
       if (!result.draft) {
         summary.skippedNoDraft += 1;
+        // Recorded even on failure — a story with no draft still measured
+        // how much evidence was available (often none), whether the AI
+        // call's JSON ever parsed, and how long it took. Without this row
+        // the failure case is invisible to the metrics the dashboard (§13)
+        // needs to answer "why did stories fail" and "which sources
+        // produce strong evidence".
+        if (result.generationId) {
+          await recordGenerationMetric({
+            generationId: result.generationId,
+            sourceItemId: item.id,
+            articleId: null,
+            modelId: aiModelId(),
+            evidence: result.evidence,
+            blocks: null,
+            quality: null,
+            retryCount: result.retryCount,
+            latencyMs,
+            sentToReview: false,
+            autoPublished: false,
+            rejectionReason: result.notes,
+          }).catch(() => {
+            // Metrics must never break the batch — same posture as
+            // logSystemEvent throughout this file.
+          });
+        }
         // Log why. verifyAndSynthesize returns its reason in notes — an
         // unconfigured API key, a failed search, an unparseable model
         // response, no confirmable primary source — and discarding it made
@@ -200,7 +237,36 @@ export async function processVerificationBatch(
       await prisma.articleSource.create({ data: { articleId: article.id, sourceId: item.sourceId } });
       summary.draftsCreated += 1;
 
+      // Runs for every draft, regardless of verification status — a
+      // PRIMARY_SOURCE_NOT_FOUND article still gets its evidence and claims
+      // persisted, since it still went to a human reviewer who benefits
+      // from the same traceability. Only whether the RESULT can gate
+      // auto-publish differs below.
+      const evidenceForGate = result.evidence ?? EMPTY_EVIDENCE;
+      const qualityGate = runQualityGate({
+        headline: result.draft.headline,
+        excerpt: result.draft.excerpt,
+        blocks: result.draft.blocks,
+        evidence: evidenceForGate,
+      });
+      await persistEvidenceAndClaims({
+        generationId: result.generationId!,
+        articleId: article.id,
+        evidence: result.evidence,
+        claims: qualityGate.claims,
+      }).catch((err) => {
+        // Traceability is additive infrastructure — losing it must never
+        // undo a draft that was otherwise successfully created.
+        void logSystemEvent({
+          level: "WARN",
+          source: "verification.batch",
+          message: `Failed to persist evidence/claims for article ${article.id}: ${err instanceof Error ? err.message : String(err)}`,
+          context: { articleId: article.id, generationId: result.generationId },
+        });
+      });
+
       let published = false;
+      let rejectionReason: string | null = null;
       if (result.verificationStatus === "PRIMARY_SOURCE_CONFIRMED") {
         const mediaReuseStatus = imageFields.featuredMediaId
           ? (await prisma.media.findUnique({ where: { id: imageFields.featuredMediaId }, select: { reuseStatus: true } }))
@@ -230,7 +296,13 @@ export async function processVerificationBatch(
           originalityScore: result.originalityScore ?? undefined,
         });
 
-        if (allChecksPassed(checks) && isCategoryAllowedForAutoPublish(category.slug)) {
+        // The quality gate is a fourth, independent condition alongside the
+        // three that already existed — valid JSON alone was never proof of
+        // valid journalism. A HARD_FAIL_CODES failure here (an unsupported
+        // claim, or the JSON layer somehow still producing something
+        // unusable) blocks auto-publish exactly like a failed publication
+        // check or an unallowlisted category already did.
+        if (allChecksPassed(checks) && isCategoryAllowedForAutoPublish(category.slug) && qualityGate.passed) {
           const now = new Date();
           await prisma.article.update({
             where: { id: article.id },
@@ -260,17 +332,42 @@ export async function processVerificationBatch(
           published = true;
           summary.autoPublished += 1;
         } else {
-          // Verification confirmed a primary source, but either a
-          // publication check still failed (e.g. an acquired image not yet
-          // cleared for reuse) or this category isn't yet enabled for
-          // auto-publish (AUTO_PUBLISH_CATEGORY_SLUGS) — either way, surface
-          // it higher in the human queue rather than leaving it an
-          // easy-to-miss bare DRAFT.
+          // Verification confirmed a primary source, but a publication
+          // check failed (e.g. an acquired image not yet cleared for
+          // reuse), the category isn't yet enabled for auto-publish
+          // (AUTO_PUBLISH_CATEGORY_SLUGS), or the quality gate rejected it —
+          // any of those surfaces it higher in the human queue rather than
+          // leaving it an easy-to-miss bare DRAFT.
           await prisma.article.update({ where: { id: article.id }, data: { status: "IN_REVIEW" } });
+          rejectionReason = !qualityGate.passed
+            ? `Quality gate: ${qualityGate.failures.map((f) => f.code).join(", ")}`
+            : !allChecksPassed(checks)
+              ? `Publication checks failed: ${checks.filter((c) => !c.passed).map((c) => c.id).join(", ")}`
+              : "Category not in auto-publish allowlist";
         }
+      } else {
+        rejectionReason = `Verification status is ${result.verificationStatus}, not PRIMARY_SOURCE_CONFIRMED`;
       }
 
       if (!published) summary.sentToReview += 1;
+
+      await recordGenerationMetric({
+        generationId: result.generationId!,
+        sourceItemId: item.id,
+        articleId: article.id,
+        modelId: aiModelId(),
+        evidence: result.evidence,
+        blocks: result.draft.blocks,
+        quality: qualityGate,
+        retryCount: result.retryCount,
+        latencyMs,
+        sentToReview: !published,
+        autoPublished: published,
+        rejectionReason,
+      }).catch(() => {
+        // Same posture as every metrics write in this file: never break the
+        // batch over an observability failure.
+      });
 
       await prisma.sourceItem.update({
         where: { id: item.id },

@@ -127,6 +127,30 @@ enum AITask {
   SYNTHESIZE_ARTICLE
 }
 
+// How a code-derived claim (lib/ai/claim-extraction.ts) relates to the
+// evidence bundle. Deliberately never produced by the model itself — the
+// model's own JSON schema stays exactly as it was, so classification is a
+// server-side check ON the model's output, never something the model
+// self-reports and could get wrong or fabricate confidence about.
+enum EvidenceClaimType {
+  DIRECT_FACT
+  ATTRIBUTED_CLAIM
+  DERIVED_FACT
+  ANALYSIS
+  UNCERTAIN
+  UNSUPPORTED
+}
+
+// Why a candidate evidence document did or did not become usable evidence.
+enum EvidenceRetrievalStatus {
+  OK
+  ROBOTS_BLOCKED
+  HTTP_ERROR
+  TOO_SHORT
+  AGGREGATOR_SKIPPED
+  FETCH_ERROR
+}
+
 enum KeywordType {
   PAKISTAN
   COMPANY
@@ -502,14 +526,17 @@ model Article {
   // so hand-written GENERATED ALWAYS AS ... STORED column survives migrate dev.
   searchVector Unsupported("tsvector")?
 
-  sources       ArticleSource[]
-  tags          ArticleTag[]
-  versions      ArticleVersion[]
-  relatedFrom   Relation[]       @relation("from")
-  relatedTo     Relation[]       @relation("to")
-  convertedFrom SourceItem[]     @relation("SourceItemConvertedArticle")
-  digestItems   DigestItem[]
-  pageViews     PageView[]
+  sources         ArticleSource[]
+  tags            ArticleTag[]
+  versions        ArticleVersion[]
+  relatedFrom     Relation[]        @relation("from")
+  relatedTo       Relation[]        @relation("to")
+  convertedFrom   SourceItem[]      @relation("SourceItemConvertedArticle")
+  digestItems     DigestItem[]
+  pageViews       PageView[]
+  evidenceRecords EvidenceRecord[]
+  claims          ArticleClaim[]
+  metric          GenerationMetric?
 
   @@index([status, publishedAt])
   @@index([categoryId, publishedAt])
@@ -670,6 +697,130 @@ model AIGeneration {
   createdAt     DateTime @default(now())
 
   verifiedArticle Article?
+
+  // Evidence traceability (lib/ai/evidence.ts, lib/ai/claim-extraction.ts) —
+  // persisted per generation so a draft's sourcing survives independently
+  // of the Article it produced (a rejected/never-created draft still keeps
+  // its evidence for review).
+  evidenceRecords EvidenceRecord[]
+  claims          ArticleClaim[]
+  metric          GenerationMetric?
+}
+
+// One row per evidence document gathered for a draft (lib/ai/evidence.ts).
+// Persists what the model actually saw, independently of the Article: a
+// draft that failed the quality gate, or was never created at all because
+// synthesis produced no draft, still keeps its evidence for editorial review
+// — discarding it on failure would hide exactly the case an editor most
+// needs to inspect.
+model EvidenceRecord {
+  id           String       @id @default(cuid())
+  generationId String
+  generation   AIGeneration @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  articleId    String?
+  article      Article?     @relation(fields: [articleId], references: [id], onDelete: SetNull)
+
+  url              String
+  canonicalUrl     String?
+  hostname         String
+  // Numeric SourceRank (lib/ai/source-classification.ts) — stored as Int
+  // rather than a Prisma enum so the classifier's ranking can be refined
+  // without an ALTER TYPE migration for every tier change.
+  rank             Int
+  rankLabel        String
+  title            String?
+  author           String?
+  publishedAt      String?
+  extractedText    String?
+  extractionLength Int     @default(0)
+
+  isOriginatingOutlet Boolean @default(false)
+  isPrimary           Boolean @default(false)
+  isCorroborating     Boolean @default(false)
+
+  retrievalStatus EvidenceRetrievalStatus @default(OK)
+  retrievedAt     DateTime                @default(now())
+
+  claims ArticleClaim[]
+
+  @@index([generationId])
+  @@index([articleId])
+  @@index([hostname])
+}
+
+// A single factual claim extracted from a synthesized draft and checked
+// against the evidence bundle (lib/ai/claim-extraction.ts). Built entirely
+// server-side from the model's already-generated prose — the model is never
+// asked to self-report claim types, so this cannot be gamed by an
+// overconfident or dishonest self-assessment, and the JSON schema the model
+// must produce stays exactly as small as it was.
+model ArticleClaim {
+  id           String       @id @default(cuid())
+  generationId String
+  generation   AIGeneration @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  articleId    String?
+  article      Article?     @relation(fields: [articleId], references: [id], onDelete: SetNull)
+
+  claimText String
+  claimType EvidenceClaimType
+
+  supportingEvidenceId String?
+  supportingEvidence   EvidenceRecord? @relation(fields: [supportingEvidenceId], references: [id], onDelete: SetNull)
+  sourceExcerpt        String?
+
+  // True for DERIVED_FACT: the claim states a number computed from two or
+  // more source-reported figures (e.g. percentage growth) rather than one
+  // reported verbatim. derivedFromValues keeps the original inputs so the
+  // published figure is never presented as if the source stated it directly.
+  isDerived         Boolean @default(false)
+  derivedFromValues Json?
+
+  confidence Int?
+  createdAt  DateTime @default(now())
+
+  @@index([generationId])
+  @@index([articleId])
+  @@index([claimType])
+}
+
+// One row per synthesis attempt — the raw event log the eventual dashboard
+// (§13) reads from, matching the project's existing convention of counting
+// live via groupBy over real columns (see PageView/AdImpression) rather than
+// a JSON blob nothing can aggregate efficiently.
+model GenerationMetric {
+  id           String       @id @default(cuid())
+  generationId String       @unique
+  generation   AIGeneration @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  sourceItemId String?
+  articleId    String?      @unique
+  article      Article?     @relation(fields: [articleId], references: [id], onDelete: SetNull)
+
+  modelId              String
+  sourceCount          Int     @default(0)
+  primarySourceCount   Int     @default(0)
+  secondarySourceCount Int     @default(0)
+  sourceCharCount      Int     @default(0)
+  articleWordCount     Int?
+  headingCount         Int?
+  evidenceRichness     String?
+
+  qualityScore    Float?
+  qualityFailures Json?
+  sourceConflicts Json?
+
+  jsonParseOk Boolean @default(true)
+  retryCount  Int     @default(0)
+  latencyMs   Int     @default(0)
+
+  sentToReview    Boolean @default(false)
+  autoPublished   Boolean @default(false)
+  rejectionReason String?
+
+  createdAt DateTime @default(now())
+
+  @@index([modelId])
+  @@index([createdAt])
+  @@index([evidenceRichness])
 }
 
 model Keyword {

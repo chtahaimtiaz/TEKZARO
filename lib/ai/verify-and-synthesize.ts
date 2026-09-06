@@ -1,7 +1,7 @@
 import "server-only";
-import { runTask, NEWSROOM_SYSTEM_PROMPT } from "./tasks";
+import { runStructuredTask, NEWSROOM_SYSTEM_PROMPT } from "./tasks";
 import { EDITORIAL_STANDARD } from "./editorial-standard";
-import { gatherEvidence, formatEvidence } from "./evidence";
+import { gatherEvidence, formatEvidence, type EvidenceBundle } from "./evidence";
 import { isSearchConfigured, searchWeb } from "../search/web-search";
 import { isSynthesizableBlock } from "./synthesizable-blocks";
 import { checkOriginality } from "./originality-check";
@@ -30,11 +30,25 @@ export interface VerifyAndSynthesizeResult {
   originalityScore: number | null;
   /** Null when no AI call was ever attempted (e.g. search not configured) —
    * distinct from a call that was attempted and failed, which still gets a
-   * generationId via runTask's own audit logging. */
+   * generationId via lib/ai/tasks.ts's own audit logging. */
   generationId: string | null;
+  /** Null only when nothing was ever gathered (search unconfigured or
+   * failed before any fetch was attempted). Once gathering runs, the
+   * bundle is always attached — including on a failed/unparseable AI
+   * call — so the caller can persist evidence and run the quality gate
+   * regardless of whether synthesis itself succeeded. */
+  evidence: EvidenceBundle | null;
+  /** How many times a malformed response forced a retry. 0 when no AI
+   * call was attempted at all. */
+  retryCount: number;
 }
 
-function emptyResult(notes: string, generationId: string | null = null): VerifyAndSynthesizeResult {
+function emptyResult(
+  notes: string,
+  generationId: string | null = null,
+  evidence: EvidenceBundle | null = null,
+  retryCount = 0,
+): VerifyAndSynthesizeResult {
   return {
     verificationStatus: "UNVERIFIED",
     primarySourceUrl: null,
@@ -45,6 +59,8 @@ function emptyResult(notes: string, generationId: string | null = null): VerifyA
     draft: null,
     originalityScore: null,
     generationId,
+    evidence,
+    retryCount,
   };
 }
 
@@ -69,14 +85,18 @@ interface ParsedModelOutput {
  * whole parse); verificationConfidence/claimsChecked are enrichment fields
  * that degrade individually to null/[] rather than invalidating an
  * otherwise-usable response. */
-function parseModelOutput(text: string): ParsedModelOutput | null {
-  const stripped = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "");
-  let raw: unknown;
-  try {
-    raw = JSON.parse(stripped);
-  } catch {
-    return null;
-  }
+/**
+ * Shape-validates an already-parsed JSON value. The parsing itself — fence
+ * stripping, JSON.parse, the embedded-object salvage attempt — now happens
+ * once, generically, in lib/ai/structured-completion.ts, which retries when
+ * a model ignores the requested JSON format. This function's only job is
+ * deciding whether a successfully parsed object is USABLE: the right
+ * enum value, a non-empty headline, real blocks. Returning null here is
+ * exactly as final as a parse failure — structured-completion treats an
+ * invalid shape and invalid JSON identically, both triggering the same
+ * bounded retry.
+ */
+function parseModelOutput(raw: unknown): ParsedModelOutput | null {
   if (typeof raw !== "object" || raw === null) return null;
   const obj = raw as Record<string, unknown>;
 
@@ -185,25 +205,27 @@ export async function verifyAndSynthesize(params: {
     RESPONSE_SCHEMA_INSTRUCTIONS,
   ].join("\n");
 
-  const result = await runTask({
+  const result = await runStructuredTask({
     task: "VERIFY_PRIMARY_SOURCE",
     requestedById,
     inputRef: { sourceItemId: item.id, primarySourceUrl: primaryFetched?.url ?? null, secondarySourceUrl: secondaryFetched?.url ?? null },
     systemPrompt: `${NEWSROOM_SYSTEM_PROMPT}\n\n${EDITORIAL_STANDARD}\n\n${RESPONSE_SCHEMA_INSTRUCTIONS}`,
     userPrompt,
+    validate: parseModelOutput,
   });
 
-  if (!result.ok || !result.text) {
+  if (!result.ok || !result.data) {
     return emptyResult(
-      result.notConfigured ? "AI not configured — no verification attempted." : `AI call failed: ${result.error ?? "unknown error"}`,
+      result.notConfigured
+        ? "AI not configured — no verification attempted."
+        : `AI call failed: ${result.error ?? "unknown error"}`,
       result.generationId,
+      evidence,
+      result.retryCount,
     );
   }
 
-  const parsed = parseModelOutput(result.text);
-  if (!parsed) {
-    return emptyResult("AI response could not be parsed as valid JSON — treated as unverified.", result.generationId);
-  }
+  const parsed = result.data;
 
   // Deterministic override, not just a prompt instruction: the model cannot
   // have confirmed or contradicted a primary source that was never actually
@@ -227,5 +249,7 @@ export async function verifyAndSynthesize(params: {
     draft: parsed.draft,
     originalityScore,
     generationId: result.generationId,
+    evidence,
+    retryCount: result.retryCount,
   };
 }

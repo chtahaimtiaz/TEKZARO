@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "../prisma";
 import { generateWithAI, isAIConfigured, AI_MODEL, AIProviderNotConfiguredError } from "./provider";
+import { generateStructuredCompletion } from "./structured-completion";
 import { isSynthesizableBlock } from "./synthesizable-blocks";
 import type { ContentBlock } from "../content-blocks";
 import type { AITask, Prisma } from "@prisma/client";
@@ -53,6 +54,75 @@ export async function runTask(params: {
     });
     return { ok: false, generationId: generation.id, error: message };
   }
+}
+
+export interface AIStructuredTaskResult<T> {
+  ok: boolean;
+  data: T | null;
+  generationId: string;
+  notConfigured?: boolean;
+  error?: string;
+  /** How many times a malformed/invalid response forced a retry — 0 means
+   * the model produced a usable response on the first attempt. Persisted
+   * onto GenerationMetric so JSON reliability is measurable per model. */
+  retryCount: number;
+}
+
+/**
+ * Sibling to runTask for callers that need a validated JSON object rather
+ * than free text — currently only article synthesis. Kept separate rather
+ * than adding a validate option to runTask: every other caller (claim
+ * extraction, summarisation, headline suggestions) returns prose, and
+ * bolting structured-output plumbing onto every one of those call sites
+ * would be exactly the complexity §10 asks to avoid. The two functions
+ * share the same AIGeneration bookkeeping shape on purpose.
+ */
+export async function runStructuredTask<T>(params: {
+  task: AITask;
+  requestedById: string;
+  inputRef: Prisma.InputJsonValue;
+  systemPrompt: string;
+  userPrompt: string;
+  validate: (value: unknown) => T | null;
+}): Promise<AIStructuredTaskResult<T>> {
+  const generation = await prisma.aIGeneration.create({
+    data: {
+      task: params.task,
+      model: AI_MODEL,
+      status: "PROCESSING",
+      requestedById: params.requestedById,
+      inputRef: params.inputRef,
+    },
+  });
+
+  if (!isAIConfigured()) {
+    await prisma.aIGeneration.update({
+      where: { id: generation.id },
+      data: { status: "FAILED", errorMessage: "AI_API_KEY not configured" },
+    });
+    return { ok: false, data: null, generationId: generation.id, notConfigured: true, retryCount: 0 };
+  }
+
+  const result = await generateStructuredCompletion<T>({
+    systemPrompt: params.systemPrompt,
+    userPrompt: params.userPrompt,
+    validate: params.validate,
+  });
+
+  await prisma.aIGeneration.update({
+    where: { id: generation.id },
+    data: result.ok
+      ? { status: "COMPLETE", output: { text: result.raw, retryCount: result.retryCount } }
+      : { status: "FAILED", errorMessage: (result.error ?? "unknown error").slice(0, 500), output: { retryCount: result.retryCount } },
+  });
+
+  return {
+    ok: result.ok,
+    data: result.data,
+    generationId: generation.id,
+    error: result.error ?? undefined,
+    retryCount: result.retryCount,
+  };
 }
 
 export const NEWSROOM_SYSTEM_PROMPT =
