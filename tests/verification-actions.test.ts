@@ -1,11 +1,13 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 
 const verifyAndSynthesizeMock = vi.fn();
+const classifyAgainstEvidenceMock = vi.fn();
 vi.mock("../lib/ai/verify-and-synthesize", () => ({
   verifyAndSynthesize: verifyAndSynthesizeMock,
+  classifyAgainstEvidence: classifyAgainstEvidenceMock,
 }));
 
-const { processVerificationBatch, verifySourceItem, UNCATEGORIZED_CATEGORY_SLUG } = await import("../lib/verification-actions");
+const { processVerificationBatch, verifySourceItem, revalidateOneArticle, UNCATEGORIZED_CATEGORY_SLUG } = await import("../lib/verification-actions");
 const { prisma } = await import("../lib/prisma");
 const { getSystemUserId } = await import("../lib/system-actor");
 const { cleanupTestData, createTestUser, trackUser } = await import("./helpers");
@@ -631,5 +633,139 @@ describe("verifySourceItem — the single-item entry point behind Write with AI"
     // editorial work already done on an earlier generation.
     const firstArticleStillExists = await prisma.article.findUnique({ where: { id: first.articleId! } });
     expect(firstArticleStillExists).not.toBeNull();
+  });
+});
+
+describe("revalidateOneArticle / revalidatePublishedArticles's query — re-checking already-published articles", () => {
+  // revalidatePublishedArticles's own findMany is a live, site-wide,
+  // oldest-first query over the shared production database with no way to
+  // scope it to a single test's fixtures — calling IT in a test would risk
+  // writing mocked verification results onto real production articles (this
+  // was caught before it ran: an earlier draft of this suite did exactly
+  // that). So these tests exercise revalidateOneArticle directly against one
+  // known article id instead, and check the query's WHERE clause in
+  // isolation, scoped by id — never the orchestrator itself.
+
+  /** A minimal real PUBLISHED, pipeline-drafted Article row. */
+  async function makePublishedArticle(verificationStatus: "UNVERIFIED" | "PRIMARY_SOURCE_NOT_FOUND") {
+    const category = await getUsableCategory();
+    await ensureAuthorExists();
+    const author = await prisma.author.findFirstOrThrow();
+    const generationId = await makeGeneration();
+    const unique = `${Date.now()}-${Math.random()}`;
+    const article = await prisma.article.create({
+      data: {
+        slug: `revalidate-test-${unique}`,
+        title: `Revalidate Test Article ${unique}`,
+        excerpt: "An excerpt for the revalidation test.",
+        content: { blocks: [{ type: "paragraph", text: "Original live body text — must never change." }] },
+        status: "PUBLISHED",
+        publishedAt: new Date(),
+        categoryId: category.id,
+        authorId: author.id,
+        verificationStatus,
+        verificationGenerationId: generationId,
+      },
+    });
+    createdArticleIds.push(article.id);
+    return article;
+  }
+
+  it("skips an article with no persisted EvidenceRecord, without calling classifyAgainstEvidence", async () => {
+    const article = await makePublishedArticle("UNVERIFIED");
+
+    const outcome = await revalidateOneArticle({
+      articleId: article.id, title: article.title, excerpt: article.excerpt, reportedBy: null, actorId: article.authorId,
+    });
+
+    expect(outcome).toBe("skipped_no_evidence");
+    expect(classifyAgainstEvidenceMock).not.toHaveBeenCalled();
+
+    const unchanged = await prisma.article.findUniqueOrThrow({ where: { id: article.id } });
+    expect(unchanged.verificationStatus).toBe("UNVERIFIED");
+    expect(unchanged.status).toBe("PUBLISHED");
+  });
+
+  it("updates only verification metadata from replayed evidence, never status/title/content", async () => {
+    const article = await makePublishedArticle("PRIMARY_SOURCE_NOT_FOUND");
+    await prisma.evidenceRecord.create({
+      data: {
+        generationId: article.verificationGenerationId!,
+        articleId: article.id,
+        url: "https://official-outlet.test/story",
+        hostname: "official-outlet.test",
+        rank: 1,
+        rankLabel: "Official",
+        extractedText: "A".repeat(1000),
+        extractionLength: 1000,
+        isPrimary: true,
+      },
+    });
+
+    const newGenerationId = await makeGeneration();
+    createdGenerationIds.push(newGenerationId);
+    classifyAgainstEvidenceMock.mockResolvedValueOnce({
+      verificationStatus: "PRIMARY_SOURCE_CONFIRMED",
+      primarySourceUrl: "https://official-outlet.test/story",
+      secondarySourceUrl: null,
+      verificationConfidence: 90,
+      claimsChecked: ["the headline claim"],
+      notes: "confirmed against replayed evidence",
+      draft: { headline: "A completely different headline the model made up", excerpt: "different", blocks: [] },
+      originalityScore: 0,
+      generationId: newGenerationId,
+      evidence: null,
+      retryCount: 0,
+    });
+
+    const outcome = await revalidateOneArticle({
+      articleId: article.id, title: article.title, excerpt: article.excerpt,
+      reportedBy: { name: "Official Outlet", url: "https://official-outlet.test" },
+      actorId: article.authorId,
+    });
+
+    expect(outcome).toBe("confirmed");
+    expect(classifyAgainstEvidenceMock).toHaveBeenCalled();
+
+    const updated = await prisma.article.findUniqueOrThrow({ where: { id: article.id } });
+    expect(updated.verificationStatus).toBe("PRIMARY_SOURCE_CONFIRMED");
+    expect(updated.primarySourceUrl).toBe("https://official-outlet.test/story");
+    // Never touched, even though classifyAgainstEvidence returned a "draft"
+    // — this function only ever updates verification metadata.
+    expect(updated.status).toBe("PUBLISHED");
+    expect(updated.title).toBe(article.title);
+    expect(updated.content).toEqual(article.content);
+  });
+
+  it("revalidatePublishedArticles's WHERE clause excludes a human-authored article (no verificationGenerationId), scoped to just this row", async () => {
+    const category = await getUsableCategory();
+    await ensureAuthorExists();
+    const author = await prisma.author.findFirstOrThrow();
+    const unique = `${Date.now()}-${Math.random()}`;
+    const article = await prisma.article.create({
+      data: {
+        slug: `human-authored-test-${unique}`,
+        title: `Human Authored Test Article ${unique}`,
+        content: { blocks: [{ type: "paragraph", text: "Reporter's own original text." }] },
+        status: "PUBLISHED",
+        publishedAt: new Date(),
+        categoryId: category.id,
+        authorId: author.id,
+        // verificationStatus defaults to UNVERIFIED; verificationGenerationId stays null.
+      },
+    });
+    createdArticleIds.push(article.id);
+
+    // The exact WHERE clause revalidatePublishedArticles uses, scoped by
+    // this test's own id so it can never touch any other row.
+    const matches = await prisma.article.findMany({
+      where: {
+        id: article.id,
+        status: "PUBLISHED",
+        verificationGenerationId: { not: null },
+        verificationStatus: { not: "PRIMARY_SOURCE_CONFIRMED" },
+      },
+    });
+    expect(matches).toHaveLength(0);
   });
 });

@@ -7,7 +7,7 @@ import { isSynthesizableBlock } from "./synthesizable-blocks";
 import { BLOCK_SHAPE_EXAMPLE, BLOCK_SHAPE_RULES } from "./block-schema-doc";
 import { checkOriginality } from "./originality-check";
 import type { ContentBlock } from "../content-blocks";
-import type { ArticleVerificationStatus, SourceItem, Source } from "@prisma/client";
+import type { ArticleVerificationStatus, SourceItem, Source, Prisma } from "@prisma/client";
 
 export interface VerifyAndSynthesizeResult {
   verificationStatus: ArticleVerificationStatus;
@@ -163,40 +163,35 @@ Rules:
 ${BLOCK_SHAPE_RULES}
 `.trim();
 
-export async function verifyAndSynthesize(params: {
+/**
+ * The classification half of the pipeline — given evidence already
+ * gathered (fresh, via gatherEvidence, or reconstructed from what was
+ * persisted for an existing article — see
+ * lib/verification-actions.ts's revalidatePublishedArticles), runs the
+ * exact same prompt/parsing/originality-check logic verifyAndSynthesize
+ * always has. Extracted so a second evidence source can never drift into a
+ * second, subtly different verification decision — the same anti-drift
+ * reasoning processOneItem's own doc comment gives for sharing logic
+ * between the batch cron and "Write with AI".
+ */
+export async function classifyAgainstEvidence(params: {
   requestedById: string;
-  item: SourceItem & { source: Source };
+  headline: string;
+  excerpt: string | null;
+  reportedByName: string;
+  reportedByUrl: string;
+  evidence: EvidenceBundle;
+  inputRef: Prisma.InputJsonValue;
 }): Promise<VerifyAndSynthesizeResult> {
-  const { requestedById, item } = params;
-
-  if (!isSearchConfigured()) {
-    return emptyResult("Search not configured (SEARCH_API_KEY missing) — no verification attempted.");
-  }
-
-  let searchResults: { title: string; url: string; snippet: string }[];
-  try {
-    searchResults = await searchWeb(item.headline);
-  } catch (err) {
-    return emptyResult(`Search failed: ${err instanceof Error ? err.message : String(err)}`);
-  }
-
-  // Evidence gathering replaces the old "find two URLs on curated domains and
-  // strip their tags" path. Candidates are ranked by evidentiary weight
-  // (lib/ai/source-classification.ts) rather than by whether TEKZARO happens
-  // to ingest their feed, and each page is reduced to its article body with
-  // metadata preserved (lib/ai/article-extract.ts).
-  const evidence = await gatherEvidence({
-    originatingUrl: item.sourceUrl,
-    searchResults,
-  });
+  const { requestedById, headline, excerpt, reportedByName, reportedByUrl, evidence, inputRef } = params;
   const primaryFetched = evidence.primary;
   const secondaryFetched = evidence.corroborating;
 
   const userPrompt = [
     `Discovered story:`,
-    `Headline: ${item.headline}`,
-    `Summary: ${item.excerpt ?? "(none provided)"}`,
-    `Reported by: ${item.source.name} (${item.source.url})`,
+    `Headline: ${headline}`,
+    `Summary: ${excerpt ?? "(none provided)"}`,
+    `Reported by: ${reportedByName} (${reportedByUrl})`,
     ``,
     primaryFetched
       ? `A primary source WAS retrieved for this story (SOURCE marked PRIMARY below).`
@@ -210,7 +205,7 @@ export async function verifyAndSynthesize(params: {
   const result = await runStructuredTask({
     task: "VERIFY_PRIMARY_SOURCE",
     requestedById,
-    inputRef: { sourceItemId: item.id, primarySourceUrl: primaryFetched?.url ?? null, secondarySourceUrl: secondaryFetched?.url ?? null },
+    inputRef,
     systemPrompt: `${NEWSROOM_SYSTEM_PROMPT}\n\n${EDITORIAL_STANDARD}\n\n${RESPONSE_SCHEMA_INSTRUCTIONS}`,
     userPrompt,
     validate: parseModelOutput,
@@ -254,4 +249,42 @@ export async function verifyAndSynthesize(params: {
     evidence,
     retryCount: result.retryCount,
   };
+}
+
+export async function verifyAndSynthesize(params: {
+  requestedById: string;
+  item: SourceItem & { source: Source };
+}): Promise<VerifyAndSynthesizeResult> {
+  const { requestedById, item } = params;
+
+  if (!isSearchConfigured()) {
+    return emptyResult("Search not configured (SEARCH_API_KEY missing) — no verification attempted.");
+  }
+
+  let searchResults: { title: string; url: string; snippet: string }[];
+  try {
+    searchResults = await searchWeb(item.headline);
+  } catch (err) {
+    return emptyResult(`Search failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // Evidence gathering replaces the old "find two URLs on curated domains and
+  // strip their tags" path. Candidates are ranked by evidentiary weight
+  // (lib/ai/source-classification.ts) rather than by whether TEKZARO happens
+  // to ingest their feed, and each page is reduced to its article body with
+  // metadata preserved (lib/ai/article-extract.ts).
+  const evidence = await gatherEvidence({
+    originatingUrl: item.sourceUrl,
+    searchResults,
+  });
+
+  return classifyAgainstEvidence({
+    requestedById,
+    headline: item.headline,
+    excerpt: item.excerpt,
+    reportedByName: item.source.name,
+    reportedByUrl: item.source.url,
+    evidence,
+    inputRef: { sourceItemId: item.id, primarySourceUrl: evidence.primary?.url ?? null, secondarySourceUrl: evidence.corroborating?.url ?? null },
+  });
 }

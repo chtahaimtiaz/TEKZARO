@@ -47,15 +47,20 @@ export function RevalidateVerificationButton({ unconfirmedCount }: { unconfirmed
         source
       </p>
       <p className="mt-1 text-amber-800 dark:text-amber-400">
-        Re-checks evidence for up to {BATCH_SIZE} of them against current sources and updates their verification
-        status. Nothing goes offline and no live content changes either way — this only refreshes what the editor
-        view shows about how well-sourced each article is. Uses one search + one AI call per article; click again
-        for the next batch.
+        Re-classifies up to {BATCH_SIZE} of them against the evidence already captured at their original
+        synthesis time (no new web search — see the note below on why). Nothing goes offline and no live content
+        changes either way — this only refreshes what the editor view shows about how well-sourced each article is.
+        Uses one AI call per article; click again for the next batch.
+      </p>
+      <p className="mt-1 text-amber-800 dark:text-amber-400">
+        An article that skips with &quot;no persisted evidence&quot; had none captured originally (its Discovery
+        item is long gone by the time it&apos;s published) — that one can only be re-checked by writing a fresh
+        draft for it via the article editor, not from here.
       </p>
       {lastRun && (
         <p className="mt-2 rounded-md bg-white/60 p-2 font-medium text-amber-900 dark:bg-black/20 dark:text-amber-300">
           Last batch: {lastRun.targeted} checked — {lastRun.confirmed} now confirmed, {lastRun.stillShort} still
-          short, {lastRun.skippedNoSourceItem} skipped (no linked source), {lastRun.failed} failed.
+          short, {lastRun.skippedNoEvidence} skipped (no persisted evidence), {lastRun.failed} failed.
         </p>
       )}
       {error && <p className="mt-2 font-medium text-red-700 dark:text-red-400">{error}</p>}
