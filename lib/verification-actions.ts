@@ -462,3 +462,98 @@ export async function verifySourceItem(params: { itemId: string; actorId: string
 
   return processOneItem({ item, fallbackCategory, actorId: params.actorId, triggerType: params.triggerType });
 }
+
+export interface RevalidationSummary {
+  targeted: number;
+  confirmed: number;
+  stillShort: number;
+  skippedNoSourceItem: number;
+  failed: number;
+}
+
+/**
+ * Re-runs the same evidence-gathering + verification step verifyAndSynthesize
+ * already does for a new draft, but against an already-PUBLISHED,
+ * pipeline-drafted article — refreshing only its verification metadata
+ * (status, sources, notes, originality) against current evidence. Never
+ * touches status, title, content, or slug, so the live page is completely
+ * unaffected either way; this only updates what the admin UI shows about
+ * how well-sourced the article is.
+ *
+ * Exists to work through the backlog of articles a human editor published
+ * (via transitionArticleAction, which never checked verificationStatus)
+ * before lib/publication-checks.ts's "verification" check started enforcing
+ * PRIMARY_SOURCE_CONFIRMED — see the AdSense "low value content" rejection
+ * this was built to remediate. New publishes are already blocked by that
+ * check; this is strictly about auditing what's already live.
+ *
+ * Bounded by `limit` (the caller clamps it — see revalidateVerificationAction)
+ * for the same reason VERIFY_BATCH_SIZE exists: each article costs one real
+ * Tavily search credit and one AI call, so an admin runs this in deliberate
+ * batches from the Articles page rather than all 100+ at once.
+ */
+export async function revalidatePublishedArticles(params: { limit: number; actorId: string }): Promise<RevalidationSummary> {
+  const { limit, actorId } = params;
+
+  const targets = await prisma.article.findMany({
+    where: { status: "PUBLISHED", verificationGenerationId: { not: null }, verificationStatus: { not: "PRIMARY_SOURCE_CONFIRMED" } },
+    select: { id: true },
+    orderBy: { publishedAt: "asc" },
+    take: limit,
+  });
+
+  const summary: RevalidationSummary = { targeted: targets.length, confirmed: 0, stillShort: 0, skippedNoSourceItem: 0, failed: 0 };
+
+  for (const { id } of targets) {
+    try {
+      // The article's own creation (processOneItem, above) is the only place
+      // an Article ever gets linked to the SourceItem it came from — via
+      // SourceItem.convertedArticleId, not a stored id on Article itself.
+      const item = await prisma.sourceItem.findFirst({
+        where: { convertedArticleId: id },
+        include: { source: true },
+      });
+      if (!item) {
+        summary.skippedNoSourceItem += 1;
+        continue;
+      }
+
+      const result = await verifyAndSynthesize({ requestedById: actorId, item });
+
+      await prisma.article.update({
+        where: { id },
+        data: {
+          verificationStatus: result.verificationStatus,
+          primarySourceUrl: result.primarySourceUrl,
+          secondarySourceUrl: result.secondarySourceUrl,
+          verificationConfidence: result.verificationConfidence,
+          claimsChecked: result.claimsChecked,
+          verificationNotes: `[Re-verified ${new Date().toISOString()}] ${result.notes}`,
+          originalityScore: result.originalityScore,
+          verifiedAt: new Date(),
+          verificationGenerationId: result.generationId,
+        },
+      });
+
+      if (result.verificationStatus === "PRIMARY_SOURCE_CONFIRMED") summary.confirmed += 1;
+      else summary.stillShort += 1;
+    } catch (err) {
+      summary.failed += 1;
+      await logSystemEvent({
+        level: "WARN",
+        source: "verification.revalidation",
+        message: `Failed to re-verify already-published article ${id}: ${err instanceof Error ? err.message : String(err)}`,
+        context: { articleId: id },
+      });
+    }
+  }
+
+  await logSystemEvent({
+    level: "INFO",
+    source: "verification.revalidation",
+    message: `Re-verified ${summary.targeted} already-published article(s) without changing live status.`,
+    context: { ...summary },
+  });
+
+  return summary;
+}

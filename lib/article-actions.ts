@@ -4,10 +4,11 @@ import { z } from "zod";
 import { redirect } from "next/navigation";
 import { prisma } from "./prisma";
 import { requireRole, getSessionUser, ForbiddenError } from "./auth";
-import { CAN_WRITE, CAN_OVERRIDE_AUTHOR_ELIGIBILITY, CAN_DELETE_ARTICLE, canEditArticle } from "./permissions";
+import { CAN_WRITE, CAN_OVERRIDE_AUTHOR_ELIGIBILITY, CAN_OVERRIDE_VERIFICATION, CAN_DELETE_ARTICLE, canEditArticle } from "./permissions";
 import { isAuthorEligibleForCategory } from "./author-eligibility";
 import { assertTransition, type TransitionName, WorkflowError } from "./workflow";
 import { evaluatePublicationChecks } from "./publication-checks";
+import { revalidatePublishedArticles, type RevalidationSummary } from "./verification-actions";
 import { ensureUniqueSlug, slugify } from "./slug";
 import { joinPakistanImpact, splitPakistanImpact, type ContentBlock } from "./content-blocks";
 import { canonicalizeInlineRichText } from "./editor/inline-rich-text";
@@ -390,7 +391,11 @@ export async function updateArticleAction(articleId: string, raw: ArticleFormInp
   return { ok: true, data: { slug: article.slug } };
 }
 
-export async function transitionArticleAction(articleId: string, name: TransitionName): Promise<ActionResult> {
+export async function transitionArticleAction(
+  articleId: string,
+  name: TransitionName,
+  options?: { overrideVerification?: boolean },
+): Promise<ActionResult> {
   const sessionUser = await getSessionUser();
   if (!sessionUser) throw new ForbiddenError("You must be signed in.");
 
@@ -407,6 +412,17 @@ export async function transitionArticleAction(articleId: string, name: Transitio
     if (err instanceof WorkflowError) return { ok: false, error: err.message };
     throw err;
   }
+
+  // Only an ADMIN's explicit ask actually unlocks the override — a
+  // non-admin passing the flag (or a stale client) is silently ignored,
+  // same posture as resolveAuthorEligibility's CAN_OVERRIDE_AUTHOR_ELIGIBILITY
+  // check below.
+  const requestedVerificationOverride =
+    Boolean(options?.overrideVerification) && CAN_OVERRIDE_VERIFICATION.includes(sessionUser.role);
+  // An override already saved on the article (from a prior publish attempt
+  // on this same draft, e.g. after RESUBMITTED via CHANGES_REQUESTED) still
+  // applies without re-ticking the box — mirrors authorEligibilityOverridden.
+  const verificationOverridden = requestedVerificationOverride || article.verificationOverridden;
 
   if (name === "publish" || name === "schedule") {
     const slugAvailable = await prisma.article
@@ -433,6 +449,9 @@ export async function transitionArticleAction(articleId: string, name: Transitio
       slugAvailable,
       authorEligible,
       authorEligibilityOverridden: article.authorEligibilityOverridden,
+      verificationApplicable: article.verificationGenerationId !== null,
+      verificationStatus: article.verificationStatus,
+      verificationOverridden,
     });
     const failed = checks.find((c) => !c.passed);
     if (failed) return { ok: false, error: `Publication check failed: ${failed.label} — ${failed.reason}` };
@@ -448,8 +467,19 @@ export async function transitionArticleAction(articleId: string, name: Transitio
     data: {
       status: newStatus,
       publishedAt: newStatus === "PUBLISHED" && !article.publishedAt ? now : undefined,
+      verificationOverridden,
     },
   });
+
+  if (requestedVerificationOverride && !article.verificationOverridden) {
+    await logAction({
+      userId: sessionUser.id,
+      action: "verification_override_used",
+      entityType: "Article",
+      entityId: article.id,
+      metadata: { verificationStatus: article.verificationStatus, transition: name },
+    });
+  }
 
   await snapshotVersion({
     articleId,
@@ -471,6 +501,36 @@ export async function transitionArticleAction(articleId: string, name: Transitio
   await notifyForTransition(name, article, articleId);
 
   return { ok: true };
+}
+
+/** Highest batch size an admin can request in one click — keeps a single
+ * Server Action invocation (one Tavily search + one AI call per article,
+ * sequentially) comfortably bounded regardless of hosting limits. Admins
+ * click again for the next batch; see revalidatePublishedArticles. */
+const MAX_REVALIDATION_BATCH = 10;
+
+/**
+ * Thin, permission-checked "use server" wrapper around
+ * revalidatePublishedArticles (lib/verification-actions.ts) — lets an ADMIN
+ * work through the backlog of already-published, never-actually-verified
+ * articles from the Articles page, without touching any article's live
+ * status. See that function's doc comment for why this exists.
+ */
+export async function revalidateVerificationAction(limit: number): Promise<ActionResult<RevalidationSummary>> {
+  const sessionUser = await getSessionUser();
+  const user = requireRole(sessionUser, CAN_OVERRIDE_VERIFICATION);
+
+  const boundedLimit = Math.min(Math.max(1, Math.floor(limit) || 1), MAX_REVALIDATION_BATCH);
+  const summary = await revalidatePublishedArticles({ limit: boundedLimit, actorId: user.id });
+
+  await logAction({
+    userId: user.id,
+    action: "verification_revalidation_batch",
+    entityType: "Article",
+    metadata: summary as unknown as Prisma.InputJsonValue,
+  });
+
+  return { ok: true, data: summary };
 }
 
 /** High-value transitions get a notification (in-app + email if configured)

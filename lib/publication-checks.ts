@@ -1,6 +1,6 @@
 import type { ContentBlock } from "./content-blocks";
 import { ORIGINALITY_BLOCK_THRESHOLD } from "./ai/originality-check";
-import type { ImageReuseStatus } from "@prisma/client";
+import type { ImageReuseStatus, ArticleVerificationStatus } from "@prisma/client";
 
 // Public accessibility is never interpreted as reuse permission — see the
 // Non-negotiable invariant in the image-acquisition plan. Only these four
@@ -55,6 +55,16 @@ export interface PublicationCheckInput {
    * fetched to compare against). Undefined never blocks, same convention
    * as slugAvailable/authorEligible. */
   originalityScore?: number;
+  /** True only for an article the AI verify-and-synthesize pipeline drafted
+   * (Article.verificationGenerationId is non-null) — a human-authored
+   * article never needs primary-source confirmation, since the reporter IS
+   * the primary source. Omit while evaluating client-side without that data
+   * loaded; undefined never blocks, same convention as slugAvailable/
+   * authorEligible. */
+  verificationApplicable?: boolean;
+  /** Required when verificationApplicable is true. */
+  verificationStatus?: ArticleVerificationStatus;
+  verificationOverridden?: boolean;
 }
 
 export interface PublicationCheckResult {
@@ -188,6 +198,26 @@ export function evaluatePublicationChecks(input: PublicationCheckInput): Publica
     reason: originalityOk
       ? undefined
       : "This draft is too textually similar to a source it was verified against — rewrite the affected passages before publishing.",
+  });
+
+  // A pipeline-drafted article (evidence gathered and rewritten by the AI
+  // newsroom, never independently reported by TEKZARO) must have a
+  // confirmed primary source before it reaches readers — otherwise it's a
+  // rewrite of someone else's reporting with no added value, exactly what
+  // got TEKZARO's AdSense application flagged for "low value content".
+  // Human-authored articles (verificationApplicable undefined/false) skip
+  // this entirely: the reporter IS the primary source.
+  const verificationOk =
+    !input.verificationApplicable ||
+    input.verificationStatus === "PRIMARY_SOURCE_CONFIRMED" ||
+    input.verificationOverridden === true;
+  results.push({
+    id: "verification",
+    label: "Primary source confirmed",
+    passed: verificationOk,
+    reason: verificationOk
+      ? undefined
+      : `Verification status is ${input.verificationStatus ?? "UNVERIFIED"}, not PRIMARY_SOURCE_CONFIRMED. Wait for a confirming source, rewrite with one, or have an admin override.`,
   });
 
   return results;

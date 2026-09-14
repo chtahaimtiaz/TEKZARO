@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { CAN_DELETE_ARTICLE } from "@/lib/permissions";
+import { CAN_DELETE_ARTICLE, CAN_OVERRIDE_VERIFICATION } from "@/lib/permissions";
 import { DeleteAllArticlesButton } from "@/components/admin/DeleteAllArticlesButton";
+import { RevalidateVerificationButton } from "@/components/admin/RevalidateVerificationButton";
 import type { ArticleStatus, Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -72,6 +73,12 @@ export default async function AdminArticlesPage({
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const canDeleteAll = CAN_DELETE_ARTICLE.includes(user.role);
   const totalArticleCount = canDeleteAll ? await prisma.article.count() : 0;
+  const canOverrideVerification = CAN_OVERRIDE_VERIFICATION.includes(user.role);
+  const unconfirmedVerificationCount = canOverrideVerification
+    ? await prisma.article.count({
+        where: { status: "PUBLISHED", verificationGenerationId: { not: null }, verificationStatus: { not: "PRIMARY_SOURCE_CONFIRMED" } },
+      })
+    : 0;
   const qs = (overrides: Partial<SearchParams>) => {
     const merged: Record<string, string> = {};
     for (const [k, v] of Object.entries({ ...sp, ...overrides })) {
@@ -88,6 +95,7 @@ export default async function AdminArticlesPage({
           <h1 className="mt-1 font-serif text-3xl font-bold">Articles</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {canOverrideVerification && <RevalidateVerificationButton unconfirmedCount={unconfirmedVerificationCount} />}
           {canDeleteAll && <DeleteAllArticlesButton articleCount={totalArticleCount} />}
           <Link href="/admin/articles/new" className="rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-dark">
             + New article

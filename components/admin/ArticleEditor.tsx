@@ -48,6 +48,15 @@ export interface FeaturedMediaInfo {
 
 export interface VerificationInfo {
   status: ArticleVerificationStatus;
+  /** True only for an article the AI verify-and-synthesize pipeline
+   * drafted — a human-authored article never needs primary-source
+   * confirmation, and its (meaningless, default-UNVERIFIED) status is
+   * hidden entirely rather than shown as a false alarm. */
+  applicable: boolean;
+  /** Whether an admin already overrode the "verification" publication
+   * check for this article (persisted so it survives a reload/re-save
+   * without re-ticking the box). */
+  overridden: boolean;
   primarySourceUrl: string | null;
   secondarySourceUrl: string | null;
   confidence: number | null;
@@ -81,6 +90,10 @@ interface ArticleEditorProps {
   /** Whether this session can save an article with an author ineligible
    * for its category (CAN_OVERRIDE_AUTHOR_ELIGIBILITY, ADMIN only). */
   canOverrideAuthorEligibility: boolean;
+  /** Whether this session can publish/schedule a pipeline-drafted article
+   * short of PRIMARY_SOURCE_CONFIRMED (CAN_OVERRIDE_VERIFICATION, ADMIN
+   * only). Mirrors canOverrideAuthorEligibility. */
+  canOverrideVerification: boolean;
   /** Whether this session can approve/reject a pending image directly from
    * the article-images picker (CAN_MANAGE_MEDIA — ADMIN/EDITOR). */
   canManageMedia: boolean;
@@ -103,6 +116,7 @@ export function ArticleEditor({
   categories,
   authors,
   canOverrideAuthorEligibility,
+  canOverrideVerification,
   canManageMedia,
   canDelete,
   legalTransitions,
@@ -125,6 +139,7 @@ export function ArticleEditor({
   const [pakistanImpact, setPakistanImpact] = useState(initialImpact);
   const [tagsText, setTagsText] = useState(initial.tagNames.join(", "));
   const [featuredMedia, setFeaturedMedia] = useState<FeaturedMediaInfo | null>(initialFeaturedMedia);
+  const [overrideVerification, setOverrideVerification] = useState(verification?.overridden ?? false);
 
   // The new rich-text canvas edits only paragraph/heading/quote/list/image
   // blocks; fact-table/faq keep their existing mini-editor UI in a
@@ -196,10 +211,13 @@ export function ArticleEditor({
         featuredMediaReuseStatus: featuredMedia?.reuseStatus ?? null,
         authorEligible,
         authorEligibilityOverridden: form.overrideAuthorEligibility,
+        verificationApplicable: verification?.applicable ?? false,
+        verificationStatus: verification?.status,
+        verificationOverridden: overrideVerification,
       }),
     // slugAvailable omitted deliberately — verified server-side on save/publish
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [fullInput.title, fullInput.slug, fullInput.categoryId, fullInput.authorId, blocks, fullInput.featuredImageUrl, fullInput.featuredImageAlt, fullInput.metaDescription, fullInput.excerpt, featuredMedia, authorEligible, form.overrideAuthorEligibility],
+    [fullInput.title, fullInput.slug, fullInput.categoryId, fullInput.authorId, blocks, fullInput.featuredImageUrl, fullInput.featuredImageAlt, fullInput.metaDescription, fullInput.excerpt, featuredMedia, authorEligible, form.overrideAuthorEligibility, verification, overrideVerification],
   );
 
   function save() {
@@ -240,7 +258,7 @@ export function ArticleEditor({
         setError(saveResult.error ?? "Save failed before transition.");
         return;
       }
-      const result = await transitionArticleAction(articleId, name);
+      const result = await transitionArticleAction(articleId, name, { overrideVerification });
       if (!result.ok) {
         setError(result.error ?? "Action failed.");
         return;
@@ -595,11 +613,34 @@ export function ArticleEditor({
                 </details>
               )}
 
-              {verification && verification.status !== "UNVERIFIED" && (
-                <details className="rounded-md border border-border-strong p-2 text-xs text-ink-muted">
+              {verification && verification.applicable && (
+                <details
+                  className="rounded-md border border-border-strong p-2 text-xs text-ink-muted"
+                  open={verification.status !== "PRIMARY_SOURCE_CONFIRMED"}
+                >
                   <summary className="cursor-pointer font-semibold text-ink-soft">
                     Verification {verification.autoPublished ? "(auto-published)" : ""}
                   </summary>
+                  {verification.status !== "PRIMARY_SOURCE_CONFIRMED" && (
+                    <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 p-2 font-semibold text-amber-800">
+                      <p>
+                        No confirmed primary source — this article can&apos;t be published or scheduled until one
+                        is found{canOverrideVerification ? ", or an admin overrides it below." : "."}
+                      </p>
+                      {canOverrideVerification ? (
+                        <label className="mt-2 flex items-center gap-2 font-normal normal-case text-amber-900">
+                          <input
+                            type="checkbox"
+                            checked={overrideVerification}
+                            onChange={(e) => setOverrideVerification(e.target.checked)}
+                          />
+                          Override — publish without a confirmed primary source
+                        </label>
+                      ) : (
+                        <p className="mt-1 font-normal normal-case">Ask an admin to override if this is intentional.</p>
+                      )}
+                    </div>
+                  )}
                   <dl className="mt-2 flex flex-col gap-1">
                     <p>
                       <span className="font-medium text-ink-soft">Status: </span>

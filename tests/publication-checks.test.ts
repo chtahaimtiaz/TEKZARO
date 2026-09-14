@@ -20,7 +20,7 @@ describe("evaluatePublicationChecks", () => {
   it("passes every check for a well-formed article", () => {
     const checks = evaluatePublicationChecks(baseInput);
     expect(allChecksPassed(checks)).toBe(true);
-    expect(checks).toHaveLength(10);
+    expect(checks).toHaveLength(11);
   });
 
   it("fails the title check when too short", () => {
@@ -149,6 +149,40 @@ describe("evaluatePublicationChecks", () => {
     it("passes when authorEligible is false but authorEligibilityOverridden is true", () => {
       const checks = evaluatePublicationChecks({ ...baseInput, authorEligible: false, authorEligibilityOverridden: true });
       expect(checks.find((c) => c.id === "author-eligibility")!.passed).toBe(true);
+    });
+  });
+
+  describe("verification check", () => {
+    it("passes when verificationApplicable is omitted (a human-authored article)", () => {
+      const checks = evaluatePublicationChecks(baseInput);
+      expect(checks.find((c) => c.id === "verification")!.passed).toBe(true);
+    });
+
+    it("passes when verificationApplicable is false", () => {
+      const checks = evaluatePublicationChecks({ ...baseInput, verificationApplicable: false, verificationStatus: "UNVERIFIED" });
+      expect(checks.find((c) => c.id === "verification")!.passed).toBe(true);
+    });
+
+    it("fails when verificationApplicable is true and status is short of PRIMARY_SOURCE_CONFIRMED", () => {
+      const checks = evaluatePublicationChecks({ ...baseInput, verificationApplicable: true, verificationStatus: "UNVERIFIED" });
+      const check = checks.find((c) => c.id === "verification")!;
+      expect(check.passed).toBe(false);
+      expect(check.reason).toBeTruthy();
+    });
+
+    it("passes when verificationApplicable is true and status is PRIMARY_SOURCE_CONFIRMED", () => {
+      const checks = evaluatePublicationChecks({ ...baseInput, verificationApplicable: true, verificationStatus: "PRIMARY_SOURCE_CONFIRMED" });
+      expect(checks.find((c) => c.id === "verification")!.passed).toBe(true);
+    });
+
+    it("passes when status is short of confirmed but verificationOverridden is true", () => {
+      const checks = evaluatePublicationChecks({
+        ...baseInput,
+        verificationApplicable: true,
+        verificationStatus: "PRIMARY_SOURCE_NOT_FOUND",
+        verificationOverridden: true,
+      });
+      expect(checks.find((c) => c.id === "verification")!.passed).toBe(true);
     });
   });
 });

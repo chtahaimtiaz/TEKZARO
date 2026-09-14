@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { canEditArticle, CAN_OVERRIDE_AUTHOR_ELIGIBILITY, CAN_MANAGE_MEDIA, CAN_DELETE_ARTICLE } from "@/lib/permissions";
+import { canEditArticle, CAN_OVERRIDE_AUTHOR_ELIGIBILITY, CAN_OVERRIDE_VERIFICATION, CAN_MANAGE_MEDIA, CAN_DELETE_ARTICLE } from "@/lib/permissions";
 import { getAuthorsForEditor } from "@/lib/author-eligibility";
 import { legalTransitionsFor } from "@/lib/workflow";
 import { asArticleContent } from "@/lib/content-blocks";
@@ -77,8 +77,11 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
           : null
       }
       canOverrideAuthorEligibility={CAN_OVERRIDE_AUTHOR_ELIGIBILITY.includes(user.role)}
+      canOverrideVerification={CAN_OVERRIDE_VERIFICATION.includes(user.role)}
       verification={{
         status: article.verificationStatus,
+        applicable: article.verificationGenerationId !== null,
+        overridden: article.verificationOverridden,
         primarySourceUrl: article.primarySourceUrl,
         secondarySourceUrl: article.secondarySourceUrl,
         confidence: article.verificationConfidence,
