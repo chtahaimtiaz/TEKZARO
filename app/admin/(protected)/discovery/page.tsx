@@ -2,14 +2,16 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { CAN_VIEW_DISCOVERY } from "@/lib/permissions";
+import { CAN_VIEW_DISCOVERY, CAN_CLEAR_DISCOVERY_QUEUE } from "@/lib/permissions";
 import { formatRelativeTime } from "@/lib/format-relative-time";
 import type { DiscoveryStatus, Prisma, SourceTier } from "@prisma/client";
 import { formatDateTime } from "@/lib/format";
+import { ClearOldDiscoveryQueueButton } from "@/components/admin/ClearOldDiscoveryQueueButton";
 
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 25;
+const CLEAR_QUEUE_MAX_AGE_MS = 60 * 60 * 1000; // mirrors MANUAL_CLEAR_MAX_AGE_MS in lib/discovery-actions.ts
 const ALL_STATUSES: DiscoveryStatus[] = [
   "NEW", "REVIEWING", "VERIFIED", "DUPLICATE", "POSSIBLE_DUPLICATE", "REJECTED", "CONVERTED_TO_DRAFT",
 ];
@@ -63,7 +65,10 @@ export default async function DiscoveryPage({ searchParams }: { searchParams: Pr
   const orderBy: Prisma.SourceItemOrderByWithRelationInput[] =
     sort === "priority" ? [{ priorityScore: "desc" }] : [{ publishedAt: "desc" }, { id: "desc" }];
 
-  const [items, total] = await Promise.all([
+  const canClearQueue = CAN_CLEAR_DISCOVERY_QUEUE.includes(user.role);
+  const clearQueueCutoff = new Date(Date.now() - CLEAR_QUEUE_MAX_AGE_MS);
+
+  const [items, total, eligibleForClear] = await Promise.all([
     prisma.sourceItem.findMany({
       where,
       orderBy,
@@ -77,17 +82,32 @@ export default async function DiscoveryPage({ searchParams }: { searchParams: Pr
       },
     }),
     prisma.sourceItem.count({ where }),
+    canClearQueue
+      ? prisma.sourceItem.count({
+          where: {
+            OR: [
+              { createdAt: { lte: clearQueueCutoff }, NOT: { convertedArticle: { status: "SCHEDULED" } } },
+              { convertedArticle: { status: "PUBLISHED" } },
+            ],
+          },
+        })
+      : Promise.resolve(0),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <div>
-      <p className="eyebrow">Newsroom</p>
-      <h1 className="mt-1 font-serif text-3xl font-bold">News Discovery</h1>
-      <p className="mt-1 text-sm text-ink-muted">
-        Nothing here is published automatically — every item requires a human decision.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="eyebrow">Newsroom</p>
+          <h1 className="mt-1 font-serif text-3xl font-bold">News Discovery</h1>
+          <p className="mt-1 text-sm text-ink-muted">
+            Nothing here is published automatically — every item requires a human decision.
+          </p>
+        </div>
+        {canClearQueue && <ClearOldDiscoveryQueueButton eligibleCount={eligibleForClear} />}
+      </div>
 
       <form className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-border bg-paper-raised p-4 sm:grid-cols-3 lg:grid-cols-5">
         <select name="status" defaultValue={sp.status ?? ""} className="rounded-md border border-border-strong p-2 text-sm bg-paper-raised text-ink">

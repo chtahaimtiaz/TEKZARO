@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "./prisma";
 import { getSessionUser, requireRole } from "./auth";
-import { CAN_RESEARCH, CAN_CREATE_DRAFT_FROM_DISCOVERY } from "./permissions";
+import { CAN_RESEARCH, CAN_CREATE_DRAFT_FROM_DISCOVERY, CAN_CLEAR_DISCOVERY_QUEUE } from "./permissions";
 import { logAction } from "./audit";
 import { hasUnresolvedContradiction } from "./cluster-actions";
 import { featuredImageFieldsFor } from "./images/featured-image";
@@ -11,8 +11,11 @@ import { pickEligibleAuthor } from "./author-eligibility";
 import { draftArticleFromDiscovery } from "./ai/tasks";
 import { isAIConfigured } from "./ai/provider";
 import { ensureUniqueSlug } from "./slug";
+import { cleanupExpiredDiscoveryItems } from "./discovery/cleanup";
 import type { ContentBlock } from "./content-blocks";
 import type { Prisma } from "@prisma/client";
+
+const MANUAL_CLEAR_MAX_AGE_MS = 60 * 60 * 1000; // 1h — an editor-triggered sweep, tighter than the 24h cron cadence
 
 export interface ActionResult {
   ok: boolean;
@@ -169,6 +172,31 @@ export async function createDraftFromItemAction(itemId: string): Promise<ActionR
   });
 
   return { ok: true, articleId: article.id };
+}
+
+/** Editor-triggered version of the cron sweep in lib/discovery/cleanup.ts,
+ * with a 1h window instead of the usual 24h — for clearing out a backlog
+ * on demand rather than waiting for the next cron tick. Reuses the same
+ * function, so the SCHEDULED-protection and immediate-PUBLISHED-removal
+ * rules apply unchanged; this is strictly "run that sweep now, with a
+ * tighter cutoff," not a separate deletion path. */
+export async function clearOldDiscoveryQueueAction(): Promise<ActionResult & { count?: number }> {
+  const sessionUser = await getSessionUser();
+  const user = requireRole(sessionUser, CAN_CLEAR_DISCOVERY_QUEUE);
+
+  const summary = await cleanupExpiredDiscoveryItems(MANUAL_CLEAR_MAX_AGE_MS);
+  if (summary.failed > 0) {
+    return { ok: false, error: "Some items couldn't be cleared — check the monitoring log for details.", count: summary.removed };
+  }
+
+  await logAction({
+    userId: user.id,
+    action: "discovery_queue_cleared",
+    entityType: "SourceItem",
+    metadata: { removed: summary.removed, maxAgeMs: MANUAL_CLEAR_MAX_AGE_MS },
+  });
+
+  return { ok: true, count: summary.removed };
 }
 
 export async function mergeIntoClusterAction(itemId: string, targetClusterId: string): Promise<void> {

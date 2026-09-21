@@ -25,6 +25,11 @@ export const CAN_RESEARCH: Role[] = ["ADMIN", "EDITOR", "RESEARCHER"];
 export const CAN_CREATE_DRAFT_FROM_DISCOVERY: Role[] = ["ADMIN", "EDITOR", "RESEARCHER"];
 /** Roles allowed to manage the discovery keyword list. */
 export const CAN_MANAGE_KEYWORDS: Role[] = ["ADMIN", "EDITOR"];
+/** Roles allowed to manually clear stale items out of the discovery queue.
+ * Bulk/irreversible queue housekeeping, not routine research — deliberately
+ * narrower than CAN_VIEW_DISCOVERY/CAN_RESEARCH (which include RESEARCHER),
+ * mirroring CAN_MANAGE_SOURCES/CAN_MANAGE_KEYWORDS. */
+export const CAN_CLEAR_DISCOVERY_QUEUE: Role[] = ["ADMIN", "EDITOR"];
 /** Roles allowed to build the Pakistan Tech Daily digest. */
 export const CAN_BUILD_DIGEST: Role[] = ["ADMIN", "EDITOR"];
 /** Roles allowed to upload/manage the media library. */

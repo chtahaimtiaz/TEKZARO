@@ -52,9 +52,15 @@ export interface DiscoveryCleanupSummary {
  * error), it's recorded and the other still runs, but a single row inside
  * a successful batch can't independently fail the way a true per-item
  * loop's could. Never throws.
+ *
+ * `maxAgeMs` defaults to the standard 24h retention window (the cron
+ * sweep's cadence) but can be overridden with a shorter window — e.g. the
+ * admin "clear queue" button uses 1h — for an editor-triggered, more
+ * aggressive sweep. The SCHEDULED-protection and immediate-PUBLISHED-removal
+ * rules above apply unchanged regardless of which window is passed.
  */
-export async function cleanupExpiredDiscoveryItems(): Promise<DiscoveryCleanupSummary> {
-  const cutoff = new Date(Date.now() - DISCOVERY_RETENTION_MS);
+export async function cleanupExpiredDiscoveryItems(maxAgeMs: number = DISCOVERY_RETENTION_MS): Promise<DiscoveryCleanupSummary> {
+  const cutoff = new Date(Date.now() - maxAgeMs);
 
   const [expired, publishedLinked, scheduledProtected] = await Promise.all([
     prisma.sourceItem.count({ where: { createdAt: { lte: cutoff } } }),
