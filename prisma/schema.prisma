@@ -641,6 +641,27 @@ model SourceItem {
   @@index([clusterId])
 }
 
+/**
+ * A permanent, never-deleted record of every URL a Source has ever
+ * ingested — deliberately separate from SourceItem, which is a working
+ * queue that gets cleaned up (both by the routine cron sweep and an
+ * editor's manual "clear queue" action, see lib/discovery/cleanup.ts).
+ * Ingestion's per-URL dedup check (lib/ingestion/ingest.ts) reads THIS
+ * table, not SourceItem, specifically so clearing old queue rows can never
+ * cause the same story to be re-ingested as "new" — before this existed,
+ * SourceItem was the only record of "already seen," so clearing it wiped
+ * that memory and the next ingestion run re-flooded the queue with
+ * thousands of duplicates of stories editors had already triaged.
+ */
+model IngestedUrl {
+  id        String   @id @default(cuid())
+  sourceId  String
+  sourceUrl String
+  createdAt DateTime @default(now())
+
+  @@unique([sourceId, sourceUrl])
+}
+
 model StoryCluster {
   id             String @id @default(cuid())
   title          String

@@ -79,7 +79,14 @@ export async function processIngestedItems(source: Source, items: ParsedFeedItem
   let deprioritizedNonTech = 0;
 
   for (const item of items) {
-    const existing = await prisma.sourceItem.findUnique({
+    // Checked against IngestedUrl, a permanent record, NOT SourceItem
+    // (which is a working queue that gets cleaned up — see that model's
+    // own doc comment in schema.prisma). Checking SourceItem here directly
+    // is exactly the bug this table exists to prevent: clearing old queue
+    // rows would erase the only memory of "already seen," and the next
+    // ingestion run would re-flood the queue with duplicates of stories
+    // editors had already triaged.
+    const existing = await prisma.ingestedUrl.findUnique({
       where: { sourceId_sourceUrl: { sourceId, sourceUrl: item.link } },
     });
     if (existing) {
@@ -148,6 +155,18 @@ export async function processIngestedItems(source: Source, items: ParsedFeedItem
         priorityReasons: priority.reasons as unknown as Prisma.InputJsonValue,
         status: isExactDuplicate ? "DUPLICATE" : isPossibleDuplicate ? "POSSIBLE_DUPLICATE" : "NEW",
       },
+    });
+
+    // Recorded permanently, independent of the SourceItem row above — see
+    // IngestedUrl's doc comment. upsert (not create) because this loop's
+    // own findUnique check above is the only guard against a second insert
+    // of the same URL; a plain create would throw on the unique constraint
+    // if that ever raced with itself, and this must never fail the item
+    // that was just successfully created.
+    await prisma.ingestedUrl.upsert({
+      where: { sourceId_sourceUrl: { sourceId, sourceUrl: item.link } },
+      create: { sourceId, sourceUrl: item.link },
+      update: {},
     });
 
     // Images are deliberately NOT acquired here. Doing so ran acquisition

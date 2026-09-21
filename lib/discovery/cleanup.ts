@@ -38,6 +38,16 @@ export interface DiscoveryCleanupSummary {
  * around, so the Article, its StoryCluster, Claims, and ArticleSource
  * provenance rows are structurally untouched by this.
  *
+ * It also can't cause the same story to be re-ingested as "new": ingestion's
+ * per-URL dedup check (lib/ingestion/ingest.ts) reads the separate,
+ * never-deleted IngestedUrl table, not SourceItem. Before IngestedUrl
+ * existed, SourceItem was the only record of "already seen," so clearing it
+ * — via this sweep, or an editor's manual "clear queue" action — silently
+ * erased that memory and the next ingestion run re-flooded the queue with
+ * duplicates of stories already triaged (see the incident that added
+ * IngestedUrl). Deleting SourceItem rows here is safe specifically because
+ * that fingerprint lives elsewhere now.
+ *
  * Uses two bulk deleteMany() calls, not a per-row loop — production's
  * first real backlog under this rule was 1,300+ eligible rows (this ran
  * for years without ever being cleaned up before), and a one-row-at-a-time
