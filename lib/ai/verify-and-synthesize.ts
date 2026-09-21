@@ -251,21 +251,34 @@ export async function classifyAgainstEvidence(params: {
   };
 }
 
-export async function verifyAndSynthesize(params: {
-  requestedById: string;
-  item: SourceItem & { source: Source };
-}): Promise<VerifyAndSynthesizeResult> {
-  const { requestedById, item } = params;
-
+/**
+ * The search + evidence-gathering half of the pipeline, on its own — a
+ * fresh Tavily search plus lib/ai/evidence.ts's ranking/fetching, without
+ * the classification step. Shared by verifyAndSynthesize (a freshly
+ * discovered SourceItem) and lib/verification-actions.ts's
+ * revalidateOneArticle, which falls back to this for an already-published
+ * article with no persisted EvidenceRecord to replay (e.g. one a human
+ * editor wrote and published without ever running it through this
+ * pipeline) — the only way to actually verify that article is a real new
+ * search, at the cost of one search-API call.
+ *
+ * Returns `evidence: null` paired with a reason when nothing could even be
+ * attempted (search unconfigured, or the search call itself failed) so
+ * each caller can build its own emptyResult with the right notes string.
+ */
+export async function gatherFreshEvidenceFor(
+  headline: string,
+  originatingUrl: string,
+): Promise<{ evidence: EvidenceBundle; reason?: undefined } | { evidence: null; reason: string }> {
   if (!isSearchConfigured()) {
-    return emptyResult("Search not configured (SEARCH_API_KEY missing) — no verification attempted.");
+    return { evidence: null, reason: "Search not configured (SEARCH_API_KEY missing) — no verification attempted." };
   }
 
   let searchResults: { title: string; url: string; snippet: string }[];
   try {
-    searchResults = await searchWeb(item.headline);
+    searchResults = await searchWeb(headline);
   } catch (err) {
-    return emptyResult(`Search failed: ${err instanceof Error ? err.message : String(err)}`);
+    return { evidence: null, reason: `Search failed: ${err instanceof Error ? err.message : String(err)}` };
   }
 
   // Evidence gathering replaces the old "find two URLs on curated domains and
@@ -273,10 +286,19 @@ export async function verifyAndSynthesize(params: {
   // (lib/ai/source-classification.ts) rather than by whether TEKZARO happens
   // to ingest their feed, and each page is reduced to its article body with
   // metadata preserved (lib/ai/article-extract.ts).
-  const evidence = await gatherEvidence({
-    originatingUrl: item.sourceUrl,
-    searchResults,
-  });
+  const evidence = await gatherEvidence({ originatingUrl, searchResults });
+  return { evidence };
+}
+
+export async function verifyAndSynthesize(params: {
+  requestedById: string;
+  item: SourceItem & { source: Source };
+}): Promise<VerifyAndSynthesizeResult> {
+  const { requestedById, item } = params;
+
+  const gathered = await gatherFreshEvidenceFor(item.headline, item.sourceUrl);
+  if (!gathered.evidence) return emptyResult(gathered.reason);
+  const evidence = gathered.evidence;
 
   return classifyAgainstEvidence({
     requestedById,

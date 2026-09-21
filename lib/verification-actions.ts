@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "./prisma";
 import { getSystemUserId } from "./system-actor";
-import { verifyAndSynthesize, classifyAgainstEvidence } from "./ai/verify-and-synthesize";
+import { verifyAndSynthesize, classifyAgainstEvidence, gatherFreshEvidenceFor } from "./ai/verify-and-synthesize";
 import { buildEvidenceBundleFromArticle } from "./ai/improve-article";
 import { pickEligibleAuthor } from "./author-eligibility";
 import { ensureUniqueSlug } from "./slug";
@@ -470,6 +470,11 @@ export interface RevalidationSummary {
   stillShort: number;
   skippedNoEvidence: number;
   failed: number;
+  /** Still-PUBLISHED-and-not-CONFIRMED articles left after this round —
+   * lets the caller (revalidateVerificationAction, via the admin button)
+   * decide whether to run another round so a single click can work through
+   * the whole backlog instead of stopping after one bounded batch. */
+  remaining: number;
 }
 
 export type RevalidateOneOutcome = "confirmed" | "still_short" | "skipped_no_evidence";
@@ -483,14 +488,18 @@ export type RevalidateOneOutcome = "confirmed" | "still_short" | "skipped_no_evi
  * fixtures — calling the orchestrator itself in a test would risk writing
  * mocked verification results onto real production articles.
  *
- * Rebuilds evidence from what was actually persisted at this article's
- * original synthesis time (EvidenceRecord rows, via
- * buildEvidenceBundleFromArticle) — never a fresh web search. See
- * revalidatePublishedArticles's own doc comment for why. Only verification
- * metadata (status, sources, notes, originality) is ever written; status,
- * title, content, and slug are never touched — classifyAgainstEvidence
- * always returns a "draft" alongside its verdict (same contract
- * verifyAndSynthesize has), and it's deliberately discarded here.
+ * Prefers replaying evidence actually persisted at this article's original
+ * synthesis time (EvidenceRecord rows, via buildEvidenceBundleFromArticle)
+ * — free, and reuses exactly what an editor saw at publish time. But most
+ * PUBLISHED articles were written and published directly by a human editor
+ * and never ran through the AI pipeline at all, so there is nothing to
+ * replay for them; for those, this falls back to one fresh web search
+ * (gatherFreshEvidenceFor) so they can actually be verified rather than
+ * permanently skipped. Only verification metadata (status, sources, notes,
+ * originality) is ever written; status, title, content, and slug are never
+ * touched — classifyAgainstEvidence always returns a "draft" alongside its
+ * verdict (same contract verifyAndSynthesize has), and it's deliberately
+ * discarded here.
  */
 export async function revalidateOneArticle(params: {
   articleId: string;
@@ -501,8 +510,14 @@ export async function revalidateOneArticle(params: {
 }): Promise<RevalidateOneOutcome> {
   const { articleId, title, excerpt, reportedBy, actorId } = params;
 
-  const evidence = await buildEvidenceBundleFromArticle(articleId);
-  if (evidence.documents.length === 0) return "skipped_no_evidence";
+  let evidence = await buildEvidenceBundleFromArticle(articleId);
+  let usedFreshSearch = false;
+  if (evidence.documents.length === 0) {
+    const gathered = await gatherFreshEvidenceFor(title, reportedBy?.url ?? "");
+    if (!gathered.evidence) return "skipped_no_evidence";
+    evidence = gathered.evidence;
+    usedFreshSearch = true;
+  }
 
   const result = await classifyAgainstEvidence({
     requestedById: actorId,
@@ -511,7 +526,7 @@ export async function revalidateOneArticle(params: {
     reportedByName: reportedBy?.name ?? "unknown outlet",
     reportedByUrl: reportedBy?.url ?? "",
     evidence,
-    inputRef: { revalidatedArticleId: articleId },
+    inputRef: { revalidatedArticleId: articleId, freshSearch: usedFreshSearch },
   });
 
   await prisma.article.update({
@@ -522,7 +537,7 @@ export async function revalidateOneArticle(params: {
       secondarySourceUrl: result.secondarySourceUrl,
       verificationConfidence: result.verificationConfidence,
       claimsChecked: result.claimsChecked,
-      verificationNotes: `[Re-verified ${new Date().toISOString()}, replayed evidence] ${result.notes}`,
+      verificationNotes: `[Re-verified ${new Date().toISOString()}, ${usedFreshSearch ? "fresh search" : "replayed evidence"}] ${result.notes}`,
       originalityScore: result.originalityScore,
       verifiedAt: new Date(),
       verificationGenerationId: result.generationId,
@@ -532,33 +547,58 @@ export async function revalidateOneArticle(params: {
   return result.verificationStatus === "PRIMARY_SOURCE_CONFIRMED" ? "confirmed" : "still_short";
 }
 
+/** Exported so the Articles page can compute the same "how many still need
+ * this" count the button itself acts on, without the two drifting apart. */
+export const REVALIDATION_QUERY: Prisma.ArticleWhereInput = { status: "PUBLISHED", verificationStatus: { not: "PRIMARY_SOURCE_CONFIRMED" } };
+// Kept safely under the 300s maxDuration the invoking route declares, to
+// leave room for the in-flight article's own request to finish cleanly
+// rather than being cut off mid-write.
+const DEFAULT_REVALIDATION_TIME_BUDGET_MS = 4 * 60 * 1000;
+
 /**
  * Exists to work through the backlog of articles a human editor published
  * (via transitionArticleAction, which never checked verificationStatus)
  * before lib/publication-checks.ts's "verification" check started enforcing
  * PRIMARY_SOURCE_CONFIRMED — see the AdSense "low value content" rejection
  * this was built to remediate. New publishes are already blocked by that
- * check; this is strictly about auditing what's already live. See
- * revalidateOneArticle for the per-article logic and why replaying
- * persisted evidence, not a fresh search, is what runs here.
+ * check; this is about auditing what's already live, covering EVERY
+ * PUBLISHED article short of PRIMARY_SOURCE_CONFIRMED — not just the
+ * minority that already have a pipeline generationId — since a human editor
+ * clicking "publish" without ever running the AI pipeline is exactly the
+ * gap this exists to close. See revalidateOneArticle for the per-article
+ * logic, including its fresh-search fallback for articles with nothing
+ * persisted to replay.
  *
- * Bounded by `limit` (the caller clamps it — see revalidateVerificationAction)
- * — each article still costs one AI call even with no new search, so an
- * admin runs this in deliberate batches from the Articles page.
+ * `limit` bounds how many rows one findMany can even claim (a generous
+ * safety ceiling, not a deliberate small batch — see
+ * revalidateVerificationAction); `timeBudgetMs` is the real governor,
+ * stopping the loop before the surrounding request's own timeout would
+ * (app/admin/(protected)/articles/page.tsx sets maxDuration to match). Any
+ * articles left over are reported via `remaining`, so the caller can run
+ * another round — from an editor's perspective, one click that keeps going
+ * until the whole backlog is done, not one bounded batch per click.
  */
-export async function revalidatePublishedArticles(params: { limit: number; actorId: string }): Promise<RevalidationSummary> {
+export async function revalidatePublishedArticles(params: {
+  limit: number;
+  actorId: string;
+  timeBudgetMs?: number;
+}): Promise<RevalidationSummary> {
   const { limit, actorId } = params;
+  const timeBudgetMs = params.timeBudgetMs ?? DEFAULT_REVALIDATION_TIME_BUDGET_MS;
+  const startedAt = Date.now();
 
   const targets = await prisma.article.findMany({
-    where: { status: "PUBLISHED", verificationGenerationId: { not: null }, verificationStatus: { not: "PRIMARY_SOURCE_CONFIRMED" } },
+    where: REVALIDATION_QUERY,
     select: { id: true, title: true, excerpt: true, sources: { include: { source: true }, take: 1 } },
     orderBy: { publishedAt: "asc" },
     take: limit,
   });
 
-  const summary: RevalidationSummary = { targeted: targets.length, confirmed: 0, stillShort: 0, skippedNoEvidence: 0, failed: 0 };
+  const summary: RevalidationSummary = { targeted: 0, confirmed: 0, stillShort: 0, skippedNoEvidence: 0, failed: 0, remaining: 0 };
 
   for (const article of targets) {
+    if (Date.now() - startedAt > timeBudgetMs) break; // out of time this round — the rest surface via `remaining`
+    summary.targeted += 1;
     try {
       const reportedBy = article.sources[0]?.source ?? null;
       const outcome = await revalidateOneArticle({
@@ -583,10 +623,12 @@ export async function revalidatePublishedArticles(params: { limit: number; actor
     }
   }
 
+  summary.remaining = await prisma.article.count({ where: REVALIDATION_QUERY });
+
   await logSystemEvent({
     level: "INFO",
     source: "verification.revalidation",
-    message: `Re-verified ${summary.targeted} already-published article(s) from replayed evidence, without changing live status.`,
+    message: `Re-verified ${summary.targeted} already-published article(s), ${summary.remaining} still remaining.`,
     context: { ...summary },
   });
 

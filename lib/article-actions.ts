@@ -503,11 +503,14 @@ export async function transitionArticleAction(
   return { ok: true };
 }
 
-/** Highest batch size an admin can request in one click — keeps a single
- * Server Action invocation (one Tavily search + one AI call per article,
- * sequentially) comfortably bounded regardless of hosting limits. Admins
- * click again for the next batch; see revalidatePublishedArticles. */
-const MAX_REVALIDATION_BATCH = 10;
+/** A generous safety ceiling on how many articles one findMany can even
+ * claim per round — not a deliberate small batch. The real stopping point
+ * is revalidatePublishedArticles's own time budget, which keeps a single
+ * Server Action invocation safely under this route's maxDuration; the
+ * button (RevalidateVerificationButton) calls this repeatedly, once per
+ * round, until `remaining` hits 0, so from an editor's click it looks like
+ * one continuous run through the whole backlog. */
+const MAX_REVALIDATION_ROUND_CLAIM = 1000;
 
 /**
  * Thin, permission-checked "use server" wrapper around
@@ -516,12 +519,11 @@ const MAX_REVALIDATION_BATCH = 10;
  * articles from the Articles page, without touching any article's live
  * status. See that function's doc comment for why this exists.
  */
-export async function revalidateVerificationAction(limit: number): Promise<ActionResult<RevalidationSummary>> {
+export async function revalidateVerificationAction(): Promise<ActionResult<RevalidationSummary>> {
   const sessionUser = await getSessionUser();
   const user = requireRole(sessionUser, CAN_OVERRIDE_VERIFICATION);
 
-  const boundedLimit = Math.min(Math.max(1, Math.floor(limit) || 1), MAX_REVALIDATION_BATCH);
-  const summary = await revalidatePublishedArticles({ limit: boundedLimit, actorId: user.id });
+  const summary = await revalidatePublishedArticles({ limit: MAX_REVALIDATION_ROUND_CLAIM, actorId: user.id });
 
   await logAction({
     userId: user.id,

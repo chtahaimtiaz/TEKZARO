@@ -2,12 +2,14 @@ import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 
 const verifyAndSynthesizeMock = vi.fn();
 const classifyAgainstEvidenceMock = vi.fn();
+const gatherFreshEvidenceForMock = vi.fn();
 vi.mock("../lib/ai/verify-and-synthesize", () => ({
   verifyAndSynthesize: verifyAndSynthesizeMock,
   classifyAgainstEvidence: classifyAgainstEvidenceMock,
+  gatherFreshEvidenceFor: gatherFreshEvidenceForMock,
 }));
 
-const { processVerificationBatch, verifySourceItem, revalidateOneArticle, UNCATEGORIZED_CATEGORY_SLUG } = await import("../lib/verification-actions");
+const { processVerificationBatch, verifySourceItem, revalidateOneArticle, UNCATEGORIZED_CATEGORY_SLUG, REVALIDATION_QUERY } = await import("../lib/verification-actions");
 const { prisma } = await import("../lib/prisma");
 const { getSystemUserId } = await import("../lib/system-actor");
 const { cleanupTestData, createTestUser, trackUser } = await import("./helpers");
@@ -130,6 +132,10 @@ async function claimOnly(itemId: string, limit: number): Promise<ReturnType<type
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.AUTO_PUBLISH_CATEGORY_SLUGS = ORIGINAL_ALLOWLIST;
+  // Default: no fresh-search fallback available, matching a test
+  // environment with no real SEARCH_API_KEY — individual tests override
+  // this when they specifically exercise the fresh-search path.
+  gatherFreshEvidenceForMock.mockResolvedValue({ evidence: null, reason: "Search not configured (SEARCH_API_KEY missing) — no verification attempted." });
 });
 
 afterAll(async () => {
@@ -671,7 +677,7 @@ describe("revalidateOneArticle / revalidatePublishedArticles's query — re-chec
     return article;
   }
 
-  it("skips an article with no persisted EvidenceRecord, without calling classifyAgainstEvidence", async () => {
+  it("skips an article with no persisted EvidenceRecord and no fresh search available, without calling classifyAgainstEvidence", async () => {
     const article = await makePublishedArticle("UNVERIFIED");
 
     const outcome = await revalidateOneArticle({
@@ -679,11 +685,52 @@ describe("revalidateOneArticle / revalidatePublishedArticles's query — re-chec
     });
 
     expect(outcome).toBe("skipped_no_evidence");
+    expect(gatherFreshEvidenceForMock).toHaveBeenCalledWith(article.title, "");
     expect(classifyAgainstEvidenceMock).not.toHaveBeenCalled();
 
     const unchanged = await prisma.article.findUniqueOrThrow({ where: { id: article.id } });
     expect(unchanged.verificationStatus).toBe("UNVERIFIED");
     expect(unchanged.status).toBe("PUBLISHED");
+  });
+
+  it("falls back to a fresh web search when no persisted EvidenceRecord exists, and confirms from it — the human-authored-article case", async () => {
+    const article = await makePublishedArticle("UNVERIFIED");
+    const freshDoc = {
+      url: "https://official-outlet.test/story", hostname: "official-outlet.test", rank: 1, rankLabel: "Official",
+      title: "Story", author: null, publishedAt: null, text: "Confirms the claim.", isOriginatingOutlet: false,
+    };
+    const freshEvidence = { documents: [freshDoc], richness: "MODERATE" as const, totalChars: 20, primary: freshDoc, corroborating: null, notes: [] };
+    gatherFreshEvidenceForMock.mockResolvedValueOnce({ evidence: freshEvidence });
+
+    const newGenerationId = await makeGeneration();
+    createdGenerationIds.push(newGenerationId);
+    classifyAgainstEvidenceMock.mockResolvedValueOnce({
+      verificationStatus: "PRIMARY_SOURCE_CONFIRMED",
+      primarySourceUrl: "https://official-outlet.test/story",
+      secondarySourceUrl: null,
+      verificationConfidence: 88,
+      claimsChecked: ["the headline claim"],
+      notes: "confirmed from a fresh search",
+      draft: { headline: "irrelevant", excerpt: "irrelevant", blocks: [] },
+      originalityScore: 0,
+      generationId: newGenerationId,
+      evidence: freshEvidence,
+      retryCount: 0,
+    });
+
+    const outcome = await revalidateOneArticle({
+      articleId: article.id, title: article.title, excerpt: article.excerpt,
+      reportedBy: { name: "Official Outlet", url: "https://official-outlet.test" },
+      actorId: article.authorId,
+    });
+
+    expect(outcome).toBe("confirmed");
+    expect(gatherFreshEvidenceForMock).toHaveBeenCalledWith(article.title, "https://official-outlet.test");
+    expect(classifyAgainstEvidenceMock).toHaveBeenCalledWith(expect.objectContaining({ evidence: freshEvidence }));
+
+    const updated = await prisma.article.findUniqueOrThrow({ where: { id: article.id } });
+    expect(updated.verificationStatus).toBe("PRIMARY_SOURCE_CONFIRMED");
+    expect(updated.verificationNotes).toMatch(/fresh search/);
   });
 
   it("updates only verification metadata from replayed evidence, never status/title/content", async () => {
@@ -737,7 +784,7 @@ describe("revalidateOneArticle / revalidatePublishedArticles's query — re-chec
     expect(updated.content).toEqual(article.content);
   });
 
-  it("revalidatePublishedArticles's WHERE clause excludes a human-authored article (no verificationGenerationId), scoped to just this row", async () => {
+  it("revalidatePublishedArticles's WHERE clause INCLUDES a human-authored article (no verificationGenerationId) — the majority case this fallback exists for", async () => {
     const category = await getUsableCategory();
     await ensureAuthorExists();
     const author = await prisma.author.findFirstOrThrow();
@@ -756,16 +803,11 @@ describe("revalidateOneArticle / revalidatePublishedArticles's query — re-chec
     });
     createdArticleIds.push(article.id);
 
-    // The exact WHERE clause revalidatePublishedArticles uses, scoped by
-    // this test's own id so it can never touch any other row.
+    // The exact WHERE clause revalidatePublishedArticles uses (REVALIDATION_QUERY),
+    // scoped by this test's own id so it can never match any other row.
     const matches = await prisma.article.findMany({
-      where: {
-        id: article.id,
-        status: "PUBLISHED",
-        verificationGenerationId: { not: null },
-        verificationStatus: { not: "PRIMARY_SOURCE_CONFIRMED" },
-      },
+      where: { id: article.id, ...REVALIDATION_QUERY },
     });
-    expect(matches).toHaveLength(0);
+    expect(matches).toHaveLength(1);
   });
 });

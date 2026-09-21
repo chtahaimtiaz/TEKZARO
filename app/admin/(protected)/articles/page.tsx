@@ -2,11 +2,17 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { CAN_DELETE_ARTICLE, CAN_OVERRIDE_VERIFICATION } from "@/lib/permissions";
+import { REVALIDATION_QUERY } from "@/lib/verification-actions";
 import { DeleteAllArticlesButton } from "@/components/admin/DeleteAllArticlesButton";
 import { RevalidateVerificationButton } from "@/components/admin/RevalidateVerificationButton";
 import type { ArticleStatus, Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
+// The Re-verify button's server action runs one or more rounds of
+// verification (a search + AI call per article, sequentially) and needs
+// room to match revalidatePublishedArticles's own time budget — mirrors the
+// cron routes' maxDuration for the same reason.
+export const maxDuration = 300;
 
 const PAGE_SIZE = 20;
 const ALL_STATUSES: ArticleStatus[] = [
@@ -75,9 +81,7 @@ export default async function AdminArticlesPage({
   const totalArticleCount = canDeleteAll ? await prisma.article.count() : 0;
   const canOverrideVerification = CAN_OVERRIDE_VERIFICATION.includes(user.role);
   const unconfirmedVerificationCount = canOverrideVerification
-    ? await prisma.article.count({
-        where: { status: "PUBLISHED", verificationGenerationId: { not: null }, verificationStatus: { not: "PRIMARY_SOURCE_CONFIRMED" } },
-      })
+    ? await prisma.article.count({ where: REVALIDATION_QUERY })
     : 0;
   const qs = (overrides: Partial<SearchParams>) => {
     const merged: Record<string, string> = {};
