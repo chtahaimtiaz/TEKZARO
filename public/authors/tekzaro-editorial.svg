@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="bg-editorial" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7"/>
+      <stop offset="100%" stop-color="#0369a1"/>
+    </linearGradient>
+  </defs>
+  <rect width="200" height="200" rx="100" fill="url(#bg-editorial)"/>
+  <!-- TEKZARO emblem icon -->
+  <path d="M60 65 L140 65 L140 85 L112 85 L112 145 L88 145 L88 85 L60 85 Z" fill="#ffffff"/>
+  <circle cx="100" cy="155" r="5" fill="#38bdf8"/>
+</svg>

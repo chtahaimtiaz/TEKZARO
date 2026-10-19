@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="bg-daniyal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+    <linearGradient id="skin-daniyal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#dfad83"/>
+      <stop offset="100%" stop-color="#cc976a"/>
+    </linearGradient>
+  </defs>
+  <rect width="200" height="200" rx="100" fill="url(#bg-daniyal)"/>
+  <!-- Hoodie / Cyber security vibe -->
+  <path d="M38 200 C38 150, 68 140, 100 140 C132 140, 162 150, 162 200 Z" fill="#0f172a"/>
+  <path d="M82 145 L100 175 L118 145 Z" fill="#10b981"/>
+  <!-- Neck & Face -->
+  <rect x="91" y="122" width="18" height="25" fill="url(#skin-daniyal)"/>
+  <ellipse cx="100" cy="92" rx="35" ry="40" fill="url(#skin-daniyal)"/>
+  <!-- Short hair -->
+  <path d="M64 85 C62 55, 78 46, 100 46 C122 46, 138 55, 136 85 C130 68, 115 56, 100 56 C85 56, 70 68, 64 85 Z" fill="#1c1917"/>
+  <!-- Clean stubble & brow -->
+  <path d="M72 100 C72 125, 84 135, 100 135 C116 135, 128 125, 128 100 C122 104, 114 106, 100 106 C86 106, 78 104, 72 100 Z" fill="#292524" opacity="0.4"/>
+  <!-- Eyebrows & Eyes -->
+  <line x1="80" y1="84" x2="94" y2="84" stroke="#1c1917" stroke-width="3" stroke-linecap="round"/>
+  <line x1="106" y1="84" x2="120" y2="84" stroke="#1c1917" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="87" cy="91" r="3" fill="#1c1917"/>
+  <circle cx="113" cy="91" r="3" fill="#1c1917"/>
+</svg>

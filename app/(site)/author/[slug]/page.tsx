@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { ArticleCard } from "@/components/content/ArticleCard";
 import { Pagination } from "@/components/content/Pagination";
@@ -42,14 +43,24 @@ export default async function AuthorPage({ params, searchParams }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(authorJsonLd(author)) }}
       />
-      <div className="flex flex-col items-start gap-4 border-b border-border pb-8 sm:flex-row sm:items-center">
-        <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-ink font-serif text-2xl font-bold text-white dark:text-paper">
-          {author.name
-            .split(" ")
-            .map((n) => n[0])
-            .slice(0, 2)
-            .join("")}
-        </div>
+      <div className="flex flex-col items-start gap-5 border-b border-border pb-8 sm:flex-row sm:items-center">
+        {author.photoUrl ? (
+          <Image
+            src={author.photoUrl}
+            alt={author.name}
+            width={80}
+            height={80}
+            className="h-20 w-20 shrink-0 rounded-full object-cover border border-border shadow-sm"
+          />
+        ) : (
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-ink font-serif text-2xl font-bold text-white dark:text-paper">
+            {author.name
+              .split(" ")
+              .map((n) => n[0])
+              .slice(0, 2)
+              .join("")}
+          </div>
+        )}
         <div>
           <h1 className="font-serif text-3xl font-bold">{author.name}</h1>
           {author.position && <p className="text-ink-muted">{author.position}</p>}

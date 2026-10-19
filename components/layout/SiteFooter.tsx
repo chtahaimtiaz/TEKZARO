@@ -41,11 +41,15 @@ const SOCIAL_ICON_PATHS: Record<SocialPlatform, ReactNode> = {
 };
 
 const COMPANY_LINKS = [
-  ["About", "/about"],
+  ["About Us", "/about"],
   ["Contact", "/contact"],
+  ["Authors & Staff", "/authors"],
+  ["Editorial Policy", "/editorial-policy"],
+  ["Fact-Checking", "/fact-checking-policy"],
+  ["Corrections", "/corrections-policy"],
+  ["Ethics & Ownership", "/ethics-policy"],
   ["Advertise", "/advertise"],
   ["Newsletter", "/newsletter"],
-  ["Authors", "/authors"],
 ];
 
 const LEGAL_LINKS = [

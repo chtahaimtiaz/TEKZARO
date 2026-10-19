@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="skin" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d4a373"/>
+      <stop offset="100%" stop-color="#c58f59"/>
+    </linearGradient>
+  </defs>
+  <rect width="200" height="200" rx="100" fill="url(#bg)"/>
+  <!-- Torso / Jacket -->
+  <path d="M40 200 C40 155, 70 145, 100 145 C130 145, 160 155, 160 200 Z" fill="#334155"/>
+  <path d="M75 148 L100 185 L125 148 Z" fill="#f8fafc"/>
+  <path d="M93 155 L107 155 L104 195 L96 195 Z" fill="#0284c7"/>
+  <!-- Head & Neck -->
+  <rect x="90" y="125" width="20" height="25" fill="url(#skin)"/>
+  <ellipse cx="100" cy="92" rx="36" ry="42" fill="url(#skin)"/>
+  <!-- Hair & Beard -->
+  <path d="M64 85 C62 60, 80 50, 100 50 C120 50, 138 60, 136 85 C132 72, 118 62, 100 62 C82 62, 68 72, 64 85 Z" fill="#18181b"/>
+  <!-- Trim beard -->
+  <path d="M70 95 C70 128, 85 138, 100 138 C115 138, 130 128, 130 95 C124 100, 115 102, 100 102 C85 102, 76 100, 70 95 Z" fill="#18181b" opacity="0.9"/>
+  <!-- Glasses -->
+  <rect x="74" y="86" width="22" height="15" rx="3" fill="none" stroke="#0ea5e9" stroke-width="2.5"/>
+  <rect x="104" y="86" width="22" height="15" rx="3" fill="none" stroke="#0ea5e9" stroke-width="2.5"/>
+  <line x1="96" y1="93" x2="104" y2="93" stroke="#0ea5e9" stroke-width="2.5"/>
+</svg>

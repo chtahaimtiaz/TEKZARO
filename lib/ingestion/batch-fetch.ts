@@ -38,11 +38,21 @@ export interface BatchIngestionSummary {
 /** Every active Source eligible for automated ingestion — RSS/Atom/etc.
  * with a real feedUrl, or any GOOGLE_NEWS source (which computes its query
  * live instead of storing a feedUrl). Same eligibility rule the cron route
- * has always used. */
+ * has always used.
+ *
+ * Ordered by least-recently-checked first (nulls — never checked — go
+ * first). Without this, an unordered query comes back in a stable scan
+ * order every run, and if a batch gets cut off by the serverless
+ * maxDuration before reaching the end of the list, the same sources (and
+ * therefore the same handful of categories) win every single invocation
+ * while the rest starve forever. Ordering this way turns a timeout into
+ * fair rotation instead of permanent starvation: whichever sources didn't
+ * get reached this run sort first on the next one. */
 export async function getEligibleActiveSources(): Promise<{ id: string; name: string; type: string }[]> {
   return prisma.source.findMany({
     where: { active: true, OR: [{ feedUrl: { not: null } }, { type: "GOOGLE_NEWS" }] },
     select: { id: true, name: true, type: true },
+    orderBy: { lastChecked: { sort: "asc", nulls: "first" } },
   });
 }
 

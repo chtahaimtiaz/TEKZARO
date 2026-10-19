@@ -129,7 +129,16 @@ export const SITE_DESCRIPTION =
   "Pakistan-first technology journalism with global coverage — AI, smartphones, computing, cybersecurity, startups and more, verified before publication.";
 
 export function siteUrl(): string {
-  return process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  if (process.env.NEXT_PUBLIC_SITE_URL && !process.env.NEXT_PUBLIC_SITE_URL.includes("localhost")) {
+    return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "");
+  }
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`.replace(/\/$/, "");
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`.replace(/\/$/, "");
+  }
+  return process.env.NEXT_PUBLIC_SITE_URL || "https://tekzaro.co";
 }
 
 // Pakistan Tech is canonically hosted at /pakistan-tech (its own prominent hub),

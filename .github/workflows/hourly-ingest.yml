@@ -49,3 +49,7 @@ jobs:
         run: |
           curl -sf -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             https://tekzaro.vercel.app/api/cron/verify-and-publish
+      - name: Trigger JARVIS Automation
+        run: |
+          curl -sf -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://tekzaro.vercel.app/api/jarvis/run || true

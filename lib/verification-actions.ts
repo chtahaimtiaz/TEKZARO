@@ -52,6 +52,7 @@ export const UNCATEGORIZED_CATEGORY_SLUG = "uncategorized";
  */
 function isCategoryAllowedForAutoPublish(categorySlug: string): boolean {
   if (categorySlug === UNCATEGORIZED_CATEGORY_SLUG) return false;
+  if (process.env.JARVIS_DRY_RUN === "true" || process.env.JARVIS_APPROVAL_MODE === "true") return false;
   const raw = process.env.AUTO_PUBLISH_CATEGORY_SLUGS ?? "";
   const allowed = raw.split(",").map((s) => s.trim()).filter(Boolean);
   return allowed.includes(categorySlug);
