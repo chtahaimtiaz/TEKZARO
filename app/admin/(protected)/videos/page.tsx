@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { CAN_MANAGE_VIDEOS } from "@/lib/permissions";
-import { deleteVideoAction } from "@/lib/video-actions";
+import { deleteVideoAction, toggleVideoPublishAction } from "@/lib/video-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -71,7 +71,19 @@ export default async function AdminVideosPage() {
                   {v.publishedAt ? new Date(v.publishedAt).toLocaleDateString() : "Not published"}
                 </td>
                 <td className="p-3 text-right">
-                  <div className="flex justify-end gap-3">
+                  <div className="flex items-center justify-end gap-3">
+                    <form action={toggleVideoPublishAction.bind(null, v.id)}>
+                      <button
+                        type="submit"
+                        className={`rounded px-2 py-1 text-xs font-semibold ${
+                          v.status === "PUBLISHED"
+                            ? "bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-300"
+                            : "bg-green-600 text-white hover:bg-green-700"
+                        }`}
+                      >
+                        {v.status === "PUBLISHED" ? "Unpublish" : "Publish"}
+                      </button>
+                    </form>
                     <Link
                       href={`/admin/videos/${v.id}`}
                       className="text-xs font-semibold text-accent hover:underline"

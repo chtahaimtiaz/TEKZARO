@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { CAN_MANAGE_VIDEOS } from "@/lib/permissions";
-import { updateVideoAction } from "@/lib/video-actions";
+import { updateVideoAction, toggleVideoPublishAction } from "@/lib/video-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -28,9 +28,25 @@ export default async function EditVideoPage({
 
   return (
     <div className="max-w-2xl">
-      <p className="eyebrow">Multimedia</p>
-      <h1 className="mt-1 font-serif text-3xl font-bold">{video.title}</h1>
-      <p className="mt-1 text-sm text-ink-muted">/video/{video.slug}</p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <p className="eyebrow">Multimedia</p>
+          <h1 className="mt-1 font-serif text-3xl font-bold">{video.title}</h1>
+          <p className="mt-1 text-sm text-ink-muted">/video/{video.slug}</p>
+        </div>
+        <form action={toggleVideoPublishAction.bind(null, video.id)}>
+          <button
+            type="submit"
+            className={`rounded-md px-4 py-2 text-sm font-semibold text-white ${
+              video.status === "PUBLISHED"
+                ? "bg-amber-600 hover:bg-amber-700"
+                : "bg-green-600 hover:bg-green-700"
+            }`}
+          >
+            {video.status === "PUBLISHED" ? "Unpublish Video" : "Publish Video Now"}
+          </button>
+        </form>
+      </div>
 
       {error && (
         <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-medium text-red-700 dark:bg-red-950 dark:text-red-300">

@@ -106,3 +106,31 @@ export async function deleteVideoAction(videoId: string): Promise<void> {
   await logAction({ userId: user.id, action: "video_deleted", entityType: "Video", entityId: videoId });
   redirect("/admin/videos");
 }
+
+export async function toggleVideoPublishAction(videoId: string): Promise<void> {
+  const sessionUser = await getSessionUser();
+  const user = requireRole(sessionUser, CAN_MANAGE_VIDEOS);
+
+  const video = await prisma.video.findUnique({ where: { id: videoId } });
+  if (!video) redirect("/admin/videos");
+
+  const newStatus = video.status === "PUBLISHED" ? "DRAFT" : "PUBLISHED";
+  const publishedAt = newStatus === "PUBLISHED" && !video.publishedAt ? new Date() : video.publishedAt;
+
+  await prisma.video.update({
+    where: { id: videoId },
+    data: {
+      status: newStatus,
+      publishedAt,
+    },
+  });
+
+  await logAction({
+    userId: user.id,
+    action: newStatus === "PUBLISHED" ? "video_published" : "video_unpublished",
+    entityType: "Video",
+    entityId: videoId,
+  });
+
+  redirect("/admin/videos");
+}
