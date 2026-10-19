@@ -4,6 +4,8 @@ import { requireUser } from "@/lib/auth";
 import { CAN_MANAGE_VIDEOS } from "@/lib/permissions";
 import { createVideoAction } from "@/lib/video-actions";
 
+import { VideoMediaUploader } from "@/components/admin/VideoMediaUploader";
+
 export const dynamic = "force-dynamic";
 
 export default async function NewVideoPage({
@@ -24,7 +26,7 @@ export default async function NewVideoPage({
     <div className="max-w-2xl">
       <p className="eyebrow">Multimedia</p>
       <h1 className="mt-1 font-serif text-3xl font-bold">New Video</h1>
-      <p className="mt-1 text-sm text-ink-muted">Publish a new video story or YouTube embed.</p>
+      <p className="mt-1 text-sm text-ink-muted">Publish a new video story, YouTube feature, or direct video.</p>
 
       {error && (
         <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-medium text-red-700 dark:bg-red-950 dark:text-red-300">
@@ -32,32 +34,13 @@ export default async function NewVideoPage({
         </p>
       )}
 
-      <form action={createVideoAction} className="mt-6 flex flex-col gap-4 rounded-xl border border-border bg-paper-raised p-5 text-sm">
+      <form action={createVideoAction} className="mt-6 flex flex-col gap-5 rounded-xl border border-border bg-paper-raised p-5 text-sm">
         <label className="flex flex-col gap-1">
           <span className="font-medium text-ink">Title</span>
           <input name="title" required placeholder="e.g. Inside Pakistan's IT Sector Revolution" className="rounded-md border border-border-strong p-2" />
         </label>
 
-        <label className="flex flex-col gap-1">
-          <span className="font-medium text-ink">Video URL (YouTube or Direct Video)</span>
-          <input
-            name="videoUrl"
-            type="url"
-            required
-            placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/..."
-            className="rounded-md border border-border-strong p-2"
-          />
-        </label>
-
-        <label className="flex flex-col gap-1">
-          <span className="font-medium text-ink">Thumbnail URL (Optional)</span>
-          <input
-            name="thumbnailUrl"
-            type="url"
-            placeholder="https://... (or leave empty to let YouTube extract automatically)"
-            className="rounded-md border border-border-strong p-2"
-          />
-        </label>
+        <VideoMediaUploader />
 
         <div className="grid grid-cols-2 gap-4">
           <label className="flex flex-col gap-1">

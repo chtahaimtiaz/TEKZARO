@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { getPublishedVideos, getEmbedVideoUrl } from "@/lib/videos";
+import { getPublishedVideos, getEmbedVideoUrl, getAutoThumbnailUrl } from "@/lib/videos";
+import { isOptimizableImageSrc } from "@/lib/image-src";
 import { SITE_NAME } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
@@ -36,13 +37,14 @@ export default async function VideosIndexPage() {
             <div className="aspect-video w-full overflow-hidden rounded-xl bg-black lg:col-span-8">
               {(() => {
                 const { type, embedUrl } = getEmbedVideoUrl(featured.videoUrl);
+                const featuredThumb = getAutoThumbnailUrl(featured.videoUrl, featured.thumbnailUrl);
                 if (type === "youtube" || type === "vimeo") {
                   return (
                     <iframe
                       src={embedUrl}
                       title={featured.title}
                       className="h-full w-full"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                       allowFullScreen
                     />
                   );
@@ -51,8 +53,10 @@ export default async function VideosIndexPage() {
                   <video
                     src={featured.videoUrl}
                     controls
-                    poster={featured.thumbnailUrl ?? undefined}
-                    className="h-full w-full object-cover"
+                    playsInline
+                    preload="metadata"
+                    poster={featuredThumb ?? undefined}
+                    className="h-full w-full object-contain"
                   />
                 );
               })()}
@@ -81,24 +85,27 @@ export default async function VideosIndexPage() {
       <section className="mt-12">
         <h2 className="font-serif text-2xl font-bold text-ink">Recent Videos</h2>
         <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {list.map((video) => (
-            <article
-              key={video.id}
-              className="flex flex-col overflow-hidden rounded-xl border border-border bg-paper-raised transition hover:border-accent"
-            >
-              <Link href={`/video/${video.slug}`} className="group relative aspect-video w-full overflow-hidden bg-black">
-                {video.thumbnailUrl ? (
-                  <Image
-                    src={video.thumbnailUrl}
-                    alt={video.title}
-                    fill
-                    className="object-cover transition duration-300 group-hover:scale-105"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-paper-sunk text-sm text-ink-muted">
-                    Watch Video
-                  </div>
-                )}
+          {list.map((video) => {
+            const thumb = getAutoThumbnailUrl(video.videoUrl, video.thumbnailUrl);
+            return (
+              <article
+                key={video.id}
+                className="flex flex-col overflow-hidden rounded-xl border border-border bg-paper-raised transition hover:border-accent"
+              >
+                <Link href={`/video/${video.slug}`} className="group relative aspect-video w-full overflow-hidden bg-black">
+                  {thumb ? (
+                    <Image
+                      src={thumb}
+                      alt={video.title}
+                      fill
+                      unoptimized={!isOptimizableImageSrc(thumb)}
+                      className="object-cover transition duration-300 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-paper-sunk text-sm text-ink-muted">
+                      Watch Video
+                    </div>
+                  )}
                 <div className="absolute inset-0 flex items-center justify-center bg-black/25 opacity-90 transition group-hover:bg-black/40">
                   <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent text-white shadow-lg">
                     <svg className="ml-0.5 h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
@@ -133,7 +140,8 @@ export default async function VideosIndexPage() {
                 </div>
               </div>
             </article>
-          ))}
+          );
+        })}
 
           {videos.length === 0 && (
             <div className="col-span-full rounded-xl border border-dashed border-border p-12 text-center text-ink-muted">

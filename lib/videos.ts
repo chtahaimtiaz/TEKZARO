@@ -36,26 +36,61 @@ export async function getRelatedVideos(videoId: string, categoryId: string, limi
 }
 
 /**
+ * Extracts a YouTube Video ID from any standard format:
+ * - youtube.com/watch?v=...
+ * - youtu.be/...
+ * - youtube.com/shorts/...
+ * - youtube.com/live/...
+ * - youtube.com/embed/...
+ */
+export function extractYouTubeId(url: string): string | null {
+  if (!url) return null;
+  const regExp = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts|live)\/|.*[?&]v=)|youtu\.be\/)([\w-]{11})/;
+  const match = url.match(regExp);
+  return match ? match[1] : null;
+}
+
+/**
+ * Extracts a Vimeo video ID from vimeo.com/<id>.
+ */
+export function extractVimeoId(url: string): string | null {
+  if (!url) return null;
+  const match = url.match(/(?:vimeo\.com\/)(\d+)/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Returns an automatic thumbnail URL if available (e.g. from YouTube),
+ * falling back to the custom thumbnail if specified.
+ */
+export function getAutoThumbnailUrl(videoUrl: string, customThumbnail?: string | null): string | null {
+  if (customThumbnail && customThumbnail.trim().length > 0) return customThumbnail;
+  const ytId = extractYouTubeId(videoUrl);
+  if (ytId) {
+    return `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg`;
+  }
+  return null;
+}
+
+/**
  * Parses a YouTube URL, Vimeo URL, or standard direct video link into an embeddable format.
  */
 export function getEmbedVideoUrl(url: string): { type: "youtube" | "vimeo" | "direct"; embedUrl: string } {
   if (!url) return { type: "direct", embedUrl: "" };
 
-  // YouTube matchers: youtu.be/<id>, youtube.com/watch?v=<id>, youtube.com/embed/<id>
-  const ytMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
-  if (ytMatch && ytMatch[1]) {
+  const ytId = extractYouTubeId(url);
+  if (ytId) {
     return {
       type: "youtube",
-      embedUrl: `https://www.youtube.com/embed/${ytMatch[1]}`,
+      embedUrl: `https://www.youtube.com/embed/${ytId}`,
     };
   }
 
-  // Vimeo matchers
-  const vimeoMatch = url.match(/(?:vimeo\.com\/)(\d+)/);
-  if (vimeoMatch && vimeoMatch[1]) {
+  const vimeoId = extractVimeoId(url);
+  if (vimeoId) {
     return {
       type: "vimeo",
-      embedUrl: `https://player.vimeo.com/video/${vimeoMatch[1]}`,
+      embedUrl: `https://player.vimeo.com/video/${vimeoId}`,
     };
   }
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
-import { CAN_MANAGE_MEDIA } from "@/lib/permissions";
+import { CAN_MANAGE_MEDIA, CAN_MANAGE_VIDEOS } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/audit";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
@@ -17,13 +17,13 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request): Promise<NextResponse> {
   const user = await getSessionUser();
-  if (!user || !CAN_MANAGE_MEDIA.includes(user.role)) {
+  if (!user || (!CAN_MANAGE_MEDIA.includes(user.role) && !CAN_MANAGE_VIDEOS.includes(user.role))) {
     return NextResponse.json({ error: "You don't have permission to do that." }, { status: 403 });
   }
 
   if (!isMediaUploadAvailable()) {
     return NextResponse.json(
-      { error: "Media uploads require durable object storage in production — not configured." },
+      { error: "Direct uploads require durable object storage in production (Cloudflare R2) — or you can provide a YouTube/Vimeo/direct video URL." },
       { status: 503 },
     );
   }
@@ -38,7 +38,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const file = formData.get("file");
   const altText = String(formData.get("altText") || "");
   const kindRaw = String(formData.get("kind") || "article");
-  const kind = kindRaw === "author" ? "author" : "article";
+  const kind = (["author", "video", "thumbnail", "ad"].includes(kindRaw) ? kindRaw : "article") as "article" | "author" | "ad" | "video" | "thumbnail";
   // Optional: which article this upload is for (see Media.articleId in the
   // schema). Always comes from a trusted source — either ArticleEditor's own
   // articleId prop or a real article picked from a server-fetched list on

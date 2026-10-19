@@ -8,18 +8,14 @@ const ALLOWED_MIME_TYPES: Record<string, string> = {
   "image/png": "png",
   "image/webp": "webp",
   "image/gif": "gif",
-  // Deliberately no SVG — an SVG can embed <script>, making it an XSS vector
-  // if ever served/rendered inline rather than as a plain <img> source.
+  "video/mp4": "mp4",
+  "video/webm": "webm",
+  "video/quicktime": "mov",
+  "video/ogg": "ogv",
 };
 
-// Vercel Functions enforce a hard 4.5MB request body limit (see
-// vercel.com/docs/vercel-blob/server-upload) — this project's upload route
-// reads the whole file via request.formData() server-side, so the cap has
-// to stay under that regardless of storage provider. 4MB leaves headroom
-// for multipart/form-data encoding overhead. (Was 8MB before this was
-// verified against Vercel's current docs while adding the Blob adapter —
-// a real, deliberate reduction, not an accidental behavior change.)
-const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024; // 4MB
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50MB
 
 export class UnsupportedFileTypeError extends Error {}
 export class FileTooLargeError extends Error {}
@@ -89,12 +85,14 @@ function validateUpload(file: File): { ext: string } {
   const ext = ALLOWED_MIME_TYPES[file.type];
   if (!ext) {
     throw new UnsupportedFileTypeError(
-      `Unsupported file type "${file.type}". Allowed: ${Object.keys(ALLOWED_MIME_TYPES).join(", ")}.`,
+      `Unsupported file type "${file.type}". Allowed: images (JPG, PNG, WebP, GIF) and videos (MP4, WebM, MOV, OGG).`,
     );
   }
-  if (file.size > MAX_UPLOAD_BYTES) {
+  const isVideo = file.type.startsWith("video/");
+  const maxBytes = isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+  if (file.size > maxBytes) {
     throw new FileTooLargeError(
-      `File is ${(file.size / 1024 / 1024).toFixed(1)}MB; the limit is ${MAX_UPLOAD_BYTES / 1024 / 1024}MB.`,
+      `File is ${(file.size / 1024 / 1024).toFixed(1)}MB; the limit is ${maxBytes / 1024 / 1024}MB.`,
     );
   }
   return { ext };
@@ -199,7 +197,10 @@ async function deleteUploadLocal(url: string): Promise<void> {
  * app/api/media/upload/route.ts) depends on and needs no changes when the
  * provider changes.
  */
-export async function saveUpload(file: File, _kind: "article" | "author" | "ad"): Promise<SavedUpload> {
+export async function saveUpload(
+  file: File,
+  _kind: "article" | "author" | "ad" | "video" | "thumbnail",
+): Promise<SavedUpload> {
   if (!isMediaUploadAvailable()) {
     throw new StorageNotAvailableError(
       "Media uploads require durable object storage in production. STORAGE_PROVIDER is not set to a durable, correctly-configured provider, and this is running on Vercel's ephemeral filesystem.",

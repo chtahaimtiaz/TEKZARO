@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getVideoBySlug, getRelatedVideos, getEmbedVideoUrl } from "@/lib/videos";
+import { getVideoBySlug, getRelatedVideos, getEmbedVideoUrl, getAutoThumbnailUrl } from "@/lib/videos";
 import { siteUrl, SITE_NAME } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +16,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!video || video.status !== "PUBLISHED") return {};
 
   const url = `${siteUrl()}/video/${video.slug}`;
+  const thumb = getAutoThumbnailUrl(video.videoUrl, video.thumbnailUrl);
   return {
     title: video.title,
     description: video.description ?? `Watch ${video.title} on ${SITE_NAME}`,
@@ -25,7 +26,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description: video.description ?? undefined,
       url,
       type: "video.other",
-      images: video.thumbnailUrl ? [{ url: video.thumbnailUrl }] : undefined,
+      images: thumb ? [{ url: thumb }] : undefined,
     },
   };
 }
@@ -38,13 +39,14 @@ export default async function VideoDetailPage({ params }: Props) {
 
   const related = await getRelatedVideos(video.id, video.categoryId, 4);
   const { type, embedUrl } = getEmbedVideoUrl(video.videoUrl);
+  const thumb = getAutoThumbnailUrl(video.videoUrl, video.thumbnailUrl);
 
   const videoJsonLd = {
     "@context": "https://schema.org",
     "@type": "VideoObject",
     name: video.title,
     description: video.description ?? video.title,
-    thumbnailUrl: video.thumbnailUrl ? [video.thumbnailUrl] : [`${siteUrl()}/logo.png`],
+    thumbnailUrl: thumb ? [thumb] : [`${siteUrl()}/logo.png`],
     uploadDate: video.publishedAt?.toISOString() ?? video.createdAt.toISOString(),
     contentUrl: video.videoUrl,
     embedUrl: type === "youtube" || type === "vimeo" ? embedUrl : undefined,
@@ -96,16 +98,20 @@ export default async function VideoDetailPage({ params }: Props) {
             src={embedUrl}
             title={video.title}
             className="h-full w-full"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
           />
         ) : (
           <video
             src={video.videoUrl}
             controls
-            poster={video.thumbnailUrl ?? undefined}
-            className="h-full w-full object-cover"
-          />
+            playsInline
+            preload="metadata"
+            poster={thumb ?? undefined}
+            className="h-full w-full object-contain"
+          >
+            Your browser does not support the video tag.
+          </video>
         )}
       </div>
 
@@ -122,33 +128,36 @@ export default async function VideoDetailPage({ params }: Props) {
         <section className="mt-12 border-t border-border pt-8">
           <h2 className="font-serif text-2xl font-bold text-ink">More from {video.category.name}</h2>
           <div className="mt-6 grid gap-6 sm:grid-cols-2">
-            {related.map((v) => (
-              <div key={v.id} className="flex gap-4">
-                <Link
-                  href={`/video/${v.slug}`}
-                  className="relative aspect-video w-40 shrink-0 overflow-hidden rounded-lg bg-black"
-                >
-                  {v.thumbnailUrl ? (
-                    <img src={v.thumbnailUrl} alt={v.title} className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-xs text-ink-muted">
-                      Video
-                    </div>
-                  )}
-                  {v.duration && (
-                    <span className="absolute bottom-1 right-1 rounded bg-black/80 px-1 text-[10px] text-white">
-                      {v.duration}
-                    </span>
-                  )}
-                </Link>
-                <div className="flex flex-col justify-center">
-                  <h3 className="font-serif text-sm font-bold text-ink hover:text-accent">
-                    <Link href={`/video/${v.slug}`}>{v.title}</Link>
-                  </h3>
-                  <p className="mt-1 text-[11px] text-ink-muted">By {v.author.name}</p>
+            {related.map((v) => {
+              const rThumb = getAutoThumbnailUrl(v.videoUrl, v.thumbnailUrl);
+              return (
+                <div key={v.id} className="flex gap-4">
+                  <Link
+                    href={`/video/${v.slug}`}
+                    className="relative aspect-video w-40 shrink-0 overflow-hidden rounded-lg bg-black"
+                  >
+                    {rThumb ? (
+                      <img src={rThumb} alt={v.title} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-xs text-ink-muted">
+                        Video
+                      </div>
+                    )}
+                    {v.duration && (
+                      <span className="absolute bottom-1 right-1 rounded bg-black/80 px-1 text-[10px] text-white">
+                        {v.duration}
+                      </span>
+                    )}
+                  </Link>
+                  <div className="flex flex-col justify-center">
+                    <h3 className="font-serif text-sm font-bold text-ink hover:text-accent">
+                      <Link href={`/video/${v.slug}`}>{v.title}</Link>
+                    </h3>
+                    <p className="mt-1 text-[11px] text-ink-muted">By {v.author.name}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}

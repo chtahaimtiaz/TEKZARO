@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { CAN_MANAGE_VIDEOS } from "@/lib/permissions";
 import { updateVideoAction, toggleVideoPublishAction } from "@/lib/video-actions";
+import { VideoMediaUploader } from "@/components/admin/VideoMediaUploader";
 
 export const dynamic = "force-dynamic";
 
@@ -61,15 +62,7 @@ export default async function EditVideoPage({
           <input name="title" defaultValue={video.title} required className="rounded-md border border-border-strong p-2" />
         </label>
 
-        <label className="flex flex-col gap-1">
-          <span className="font-medium text-ink">Video URL</span>
-          <input name="videoUrl" type="url" defaultValue={video.videoUrl} required className="rounded-md border border-border-strong p-2" />
-        </label>
-
-        <label className="flex flex-col gap-1">
-          <span className="font-medium text-ink">Thumbnail URL</span>
-          <input name="thumbnailUrl" type="url" defaultValue={video.thumbnailUrl ?? ""} className="rounded-md border border-border-strong p-2" />
-        </label>
+        <VideoMediaUploader initialVideoUrl={video.videoUrl} initialThumbnailUrl={video.thumbnailUrl ?? ""} />
 
         <div className="grid grid-cols-2 gap-4">
           <label className="flex flex-col gap-1">

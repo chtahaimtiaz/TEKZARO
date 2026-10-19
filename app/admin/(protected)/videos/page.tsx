@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { CAN_MANAGE_VIDEOS } from "@/lib/permissions";
 import { deleteVideoAction, toggleVideoPublishAction } from "@/lib/video-actions";
+import { getAutoThumbnailUrl } from "@/lib/videos";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,7 @@ export default async function AdminVideosPage() {
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-border text-xs uppercase tracking-wide text-ink-muted">
-              <th className="p-3">Title</th>
+              <th className="p-3">Video</th>
               <th className="p-3">Category</th>
               <th className="p-3">Author</th>
               <th className="p-3">Status</th>
@@ -47,13 +48,31 @@ export default async function AdminVideosPage() {
             </tr>
           </thead>
           <tbody>
-            {videos.map((v) => (
-              <tr key={v.id} className="border-b border-border last:border-b-0 hover:bg-paper/50">
-                <td className="p-3 font-medium text-ink">
-                  <Link href={`/admin/videos/${v.id}`} className="hover:underline">
-                    {v.title}
-                  </Link>
-                </td>
+            {videos.map((v) => {
+              const thumb = getAutoThumbnailUrl(v.videoUrl, v.thumbnailUrl);
+              return (
+                <tr key={v.id} className="border-b border-border last:border-b-0 hover:bg-paper/50">
+                  <td className="p-3">
+                    <div className="flex items-center gap-3">
+                      {thumb ? (
+                        <img src={thumb} alt="" className="h-10 w-16 shrink-0 rounded border border-border object-cover" />
+                      ) : (
+                        <div className="flex h-10 w-16 shrink-0 items-center justify-center rounded border border-border bg-paper-sunk text-[10px] text-ink-muted">
+                          Video
+                        </div>
+                      )}
+                      <div>
+                        <Link href={`/admin/videos/${v.id}`} className="block font-medium text-ink hover:underline">
+                          {v.title}
+                        </Link>
+                        {v.status === "PUBLISHED" && (
+                          <Link href={`/video/${v.slug}`} target="_blank" className="text-[11px] text-accent hover:underline">
+                            View live ↗
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  </td>
                 <td className="p-3 text-ink-soft">{v.category.name}</td>
                 <td className="p-3 text-ink-soft">{v.author.name}</td>
                 <td className="p-3">
@@ -102,7 +121,8 @@ export default async function AdminVideosPage() {
                   </div>
                 </td>
               </tr>
-            ))}
+            );
+          })}
             {videos.length === 0 && (
               <tr>
                 <td colSpan={6} className="p-8 text-center text-ink-muted">
