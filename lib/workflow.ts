@@ -53,7 +53,7 @@ export const TRANSITIONS: Record<TransitionName, TransitionRule> = {
     allowedRoles: ["ADMIN", "EDITOR"],
   },
   publish: {
-    from: ["APPROVED", "SCHEDULED"],
+    from: ["DRAFT", "IN_REVIEW", "CHANGES_REQUESTED", "APPROVED", "SCHEDULED"],
     to: "PUBLISHED",
     allowedRoles: ["ADMIN", "EDITOR"],
   },

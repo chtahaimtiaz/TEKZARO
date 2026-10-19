@@ -21,7 +21,7 @@ export async function SiteHeader() {
           {SITE_NAME}
         </Link>
 
-        <nav aria-label="Primary" className="hidden flex-1 items-center gap-5 text-sm font-semibold xl:flex">
+        <nav aria-label="Primary" className="hidden flex-1 items-center gap-4 text-sm font-semibold lg:flex">
           <Link href="/" className="hover:text-accent">
             Home
           </Link>
@@ -32,7 +32,7 @@ export async function SiteHeader() {
             Videos
           </Link>
           {primaryNav.map((c) => (
-            <Link key={c.slug} href={navCategoryHref(c)} className="hover:text-accent">
+            <Link key={c.slug} href={navCategoryHref(c)} className="whitespace-nowrap hover:text-accent">
               {c.name}
             </Link>
           ))}
@@ -40,7 +40,7 @@ export async function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-3">
-          <div className="hidden xl:block">
+          <div className="hidden lg:block">
             <ThemeToggle initialPreference={themePreference} />
           </div>
           <Link

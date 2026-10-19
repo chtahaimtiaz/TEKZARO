@@ -23,7 +23,7 @@ export interface CategoryDef {
 export const CATEGORIES: CategoryDef[] = [
   {
     slug: "pakistan-tech",
-    name: "Pakistan Tech",
+    name: "Pakistan",
     description:
       "Technology news from Pakistan — startups, policy, telecom, cybersecurity, IT exports and the people building Pakistan's digital economy.",
   },
