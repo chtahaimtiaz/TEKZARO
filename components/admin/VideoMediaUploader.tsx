@@ -39,6 +39,17 @@ export function VideoMediaUploader({
     if (!file) return;
 
     setVideoError(null);
+
+    // Vercel serverless request body is capped at 4.5MB
+    const MAX_DIRECT_VIDEO_BYTES = 4.5 * 1024 * 1024;
+    if (file.size > MAX_DIRECT_VIDEO_BYTES) {
+      setVideoError(
+        `This file is ${(file.size / 1024 / 1024).toFixed(1)}MB. Direct file upload is capped at 4.5MB on cloud hosting. To publish longer or high-definition videos, please upload to YouTube or Vimeo and paste the link above.`
+      );
+      if (videoInputRef.current) videoInputRef.current.value = "";
+      return;
+    }
+
     setUploadingVideo(true);
 
     try {
@@ -51,7 +62,17 @@ export function VideoMediaUploader({
         body: formData,
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        if (res.status === 413 || text.toLowerCase().includes("request entity too large")) {
+          throw new Error("File exceeds server upload size limit (4.5MB). Please paste a YouTube link instead.");
+        }
+        throw new Error(text.slice(0, 120) || "Server returned an unexpected response.");
+      }
+
       if (!res.ok) {
         throw new Error(data.error || "Video upload failed.");
       }
@@ -71,6 +92,16 @@ export function VideoMediaUploader({
     if (!file) return;
 
     setThumbError(null);
+
+    const MAX_DIRECT_THUMB_BYTES = 4.5 * 1024 * 1024;
+    if (file.size > MAX_DIRECT_THUMB_BYTES) {
+      setThumbError(
+        `Image is ${(file.size / 1024 / 1024).toFixed(1)}MB. Limit is 4.5MB. Please choose a smaller image.`
+      );
+      if (thumbInputRef.current) thumbInputRef.current.value = "";
+      return;
+    }
+
     setUploadingThumb(true);
 
     try {
@@ -83,7 +114,17 @@ export function VideoMediaUploader({
         body: formData,
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        if (res.status === 413 || text.toLowerCase().includes("request entity too large")) {
+          throw new Error("Image exceeds upload limit (4.5MB). Please choose a smaller file.");
+        }
+        throw new Error(text.slice(0, 120) || "Server returned an unexpected response.");
+      }
+
       if (!res.ok) {
         throw new Error(data.error || "Thumbnail upload failed.");
       }

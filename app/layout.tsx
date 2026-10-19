@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Fraunces, Inter } from "next/font/google";
 import "./globals.css";
 import { SITE_NAME, SITE_DESCRIPTION, siteUrl } from "@/lib/constants";
@@ -61,6 +62,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       data-theme={themePreference === "system" ? undefined : themePreference}
     >
       <body className="min-h-screen bg-paper text-ink antialiased">
+        <Script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1824611512521520"
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
+        />
         <script
           type="application/ld+json"
           // eslint-disable-next-line react/no-danger

@@ -13,12 +13,12 @@ import type { NextConfig } from "next";
 // go away" addition. See the Phase 5 report for what was tested.
 const CSP = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' https://plausible.io${process.env.NODE_ENV !== "production" ? " 'unsafe-eval'" : ""}`,
+  `script-src 'self' 'unsafe-inline' https://plausible.io https://pagead2.googlesyndication.com https://partner.googleadservices.com https://tpc.googlesyndication.com https://www.googletagservices.com${process.env.NODE_ENV !== "production" ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
   "font-src 'self' data:",
-  "connect-src 'self' https://plausible.io",
-  "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com",
+  "connect-src 'self' https://plausible.io https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://stats.g.doubleclick.net",
+  "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://googleads.g.doubleclick.net https://tpc.googlesyndication.com",
   "media-src 'self' https: data: blob:",
   "frame-ancestors 'none'",
   "base-uri 'self'",
