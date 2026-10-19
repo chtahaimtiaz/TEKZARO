@@ -28,6 +28,9 @@ export async function SiteHeader() {
           <Link href="/latest" className="hover:text-accent">
             Latest
           </Link>
+          <Link href="/videos" className="hover:text-accent">
+            Videos
+          </Link>
           {primaryNav.map((c) => (
             <Link key={c.slug} href={navCategoryHref(c)} className="hover:text-accent">
               {c.name}

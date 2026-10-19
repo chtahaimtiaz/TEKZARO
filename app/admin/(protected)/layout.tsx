@@ -20,6 +20,7 @@ import {
   CAN_VIEW_MONITORING,
   CAN_MANAGE_BACKUPS,
   CAN_MANAGE_ADS,
+  CAN_MANAGE_VIDEOS,
 } from "@/lib/permissions";
 
 const CORE_NAV = [
@@ -95,6 +96,11 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
           {CAN_MANAGE_MEDIA.includes(user.role) && (
             <Link href="/admin/media" className="rounded-md px-2 py-1.5 text-ink-soft hover:bg-paper-sunk hover:text-ink">
               Media
+            </Link>
+          )}
+          {CAN_MANAGE_VIDEOS.includes(user.role) && (
+            <Link href="/admin/videos" className="rounded-md px-2 py-1.5 text-ink-soft hover:bg-paper-sunk hover:text-ink">
+              Videos
             </Link>
           )}
           {CAN_SEND_NEWSLETTER.includes(user.role) && (

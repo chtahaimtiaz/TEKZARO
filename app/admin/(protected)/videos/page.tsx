@@ -1,0 +1,105 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth";
+import { CAN_MANAGE_VIDEOS } from "@/lib/permissions";
+import { deleteVideoAction } from "@/lib/video-actions";
+
+export const dynamic = "force-dynamic";
+
+export default async function AdminVideosPage() {
+  const user = await requireUser();
+  if (!CAN_MANAGE_VIDEOS.includes(user.role)) redirect("/admin");
+
+  const videos = await prisma.video.findMany({
+    orderBy: { createdAt: "desc" },
+    include: { category: true, author: true },
+  });
+
+  return (
+    <div className="max-w-5xl">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <p className="eyebrow">Multimedia</p>
+          <h1 className="mt-1 font-serif text-3xl font-bold">Videos</h1>
+          <p className="mt-1 text-sm text-ink-muted">
+            Manage video stories, interviews, and YouTube features published to /videos.
+          </p>
+        </div>
+        <Link
+          href="/admin/videos/new"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-dark"
+        >
+          Add new video
+        </Link>
+      </div>
+
+      <div className="mt-6 overflow-x-auto rounded-xl border border-border bg-paper-raised">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="border-b border-border text-xs uppercase tracking-wide text-ink-muted">
+              <th className="p-3">Title</th>
+              <th className="p-3">Category</th>
+              <th className="p-3">Author</th>
+              <th className="p-3">Status</th>
+              <th className="p-3">Date</th>
+              <th className="p-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {videos.map((v) => (
+              <tr key={v.id} className="border-b border-border last:border-b-0 hover:bg-paper/50">
+                <td className="p-3 font-medium text-ink">
+                  <Link href={`/admin/videos/${v.id}`} className="hover:underline">
+                    {v.title}
+                  </Link>
+                </td>
+                <td className="p-3 text-ink-soft">{v.category.name}</td>
+                <td className="p-3 text-ink-soft">{v.author.name}</td>
+                <td className="p-3">
+                  <span
+                    className={`inline-block rounded px-2 py-0.5 text-xs font-semibold ${
+                      v.status === "PUBLISHED"
+                        ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300"
+                        : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                    }`}
+                  >
+                    {v.status}
+                  </span>
+                </td>
+                <td className="p-3 text-xs text-ink-muted">
+                  {v.publishedAt ? new Date(v.publishedAt).toLocaleDateString() : "Not published"}
+                </td>
+                <td className="p-3 text-right">
+                  <div className="flex justify-end gap-3">
+                    <Link
+                      href={`/admin/videos/${v.id}`}
+                      className="text-xs font-semibold text-accent hover:underline"
+                    >
+                      Edit
+                    </Link>
+                    <form action={deleteVideoAction.bind(null, v.id)}>
+                      <button
+                        type="submit"
+                        className="text-xs font-semibold text-red-600 hover:underline dark:text-red-400"
+                      >
+                        Delete
+                      </button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {videos.length === 0 && (
+              <tr>
+                <td colSpan={6} className="p-8 text-center text-ink-muted">
+                  No videos created yet. Click &quot;Add new video&quot; to publish your first video story.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

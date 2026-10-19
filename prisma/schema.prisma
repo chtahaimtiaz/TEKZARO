@@ -282,6 +282,7 @@ model User {
   newsletterCampaigns NewsletterCampaign[]
   createdAdCampaigns  AdCampaign[]         @relation("AdCampaignCreatedBy")
   reviewedAdCampaigns AdCampaign[]         @relation("AdCampaignReviewedBy")
+  videos              Video[]
 }
 
 model Session {
@@ -305,6 +306,7 @@ model Category {
   sources     Source[]
   adCampaigns AdCampaign[]
   keywords    Keyword[]
+  videos      Video[]
 
   // General editorial-use toggle (mirrors Source.active/Keyword.active) —
   // separate from participatesInQuota so a real, active category can opt
@@ -385,6 +387,7 @@ model Author {
   position    String?
   socialLinks Json?
   articles    Article[]
+  videos      Video[]
   users       User[]
 
   // Soft-toggle only (mirrors User.active/Source.active/Keyword.active),
@@ -1244,4 +1247,39 @@ model AdClick {
   createdAt  DateTime   @default(now())
 
   @@index([campaignId, createdAt])
+}
+
+enum VideoStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Video {
+  id           String      @id @default(cuid())
+  slug         String      @unique
+  title        String
+  description  String?
+  videoUrl     String
+  thumbnailUrl String?
+  duration     String?
+  status       VideoStatus @default(DRAFT)
+  featured     Boolean     @default(false)
+  views        Int         @default(0)
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  authorId String
+  author   Author @relation(fields: [authorId], references: [id])
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id])
+
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status, publishedAt])
+  @@index([categoryId, publishedAt])
 }

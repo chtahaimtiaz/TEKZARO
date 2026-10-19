@@ -40,7 +40,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // category in a hardcoded constant, which put empty pages
   // (cybersecurity, enterprise, space) in front of Google as crawlable
   // thin content, and would silently omit any category created later.
-  const [articles, categories, authors] = await Promise.all([
+  const [articles, categories, authors, videos] = await Promise.all([
     prisma.article.findMany({
       where: { status: "PUBLISHED", isDemo: false },
       select: { slug: true, updatedAt: true, publishedAt: true, categoryId: true, authorId: true },
@@ -53,6 +53,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     prisma.author.findMany({
       where: { articles: { some: { status: "PUBLISHED", isDemo: false } } },
       select: { id: true, slug: true },
+    }),
+    prisma.video.findMany({
+      where: { status: "PUBLISHED" },
+      select: { slug: true, updatedAt: true },
+      orderBy: { publishedAt: "desc" },
     }),
   ]);
 
@@ -80,6 +85,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...categories.map((c) => ({ url: `${base}${categoryHref(c.slug)}`, lastModified: newestByCategory.get(c.id) })),
 
     ...authors.map((a) => ({ url: `${base}/author/${a.slug}`, lastModified: newestByAuthor.get(a.id) })),
+
+    { url: `${base}/videos`, lastModified: videos[0]?.updatedAt ?? newestOverall },
+    ...videos.map((v) => ({ url: `${base}/video/${v.slug}`, lastModified: v.updatedAt })),
 
     ...articles.map((a) => ({ url: `${base}/article/${a.slug}`, lastModified: a.updatedAt })),
   ];
