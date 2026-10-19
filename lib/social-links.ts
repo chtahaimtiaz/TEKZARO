@@ -7,27 +7,28 @@ export interface SocialLinkConfig {
 }
 
 /**
- * Never invent a URL. A platform only ever appears here once its env var is
- * actually set to a real account; the single place that decision is made, so
- * the footer (or anywhere else that wants social links) never has to
- * re-derive "is this enabled." Adding an account is exactly one env var + a
- * redeploy — no code change.
- *
- * Live: X (@tekzaro_co) and Instagram (@tekzaro.co). Facebook and TikTok
- * are wired but intentionally unset — no accounts exist for them yet, and
- * an icon linking nowhere is worse than no icon.
- *
- * These are NEXT_PUBLIC_*, so they are inlined at build time: setting one
- * in Vercel does nothing until the next deploy.
+ * Known, confirmed TEKZARO social profiles.
+ * Using hardcoded defaults here means they appear on the site without
+ * requiring a Vercel env var to be set; the NEXT_PUBLIC_* env vars still
+ * override these if set (e.g. if the handle ever changes).
  */
+const SOCIAL_DEFAULTS: Record<SocialPlatform, string> = {
+  instagram: "https://www.instagram.com/tekzaro.co/",
+  youtube:   "https://www.youtube.com/@tekzaro",
+  x:         "https://x.com/tekzaro_co",
+  facebook:  "",
+  tiktok:    "",
+  linkedin:  "",
+};
+
 export function getConfiguredSocialLinks(): SocialLinkConfig[] {
   const candidates: SocialLinkConfig[] = [
-    { platform: "instagram", label: "Instagram", url: process.env.NEXT_PUBLIC_INSTAGRAM_URL ?? "" },
-    { platform: "facebook", label: "Facebook", url: process.env.NEXT_PUBLIC_FACEBOOK_URL ?? "" },
-    { platform: "tiktok", label: "TikTok", url: process.env.NEXT_PUBLIC_TIKTOK_URL ?? "" },
-    { platform: "x", label: "X", url: process.env.NEXT_PUBLIC_X_URL ?? "" },
-    { platform: "youtube", label: "YouTube", url: process.env.NEXT_PUBLIC_YOUTUBE_URL ?? "" },
-    { platform: "linkedin", label: "LinkedIn", url: process.env.NEXT_PUBLIC_LINKEDIN_URL ?? "" },
+    { platform: "instagram", label: "Instagram", url: process.env.NEXT_PUBLIC_INSTAGRAM_URL || SOCIAL_DEFAULTS.instagram },
+    { platform: "youtube",   label: "YouTube",   url: process.env.NEXT_PUBLIC_YOUTUBE_URL   || SOCIAL_DEFAULTS.youtube   },
+    { platform: "x",         label: "X",         url: process.env.NEXT_PUBLIC_X_URL         || SOCIAL_DEFAULTS.x         },
+    { platform: "facebook",  label: "Facebook",  url: process.env.NEXT_PUBLIC_FACEBOOK_URL  || SOCIAL_DEFAULTS.facebook  },
+    { platform: "tiktok",    label: "TikTok",    url: process.env.NEXT_PUBLIC_TIKTOK_URL    || SOCIAL_DEFAULTS.tiktok    },
+    { platform: "linkedin",  label: "LinkedIn",  url: process.env.NEXT_PUBLIC_LINKEDIN_URL  || SOCIAL_DEFAULTS.linkedin  },
   ];
   return candidates.filter((c) => c.url.trim().length > 0);
 }
