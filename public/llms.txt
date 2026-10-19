@@ -1,0 +1,50 @@
+# TEKZARO
+
+> Pakistan-first technology journalism with global coverage.
+
+TEKZARO (https://tekzaro.co) is an independent technology news publication founded in 2026. We cover artificial intelligence, smartphones, computing, cybersecurity, software, gadgets, gaming, startups, space and science, and enterprise technology — with Pakistani developments given editorial priority, regional developments second, and global technology news covered in context third.
+
+Every article published on TEKZARO is written by experienced human journalists and fact-checked before publication. We do not publish AI-generated content without human editorial review.
+
+## Coverage Areas
+
+- Pakistan Tech — startups, policy, telecom, cybersecurity, IT exports
+- AI — models, research, tools, and companies
+- Smartphones — mobile platforms, chips, and devices
+- Computing — PCs, processors, operating systems
+- Cybersecurity — vulnerabilities, breaches, defensive research
+- Software — applications, developer tools, platforms
+- Gadgets — wearables, smart-home devices, hardware
+- Gaming — games, consoles, engines
+- Startups — funding rounds, founders
+- Space & Science — launches, missions, discovery
+- Enterprise — cloud infrastructure, B2B technology
+
+## Editorial Standards
+
+- Primary source verification required before publication
+- Original reporting and independently written coverage
+- Clear correction policy at https://tekzaro.co/corrections-policy
+- Editorial policy at https://tekzaro.co/editorial-policy
+- Fact-checking policy at https://tekzaro.co/fact-checking-policy
+
+## Publisher Information
+
+Publication: TEKZARO
+Website: https://tekzaro.co
+Contact: editorial@tekzaro.co
+Location: Pakistan
+Founded: 2026
+
+## Sitemaps
+
+- Standard: https://tekzaro.co/sitemap.xml
+- Google News: https://tekzaro.co/news-sitemap.xml
+
+## Robots
+
+TEKZARO welcomes indexing by search engines and AI assistants for the purpose of information retrieval and citation. The /admin and /api paths are excluded from crawling.
+
+## Licensing
+
+All editorial content is copyright TEKZARO Media. Brief quotations with attribution are acceptable under fair use/fair dealing. Contact editorial@tekzaro.co for licensing inquiries.
