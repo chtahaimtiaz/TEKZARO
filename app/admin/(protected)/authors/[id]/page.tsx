@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { CAN_MANAGE_AUTHORS } from "@/lib/permissions";
 import { updateAuthorAction } from "@/lib/author-actions";
+import { AuthorPhotoUploader } from "@/components/admin/AuthorPhotoUploader";
 
 export const dynamic = "force-dynamic";
 
@@ -43,10 +44,7 @@ export default async function EditAuthorPage({
           Position
           <input name="position" defaultValue={author.position ?? ""} className="rounded-md border border-border-strong p-2" />
         </label>
-        <label className="flex flex-col gap-1">
-          Photo URL
-          <input name="photoUrl" defaultValue={author.photoUrl ?? ""} className="rounded-md border border-border-strong p-2" />
-        </label>
+        <AuthorPhotoUploader currentPhotoUrl={author.photoUrl} />
         <label className="flex flex-col gap-1">
           Bio
           <textarea name="bio" defaultValue={author.bio ?? ""} rows={4} className="rounded-md border border-border-strong p-2" />
