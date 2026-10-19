@@ -77,13 +77,16 @@ export async function SiteFooter() {
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-ink-muted">Sections</p>
             <ul className="mt-3 space-y-2 text-sm">
-              {categories.map((c) => (
-                <li key={c.slug}>
-                  <Link href={navCategoryHref(c)} className="hover:text-accent">
-                    {c.name}
-                  </Link>
-                </li>
-              ))}
+              {categories.map((c) => {
+                const displayName = c.slug === "pakistan-tech" || c.name === "Pakistan Tech" ? "Pakistan" : c.name;
+                return (
+                  <li key={c.slug}>
+                    <Link href={navCategoryHref(c)} className="hover:text-accent">
+                      {displayName}
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           </div>
 

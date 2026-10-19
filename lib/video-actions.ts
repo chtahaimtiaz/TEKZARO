@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { prisma } from "./prisma";
 import { getSessionUser, requireRole } from "./auth";
 import { CAN_MANAGE_VIDEOS } from "./permissions";
@@ -25,6 +26,11 @@ export async function createVideoAction(formData: FormData): Promise<void> {
   const user = requireRole(sessionUser, CAN_MANAGE_VIDEOS);
 
   const raw = Object.fromEntries(formData);
+  // If publishNow button clicked, ensure status is set to PUBLISHED
+  if (formData.get("publishNow") === "true") {
+    raw.status = "PUBLISHED";
+  }
+
   const parsed = videoSchema.safeParse(raw);
   if (!parsed.success) {
     redirect(`/admin/videos/new?error=${encodeURIComponent(parsed.error.issues[0]?.message ?? "Invalid input.")}`);
@@ -58,6 +64,11 @@ export async function createVideoAction(formData: FormData): Promise<void> {
   });
 
   await logAction({ userId: user.id, action: "video_created", entityType: "Video", entityId: video.id });
+
+  revalidatePath("/admin/videos");
+  revalidatePath("/videos");
+  revalidatePath("/");
+
   redirect("/admin/videos");
 }
 
@@ -66,6 +77,10 @@ export async function updateVideoAction(videoId: string, formData: FormData): Pr
   const user = requireRole(sessionUser, CAN_MANAGE_VIDEOS);
 
   const raw = Object.fromEntries(formData);
+  if (formData.get("publishNow") === "true") {
+    raw.status = "PUBLISHED";
+  }
+
   const parsed = videoSchema.safeParse(raw);
   if (!parsed.success) {
     redirect(`/admin/videos/${videoId}?error=${encodeURIComponent(parsed.error.issues[0]?.message ?? "Invalid input.")}`);
@@ -76,9 +91,9 @@ export async function updateVideoAction(videoId: string, formData: FormData): Pr
   const current = await prisma.video.findUnique({ where: { id: videoId } });
   if (!current) redirect("/admin/videos");
 
-  const publishedAt = status === "PUBLISHED" && !current.publishedAt ? new Date() : current.publishedAt;
+  const publishedAt = status === "PUBLISHED" && !current.publishedAt ? new Date() : (status === "DRAFT" ? null : current.publishedAt);
 
-  await prisma.video.update({
+  const updated = await prisma.video.update({
     where: { id: videoId },
     data: {
       title,
@@ -95,6 +110,15 @@ export async function updateVideoAction(videoId: string, formData: FormData): Pr
   });
 
   await logAction({ userId: user.id, action: "video_updated", entityType: "Video", entityId: videoId });
+
+  revalidatePath("/admin/videos");
+  revalidatePath(`/admin/videos/${videoId}`);
+  revalidatePath("/videos");
+  if (updated.slug) {
+    revalidatePath(`/video/${updated.slug}`);
+  }
+  revalidatePath("/");
+
   redirect("/admin/videos");
 }
 
@@ -104,18 +128,24 @@ export async function deleteVideoAction(videoId: string): Promise<void> {
 
   await prisma.video.delete({ where: { id: videoId } });
   await logAction({ userId: user.id, action: "video_deleted", entityType: "Video", entityId: videoId });
+
+  revalidatePath("/admin/videos");
+  revalidatePath("/videos");
+  revalidatePath("/");
+
   redirect("/admin/videos");
 }
 
-export async function toggleVideoPublishAction(videoId: string): Promise<void> {
+export async function toggleVideoPublishAction(videoId: string, formData?: FormData): Promise<void> {
   const sessionUser = await getSessionUser();
   const user = requireRole(sessionUser, CAN_MANAGE_VIDEOS);
 
   const video = await prisma.video.findUnique({ where: { id: videoId } });
   if (!video) redirect("/admin/videos");
 
-  const newStatus = video.status === "PUBLISHED" ? "DRAFT" : "PUBLISHED";
-  const publishedAt = newStatus === "PUBLISHED" && !video.publishedAt ? new Date() : video.publishedAt;
+  const explicitStatus = formData?.get("status") as "PUBLISHED" | "DRAFT" | null;
+  const newStatus = explicitStatus ?? (video.status === "PUBLISHED" ? "DRAFT" : "PUBLISHED");
+  const publishedAt = newStatus === "PUBLISHED" && !video.publishedAt ? new Date() : (newStatus === "DRAFT" ? null : video.publishedAt);
 
   await prisma.video.update({
     where: { id: videoId },
@@ -132,5 +162,14 @@ export async function toggleVideoPublishAction(videoId: string): Promise<void> {
     entityId: videoId,
   });
 
-  redirect("/admin/videos");
+  revalidatePath("/admin/videos");
+  revalidatePath(`/admin/videos/${videoId}`);
+  revalidatePath("/videos");
+  if (video.slug) {
+    revalidatePath(`/video/${video.slug}`);
+  }
+  revalidatePath("/");
+
+  const returnTo = (formData?.get("returnTo") as string) || "/admin/videos";
+  redirect(returnTo);
 }

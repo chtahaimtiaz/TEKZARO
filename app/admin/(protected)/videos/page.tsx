@@ -73,9 +73,10 @@ export default async function AdminVideosPage() {
                 <td className="p-3 text-right">
                   <div className="flex items-center justify-end gap-3">
                     <form action={toggleVideoPublishAction.bind(null, v.id)}>
+                      <input type="hidden" name="returnTo" value="/admin/videos" />
                       <button
                         type="submit"
-                        className={`rounded px-2 py-1 text-xs font-semibold ${
+                        className={`cursor-pointer rounded px-2.5 py-1 text-xs font-semibold transition-colors ${
                           v.status === "PUBLISHED"
                             ? "bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-300"
                             : "bg-green-600 text-white hover:bg-green-700"

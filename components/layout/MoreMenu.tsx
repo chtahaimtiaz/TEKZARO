@@ -51,16 +51,19 @@ export function MoreMenu({ categories }: MoreMenuProps) {
       </button>
       {open && (
         <div className="absolute left-0 top-full z-40 mt-2 w-48 rounded-lg border border-border bg-paper-raised p-2 shadow-xl">
-          {categories.map((c) => (
-            <Link
-              key={c.slug}
-              href={navCategoryHref(c)}
-              onClick={() => setOpen(false)}
-              className="block rounded-md px-3 py-2 text-sm hover:bg-paper-sunk hover:text-accent"
-            >
-              {c.name}
-            </Link>
-          ))}
+          {categories.map((c) => {
+            const displayName = c.slug === "pakistan-tech" || c.name === "Pakistan Tech" ? "Pakistan" : c.name;
+            return (
+              <Link
+                key={c.slug}
+                href={navCategoryHref(c)}
+                onClick={() => setOpen(false)}
+                className="block rounded-md px-3 py-2 text-sm hover:bg-paper-sunk hover:text-accent"
+              >
+                {displayName}
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

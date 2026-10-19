@@ -35,9 +35,10 @@ export default async function EditVideoPage({
           <p className="mt-1 text-sm text-ink-muted">/video/{video.slug}</p>
         </div>
         <form action={toggleVideoPublishAction.bind(null, video.id)}>
+          <input type="hidden" name="returnTo" value={`/admin/videos/${video.id}`} />
           <button
             type="submit"
-            className={`rounded-md px-4 py-2 text-sm font-semibold text-white ${
+            className={`cursor-pointer rounded-md px-4 py-2 text-sm font-semibold text-white transition-colors ${
               video.status === "PUBLISHED"
                 ? "bg-amber-600 hover:bg-amber-700"
                 : "bg-green-600 hover:bg-green-700"
@@ -120,10 +121,20 @@ export default async function EditVideoPage({
           <span className="font-medium text-ink">Feature this video</span>
         </label>
 
-        <div className="mt-2 flex gap-3">
-          <button type="submit" className="rounded-md bg-accent px-4 py-2 font-semibold text-white hover:bg-accent-dark">
+        <div className="mt-2 flex items-center gap-3">
+          <button type="submit" className="cursor-pointer rounded-md bg-accent px-4 py-2 font-semibold text-white hover:bg-accent-dark">
             Save Changes
           </button>
+          {video.status !== "PUBLISHED" && (
+            <button
+              type="submit"
+              name="publishNow"
+              value="true"
+              className="cursor-pointer rounded-md bg-green-600 px-4 py-2 font-semibold text-white hover:bg-green-700"
+            >
+              Save &amp; Publish Now
+            </button>
+          )}
         </div>
       </form>
     </div>

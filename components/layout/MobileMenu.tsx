@@ -19,7 +19,7 @@ export function MobileMenu({ themePreference, categories }: MobileMenuProps) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="xl:hidden">
+    <div className="lg:hidden">
       <button
         type="button"
         aria-expanded={open}
@@ -56,13 +56,21 @@ export function MobileMenu({ themePreference, categories }: MobileMenuProps) {
                 Latest
               </Link>
             </li>
-            {categories.map((c) => (
-              <li key={c.slug}>
-                <Link href={navCategoryHref(c)} className="block py-3 font-semibold" onClick={() => setOpen(false)}>
-                  {c.name}
-                </Link>
-              </li>
-            ))}
+            <li>
+              <Link href="/videos" className="block py-3 font-semibold" onClick={() => setOpen(false)}>
+                Videos
+              </Link>
+            </li>
+            {categories.map((c) => {
+              const displayName = c.slug === "pakistan-tech" || c.name === "Pakistan Tech" ? "Pakistan" : c.name;
+              return (
+                <li key={c.slug}>
+                  <Link href={navCategoryHref(c)} className="block py-3 font-semibold" onClick={() => setOpen(false)}>
+                    {displayName}
+                  </Link>
+                </li>
+              );
+            })}
             <li>
               <Link href="/search" className="block py-3 font-semibold" onClick={() => setOpen(false)}>
                 Search

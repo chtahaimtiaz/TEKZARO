@@ -31,11 +31,14 @@ export async function SiteHeader() {
           <Link href="/videos" className="hover:text-accent">
             Videos
           </Link>
-          {primaryNav.map((c) => (
-            <Link key={c.slug} href={navCategoryHref(c)} className="whitespace-nowrap hover:text-accent">
-              {c.name}
-            </Link>
-          ))}
+          {primaryNav.map((c) => {
+            const displayName = c.slug === "pakistan-tech" || c.name === "Pakistan Tech" ? "Pakistan" : c.name;
+            return (
+              <Link key={c.slug} href={navCategoryHref(c)} className="whitespace-nowrap hover:text-accent">
+                {displayName}
+              </Link>
+            );
+          })}
           {overflowNav.length > 0 && <MoreMenu categories={overflowNav} />}
         </nav>
 

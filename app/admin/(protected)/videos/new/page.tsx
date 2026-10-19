@@ -108,9 +108,22 @@ export default async function NewVideoPage({
           <span className="font-medium text-ink">Feature this video on homepage / video hub</span>
         </label>
 
-        <div className="mt-2 flex gap-3">
-          <button type="submit" className="rounded-md bg-accent px-4 py-2 font-semibold text-white hover:bg-accent-dark">
-            Save Video
+        <div className="mt-2 flex items-center gap-3">
+          <button
+            type="submit"
+            name="publishNow"
+            value="true"
+            className="cursor-pointer rounded-md bg-green-600 px-4 py-2 font-semibold text-white hover:bg-green-700"
+          >
+            Publish Video Now
+          </button>
+          <button
+            type="submit"
+            name="status"
+            value="DRAFT"
+            className="cursor-pointer rounded-md border border-border-strong bg-paper px-4 py-2 font-semibold text-ink hover:bg-paper-raised"
+          >
+            Save as Draft
           </button>
         </div>
       </form>
