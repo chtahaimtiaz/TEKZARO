@@ -125,6 +125,7 @@ enum AITask {
   INTERNAL_LINKS
   VERIFY_PRIMARY_SOURCE
   SYNTHESIZE_ARTICLE
+  TRANSLATE_URDU
 }
 
 // How a code-derived claim (lib/ai/claim-extraction.ts) relates to the
