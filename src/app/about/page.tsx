@@ -53,9 +53,9 @@ export default async function AboutPage() {
         <div className="grid gap-6 md:grid-cols-2">
           {authors.map((author) => (
             <article key={author.id} className="flex items-start space-x-4">
-              {author.avatar && (
+              {author.photoUrl && (
                 <Image
-                  src={author.avatar}
+                  src={author.photoUrl}
                   alt={author.name}
                   width={64}
                   height={64}
