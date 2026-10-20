@@ -20,7 +20,7 @@ export default function EthicsPolicyPage() {
 
         <h2 className="pt-2 text-2xl font-bold text-ink">1. Ownership &amp; Funding Transparency</h2>
         <p>
-          TEKZARO is an independent technology media publication owned and operated by TEKZARO Media. Our operations are funded through direct display advertising, commercial partnerships, and newsletter sponsorships.
+          TEKZARO is an independent technology media publication founded and operated by Taha Imtiaz. Our operations are funded through direct display advertising and commercial partnerships.
         </p>
         <p>
           No single investor, tech corporation, political organization, or government agency holds an ownership stake in TEKZARO or dictates our editorial decisions. We retain 100% editorial control over all published journalism.

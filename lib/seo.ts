@@ -120,6 +120,12 @@ export function organizationJsonLd() {
       "@type": "ImageObject",
       url: absoluteUrl("/logo.png"),
     },
+    foundingDate: "2025",
+    founder: {
+      "@type": "Person",
+      "@id": `${siteUrl()}/author/taha-imtiaz#person`,
+      name: "Taha Imtiaz",
+    },
     sameAs: socialProfileUrls(),
   };
 }

@@ -22,7 +22,7 @@ export default async function AboutPage() {
 
       <div className="prose-article mt-8 space-y-6 text-ink-soft">
         <p>
-          Founded in 2026, <strong>TEKZARO</strong> (<a href="https://tekzaro.co" className="text-accent hover:underline">https://tekzaro.co</a>) was created around a fundamental conviction: South Asia deserves technology journalism that treats the region&apos;s digital revolution as the primary headline, rather than an afterthought to Western tech news.
+          Founded in 2025, <strong>TEKZARO</strong> (<a href="https://tekzaro.co" className="text-accent hover:underline">https://tekzaro.co</a>) was created around a fundamental conviction: South Asia deserves technology journalism that treats the region&apos;s digital revolution as the primary headline, rather than an afterthought to Western tech news.
         </p>
         <p>
           We report on artificial intelligence breakthroughs, smartphones, semiconductors, personal computing, cybersecurity disclosures, consumer gadgets, startup financing, and telecommunications policy. Every story is vetted by experienced human journalists and held to rigorous evidentiary standards before publication.
@@ -57,6 +57,25 @@ export default async function AboutPage() {
         <p>
           Our newsroom brings together specialized reporters covering hardware, software, security, and enterprise infrastructure:
         </p>
+
+        {/* Founder profile — Taha Imtiaz */}
+        <div className="rounded-xl border border-border bg-paper-raised p-5 mb-4">
+          <div className="flex items-center gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-ink font-serif text-xl font-bold text-white dark:text-paper">
+              TI
+            </div>
+            <div>
+              <p className="font-bold text-ink text-lg">Taha Imtiaz</p>
+              <p className="text-sm text-accent font-medium">Founder &amp; Publisher, TEKZARO</p>
+            </div>
+          </div>
+          <p className="mt-3 text-sm text-ink-soft">
+            Taha Imtiaz founded TEKZARO with a focus on independent, fact-checked technology journalism for Pakistan and the wider region. He oversees the publication&apos;s editorial direction and strategy.
+          </p>
+          <a href="/author/taha-imtiaz" className="mt-2 inline-block text-sm font-semibold text-accent hover:underline">
+            View profile →
+          </a>
+        </div>
 
         <div className="not-prose mt-4 grid gap-4 sm:grid-cols-2">
           {authors.map((author) => (
@@ -112,6 +131,15 @@ export default async function AboutPage() {
             <Link href="/cookie-policy" className="font-semibold text-accent hover:underline">Cookie Policy</Link> — How we handle data, cookies, and digital advertising compliance.
           </li>
         </ul>
+
+        <h2 className="pt-4 text-2xl font-bold text-ink">Independence &amp; Funding</h2>
+        <div className="rounded-xl border border-border bg-paper-raised p-5">
+          <p className="text-sm text-ink-soft">
+            TEKZARO is an independently operated technology publication. It is not owned by any corporation, political group, or external investor. Revenues come from display advertising and commercial partnerships. Advertisers do not influence editorial decisions — see our{" "}
+            <Link href="/ethics-policy" className="text-accent hover:underline font-semibold">Ethics &amp; Ownership Policy</Link>{" "}
+            for full details.
+          </p>
+        </div>
 
         <h2 className="pt-4 text-2xl font-bold text-ink">Newsroom Contact &amp; Location</h2>
         <p>

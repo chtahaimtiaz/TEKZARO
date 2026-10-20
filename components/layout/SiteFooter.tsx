@@ -154,7 +154,8 @@ export async function SiteFooter() {
         )}
 
         <div className={`${socialLinks.length > 0 ? "mt-6" : "mt-10 border-t border-border pt-6"} text-xs text-ink-muted`}>
-          © {new Date().getFullYear()} {SITE_NAME}. All rights reserved.
+          <p>© {new Date().getFullYear()} {SITE_NAME}. All rights reserved.</p>
+          <p className="mt-1">TEKZARO is an independent technology publication founded by Taha Imtiaz.</p>
         </div>
       </div>
     </footer>
