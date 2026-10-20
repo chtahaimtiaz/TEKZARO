@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import { Fraunces, Inter } from "next/font/google";
 import "./globals.css";
 import { SITE_NAME, SITE_DESCRIPTION, siteUrl } from "@/lib/constants";
@@ -61,13 +60,19 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       className={`${fraunces.variable} ${inter.variable}`}
       data-theme={themePreference === "system" ? undefined : themePreference}
     >
-      <body className="min-h-screen bg-paper text-ink antialiased">
-        <Script
+      <head>
+        {/*
+          Google AdSense script placed directly in <head> without next/script.
+          next/script injects a data-nscript attribute which AdSense's loader
+          rejects with: "AdSense head tag doesn't support data-nscript attribute."
+        */}
+        <script
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1824611512521520"
           crossOrigin="anonymous"
-          strategy="afterInteractive"
         />
+      </head>
+      <body className="min-h-screen bg-paper text-ink antialiased">
         <script
           type="application/ld+json"
           // eslint-disable-next-line react/no-danger
