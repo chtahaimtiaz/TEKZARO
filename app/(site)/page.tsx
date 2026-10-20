@@ -9,6 +9,7 @@ import { TrendingPakistanModule } from "@/components/pakistan/TrendingPakistanMo
 import { NewsletterForm } from "@/components/ui/NewsletterForm";
 import { Logo } from "@/components/ui/Logo";
 import { AdSlot } from "@/components/ads/AdSlot";
+import { VideoSection } from "@/components/home/VideoSection";
 import { selectHero } from "@/lib/ranking";
 import {
   getHeroPool,
@@ -66,6 +67,8 @@ export default async function HomePage({
       {main && <HeroSection main={main} secondary={secondary} />}
 
       <PakistanTechSection articles={pakistanTech.articles} />
+
+      <VideoSection />
 
       {latest.length > 0 && (
         <section>

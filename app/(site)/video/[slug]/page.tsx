@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { getVideoBySlug, getRelatedVideos, getEmbedVideoUrl, getAutoThumbnailUrl } from "@/lib/videos";
+import { prisma } from "@/lib/prisma";
 import { siteUrl, SITE_NAME } from "@/lib/constants";
+import { isOptimizableImageSrc } from "@/lib/image-src";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +40,19 @@ export default async function VideoDetailPage({ params }: Props) {
 
   if (!video || video.status !== "PUBLISHED") notFound();
 
-  const related = await getRelatedVideos(video.id, video.categoryId, 4);
+  const [related, relatedArticles] = await Promise.all([
+    getRelatedVideos(video.id, video.categoryId, 4),
+    prisma.article.findMany({
+      where: {
+        status: "PUBLISHED",
+        isDemo: false,
+        categoryId: video.categoryId,
+      },
+      orderBy: { publishedAt: "desc" },
+      take: 3,
+      include: { category: true, author: true },
+    }),
+  ]);
   const { type, embedUrl } = getEmbedVideoUrl(video.videoUrl);
   const thumb = getAutoThumbnailUrl(video.videoUrl, video.thumbnailUrl);
 
@@ -158,6 +173,43 @@ export default async function VideoDetailPage({ params }: Props) {
                 </div>
               );
             })}
+          </div>
+        </section>
+      )}
+
+      {relatedArticles.length > 0 && (
+        <section className="mt-10 border-t border-border pt-8">
+          <h2 className="font-serif text-xl font-bold text-ink">Related Articles</h2>
+          <div className="mt-4 divide-y divide-border">
+            {relatedArticles.map((article) => (
+              <div key={article.id} className="flex gap-4 py-4">
+                {article.featuredImageUrl && (
+                  <Link href={`/article/${article.slug}`} className="shrink-0">
+                    <Image
+                      src={article.featuredImageUrl}
+                      alt={article.featuredImageAlt ?? article.title}
+                      width={88}
+                      height={62}
+                      unoptimized={!isOptimizableImageSrc(article.featuredImageUrl)}
+                      className="h-[62px] w-[88px] rounded-md object-cover"
+                    />
+                  </Link>
+                )}
+                <div className="min-w-0">
+                  <p className="eyebrow text-[10px]">{article.category.name}</p>
+                  <h3 className="mt-0.5 line-clamp-2 text-sm font-semibold leading-snug text-ink">
+                    <Link href={`/article/${article.slug}`} className="hover:text-accent">
+                      {article.title}
+                    </Link>
+                  </h3>
+                  {article.publishedAt && (
+                    <p className="mt-1 text-[11px] text-ink-muted">
+                      {new Date(article.publishedAt).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </section>
       )}

@@ -1,16 +1,19 @@
 "use client";
 
-import { useState, useRef, useId, useEffect } from "react";
+import { useState, useRef, useId, useEffect, useCallback } from "react";
 import { extractYouTubeId, extractVimeoId, getEmbedVideoUrl, getAutoThumbnailUrl } from "@/lib/videos";
 
 interface VideoMediaUploaderProps {
   initialVideoUrl?: string;
   initialThumbnailUrl?: string;
+  /** Called when oEmbed succeeds, so the parent form can pre-fill title */
+  onOEmbedTitle?: (title: string) => void;
 }
 
 export function VideoMediaUploader({
   initialVideoUrl = "",
   initialThumbnailUrl = "",
+  onOEmbedTitle,
 }: VideoMediaUploaderProps) {
   const [videoUrl, setVideoUrl] = useState(initialVideoUrl);
   const [thumbnailUrl, setThumbnailUrl] = useState(initialThumbnailUrl);
@@ -21,6 +24,11 @@ export function VideoMediaUploader({
   const [uploadingThumb, setUploadingThumb] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [thumbError, setThumbError] = useState<string | null>(null);
+
+  // oEmbed state
+  const [oEmbedLoading, setOEmbedLoading] = useState(false);
+  const [oEmbedTitle, setOEmbedTitle] = useState<string | null>(null);
+  const oEmbedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const videoInputRef = useRef<HTMLInputElement>(null);
   const thumbInputRef = useRef<HTMLInputElement>(null);
@@ -33,6 +41,39 @@ export function VideoMediaUploader({
     if (initialVideoUrl && !videoUrl) setVideoUrl(initialVideoUrl);
     if (initialThumbnailUrl && !thumbnailUrl) setThumbnailUrl(initialThumbnailUrl);
   }, [initialVideoUrl, initialThumbnailUrl]);
+
+  // Auto-fetch YouTube oEmbed when URL changes (debounced 600ms)
+  const fetchOEmbed = useCallback((url: string) => {
+    const ytId = extractYouTubeId(url);
+    if (!ytId) {
+      setOEmbedTitle(null);
+      return;
+    }
+    setOEmbedLoading(true);
+    const oembed = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+    fetch(oembed)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.title) {
+          setOEmbedTitle(data.title as string);
+          onOEmbedTitle?.(data.title as string);
+        } else {
+          setOEmbedTitle(null);
+        }
+      })
+      .catch(() => setOEmbedTitle(null))
+      .finally(() => setOEmbedLoading(false));
+  }, [onOEmbedTitle]);
+
+  function handleVideoUrlChange(value: string) {
+    setVideoUrl(value);
+    setVideoError(null);
+    setOEmbedTitle(null);
+    if (oEmbedTimerRef.current) clearTimeout(oEmbedTimerRef.current);
+    if (value.trim()) {
+      oEmbedTimerRef.current = setTimeout(() => fetchOEmbed(value.trim()), 600);
+    }
+  }
 
   async function handleVideoFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -176,17 +217,24 @@ export function VideoMediaUploader({
             <label className="text-xs text-ink-muted">
               Enter YouTube (watch, shorts, or live), Vimeo, or direct MP4 link:
             </label>
-            <input
-              type="url"
-              value={videoUrl}
-              onChange={(e) => {
-                setVideoUrl(e.target.value);
-                setVideoError(null);
-              }}
-              required
-              placeholder="e.g. https://www.youtube.com/shorts/... or https://youtu.be/..."
-              className="rounded-md border border-border-strong bg-paper-raised p-2 text-sm text-ink focus:border-accent focus:outline-none"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="url"
+                value={videoUrl}
+                onChange={(e) => handleVideoUrlChange(e.target.value)}
+                required
+                placeholder="e.g. https://www.youtube.com/shorts/... or https://youtu.be/..."
+                className="flex-1 rounded-md border border-border-strong bg-paper-raised p-2 text-sm text-ink focus:border-accent focus:outline-none"
+              />
+              {oEmbedLoading && (
+                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent" title="Fetching video info…" />
+              )}
+            </div>
+            {oEmbedTitle && (
+              <p className="text-xs text-green-700 dark:text-green-400">
+                ✓ Auto-detected: <strong>{oEmbedTitle}</strong>
+              </p>
+            )}
           </div>
         ) : (
           <div className="mt-3 flex flex-col gap-3">

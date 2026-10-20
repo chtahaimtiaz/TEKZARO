@@ -136,6 +136,28 @@ export async function deleteVideoAction(videoId: string): Promise<void> {
   redirect("/admin/videos");
 }
 
+export async function archiveVideoAction(videoId: string): Promise<void> {
+  const sessionUser = await getSessionUser();
+  const user = requireRole(sessionUser, CAN_MANAGE_VIDEOS);
+
+  const video = await prisma.video.findUnique({ where: { id: videoId } });
+  if (!video) redirect("/admin/videos");
+
+  await prisma.video.update({
+    where: { id: videoId },
+    data: { status: "ARCHIVED" },
+  });
+
+  await logAction({ userId: user.id, action: "video_archived", entityType: "Video", entityId: videoId });
+
+  revalidatePath("/admin/videos");
+  revalidatePath("/videos");
+  if (video.slug) revalidatePath(`/video/${video.slug}`);
+  revalidatePath("/");
+
+  redirect("/admin/videos");
+}
+
 export async function toggleVideoPublishAction(videoId: string, formData?: FormData): Promise<void> {
   const sessionUser = await getSessionUser();
   const user = requireRole(sessionUser, CAN_MANAGE_VIDEOS);
