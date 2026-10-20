@@ -40,8 +40,18 @@ function publiclyVisibleNow() {
 }
 
 export async function getBreakingArticles(limit = 6): Promise<ArticleWithRelations[]> {
+  const now = new Date();
   return prisma.article.findMany({
-    where: { ...PUBLISHED, isBreaking: true },
+    where: {
+      ...PUBLISHED,
+      isBreaking: true,
+      // Hide articles whose breaking window has expired.
+      // Rows with breakingUntil=null (legacy / no expiry set) still show.
+      OR: [
+        { breakingUntil: null },
+        { breakingUntil: { gt: now } },
+      ],
+    },
     orderBy: { publishedAt: "desc" },
     take: limit,
     include: ARTICLE_INCLUDE,

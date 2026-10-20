@@ -113,5 +113,24 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     context: { checked: candidates.length, published, failed },
   });
 
-  return NextResponse.json({ checked: candidates.length, published, failed });
+  // Auto-expire breaking news: clear isBreaking on articles whose
+  // breakingUntil window has passed. Safe to run every cron invocation —
+  // updateMany is idempotent and only touches rows that still need clearing.
+  const expiredBreaking = await prisma.article.updateMany({
+    where: {
+      isBreaking: true,
+      breakingUntil: { lte: new Date() },
+    },
+    data: { isBreaking: false },
+  });
+  if (expiredBreaking.count > 0) {
+    await logSystemEvent({
+      level: "INFO",
+      source: "cron.publish-scheduled",
+      message: `Auto-cleared breaking status on ${expiredBreaking.count} expired article(s).`,
+      context: { cleared: expiredBreaking.count },
+    });
+  }
+
+  return NextResponse.json({ checked: candidates.length, published, failed, breakingCleared: expiredBreaking.count });
 }

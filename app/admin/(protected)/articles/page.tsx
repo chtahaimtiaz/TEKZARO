@@ -5,6 +5,7 @@ import { CAN_DELETE_ARTICLE, CAN_OVERRIDE_VERIFICATION } from "@/lib/permissions
 import { REVALIDATION_QUERY } from "@/lib/verification-actions";
 import { DeleteAllArticlesButton } from "@/components/admin/DeleteAllArticlesButton";
 import { RevalidateVerificationButton } from "@/components/admin/RevalidateVerificationButton";
+import { removeBreakingAction } from "@/lib/article-actions";
 import type { ArticleStatus, Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -181,9 +182,23 @@ export default async function AdminArticlesPage({
                   )}
                 </td>
                 <td className="p-3 text-right">
-                  <Link href={`/admin/articles/${a.id}`} className="font-semibold text-accent hover:underline">
-                    Edit →
-                  </Link>
+                  <div className="flex items-center justify-end gap-3">
+                    {/* Remove Breaking badge — quick action without opening editor */}
+                    {a.isBreaking && (
+                      <form action={removeBreakingAction.bind(null, a.id)}>
+                        <button
+                          type="submit"
+                          title={a.breakingUntil ? `Expires ${new Date(a.breakingUntil).toLocaleString()}` : "Remove breaking status"}
+                          className="cursor-pointer rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 hover:bg-red-200 dark:bg-red-950 dark:text-red-300"
+                        >
+                          🔴 Breaking — Remove
+                        </button>
+                      </form>
+                    )}
+                    <Link href={`/admin/articles/${a.id}`} className="font-semibold text-accent hover:underline">
+                      Edit →
+                    </Link>
+                  </div>
                 </td>
               </tr>
             ))}

@@ -6,37 +6,51 @@ import { navCategoryHref } from "@/lib/category-nav-href";
 import { getConfiguredSocialLinks, type SocialPlatform } from "@/lib/social-links";
 import { Logo } from "@/components/ui/Logo";
 
-// Simple, hand-rolled line-icon glyphs (fill="none"/stroke="currentColor"),
-// matching this project's existing icon convention (SiteHeader.tsx,
-// MobileMenu.tsx) rather than pulling in an icon library for four icons.
-// Recognizable at a glance, not a pixel-exact trace of each platform's mark.
-const SOCIAL_ICON_PATHS: Record<SocialPlatform, ReactNode> = {
+/**
+ * Complete, self-contained SVG for each social platform.
+ * Follows clean, professional line-art and brand-accurate glyph conventions.
+ */
+const SOCIAL_ICONS: Record<SocialPlatform, ReactNode> = {
+  // Instagram: rounded camera with lens circle and flash dot
   instagram: (
-    <>
-      <circle cx="12" cy="12" r="4.2" />
-      <circle cx="17.3" cy="6.7" r="0.6" fill="currentColor" stroke="none" />
-    </>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="2" y="2" width="20" height="20" rx="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" strokeWidth="2.5" />
+    </svg>
   ),
-  facebook: <path d="M14 8.5h-1.5a1.5 1.5 0 0 0-1.5 1.5v1h3M11 11v6.5" strokeLinecap="round" strokeLinejoin="round" />,
-  tiktok: (
-    <path
-      d="M13 7v7.2a2.3 2.3 0 1 1-2.3-2.3c.3 0 .6.05.9.14M13 7c.4 1.3 1.5 2.2 2.8 2.3"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
+  // Facebook: classic letterform
+  facebook: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+    </svg>
   ),
-  x: <path d="M8 8l8 8M16 8l-8 8" strokeLinecap="round" />,
+  // X (formerly Twitter): official brand mark
+  x: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  ),
+  // YouTube: official pill shape with center play arrow
   youtube: (
-    <>
-      <rect x="4.5" y="7.5" width="15" height="9" rx="2.6" />
-      <path d="M11 10.6l3.2 1.9-3.2 1.9z" fill="currentColor" stroke="none" />
-    </>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z" />
+      <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" fill="currentColor" stroke="none" />
+    </svg>
   ),
+  // TikTok: official note glyph
+  tiktok: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" />
+    </svg>
+  ),
+  // LinkedIn: standard badge with in
   linkedin: (
-    <>
-      <path d="M8 11v5.5M8 8.4v.1" strokeLinecap="round" />
-      <path d="M11.6 16.5V11m0 1.6a2.4 2.4 0 0 1 4.4 1.4v2.5" strokeLinecap="round" strokeLinejoin="round" />
-    </>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
+      <rect x="2" y="9" width="4" height="12" />
+      <circle cx="4" cy="4" r="2" />
+    </svg>
   ),
 };
 
@@ -133,10 +147,7 @@ export async function SiteFooter() {
                 aria-label={link.label}
                 className="flex h-9 w-9 items-center justify-center rounded-full border border-border-strong hover:border-accent hover:text-accent"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-                  <rect x="3" y="3" width="18" height="18" rx="5" />
-                  {SOCIAL_ICON_PATHS[link.platform]}
-                </svg>
+                {SOCIAL_ICONS[link.platform]}
               </a>
             ))}
           </div>

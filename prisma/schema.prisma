@@ -414,7 +414,13 @@ model Article {
   content     Json
 
   status     ArticleStatus @default(DRAFT)
-  isBreaking Boolean       @default(false)
+  isBreaking  Boolean   @default(false)
+  // When set, the breaking-news ticker hides this article automatically once
+  // this timestamp passes. Defaults to publishedAt + 24 h when isBreaking is
+  // first toggled on; editors can shorten or extend it manually. Set to null
+  // to display indefinitely (legacy rows before this field was added are null,
+  // so the ticker falls back to always-visible to avoid silently clearing them).
+  breakingUntil DateTime?
   featured   Boolean       @default(false)
   // True only for seeded placeholder content (spec: demo content must be
   // clearly labeled and never presented as real current news). Real

@@ -498,6 +498,11 @@ export function ArticleEditor({
               <label className="flex items-center gap-2">
                 <input type="checkbox" checked={form.isBreaking} onChange={(e) => patch({ isBreaking: e.target.checked })} />
                 Breaking news
+                {form.isBreaking && (
+                  <span className="ml-1 text-[11px] text-ink-muted">
+                    (auto-expires in 24 h — uncheck to remove immediately)
+                  </span>
+                )}
               </label>
               <label className="flex items-center gap-2">
                 <input type="checkbox" checked={form.featured} onChange={(e) => patch({ featured: e.target.checked })} />

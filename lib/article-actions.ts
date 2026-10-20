@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { prisma } from "./prisma";
 import { requireRole, getSessionUser, ForbiddenError } from "./auth";
 import { CAN_WRITE, CAN_OVERRIDE_AUTHOR_ELIGIBILITY, CAN_OVERRIDE_VERIFICATION, CAN_DELETE_ARTICLE, canEditArticle } from "./permissions";
@@ -280,6 +281,9 @@ export async function createArticleAction(raw: ArticleFormInput): Promise<Action
       canonicalUrl: nullable(input.canonicalUrl),
       ogImage: nullable(input.ogImage),
       scheduledAt: parseZonedDateTimeLocal(input.scheduledAt, EDITORIAL_TIMEZONE),
+      // Auto-set a 24-hour expiry when breaking is first toggled on.
+      // null = no expiry yet (article isn't breaking).
+      breakingUntil: input.isBreaking ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null,
     },
   });
 
@@ -360,6 +364,11 @@ export async function updateArticleAction(articleId: string, raw: ArticleFormInp
       canonicalUrl: nullable(input.canonicalUrl),
       ogImage: nullable(input.ogImage),
       scheduledAt: parseZonedDateTimeLocal(input.scheduledAt, EDITORIAL_TIMEZONE),
+      // When isBreaking is toggled ON and there's no expiry yet, set 24h from now.
+      // When toggled OFF, clear the expiry. Preserve an existing expiry if still breaking.
+      breakingUntil: input.isBreaking
+        ? (existing.breakingUntil && existing.breakingUntil > new Date() ? existing.breakingUntil : new Date(Date.now() + 24 * 60 * 60 * 1000))
+        : null,
     },
   });
 
@@ -754,4 +763,29 @@ export async function deleteAllArticlesAction(confirmationPhrase: string): Promi
   });
 
   return { ok: true, data: { count: articles.length } };
+}
+
+/**
+ * Immediately removes the breaking-news flag from an article and clears its
+ * expiry. Called from the admin article list or editor. Any admin/editor can
+ * trigger this without needing to open the full editor form.
+ */
+export async function removeBreakingAction(articleId: string): Promise<void> {
+  const sessionUser = await getSessionUser();
+  requireRole(sessionUser, CAN_WRITE);
+
+  await prisma.article.update({
+    where: { id: articleId },
+    data: { isBreaking: false, breakingUntil: null },
+  });
+
+  await logAction({
+    userId: sessionUser!.id,
+    action: "article_breaking_removed",
+    entityType: "Article",
+    entityId: articleId,
+  });
+
+  revalidatePath("/admin/articles");
+  revalidatePath("/");
 }
