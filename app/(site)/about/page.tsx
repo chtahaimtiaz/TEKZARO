@@ -22,7 +22,7 @@ export default async function AboutPage() {
 
       <div className="prose-article mt-8 space-y-6 text-ink-soft">
         <p>
-          Founded in 2025, <strong>TEKZARO</strong> (<a href="https://tekzaro.co" className="text-accent hover:underline">https://tekzaro.co</a>) was created around a fundamental conviction: South Asia deserves technology journalism that treats the region&apos;s digital revolution as the primary headline, rather than an afterthought to Western tech news.
+          Founded in 2026, <strong>TEKZARO</strong> (<a href="https://tekzaro.co" className="text-accent hover:underline">https://tekzaro.co</a>) was created around a fundamental conviction: South Asia deserves technology journalism that treats the region&apos;s digital revolution as the primary headline, rather than an afterthought to Western tech news.
         </p>
         <p>
           We report on artificial intelligence breakthroughs, smartphones, semiconductors, personal computing, cybersecurity disclosures, consumer gadgets, startup financing, and telecommunications policy. Every story is vetted by experienced human journalists and held to rigorous evidentiary standards before publication.
