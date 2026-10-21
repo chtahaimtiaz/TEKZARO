@@ -66,7 +66,7 @@ export default async function AboutPage() {
             </div>
             <div>
               <p className="font-bold text-ink text-lg">Taha Imtiaz</p>
-              <p className="text-sm text-accent font-medium">Founder, Owner &amp; Publisher, TEKZARO</p>
+              <p className="text-sm text-accent font-medium">Founder &amp; Owner, TEKZARO</p>
             </div>
           </div>
           <p className="mt-3 text-sm text-ink-soft">
@@ -147,7 +147,7 @@ export default async function AboutPage() {
         </p>
         <div className="rounded-xl border border-border bg-paper-raised p-5">
           <p className="font-bold text-ink">TEKZARO Newsroom</p>
-          <p className="mt-1 text-sm text-ink-soft">Islamabad / Lahore, Pakistan</p>
+          <p className="mt-1 text-sm text-ink-soft">Islamabad, Pakistan</p>
           <p className="mt-2 text-sm text-ink-soft">
             Editorial Inquiries &amp; Tips:{" "}
             <a href="mailto:editorial@tekzaro.co" className="font-semibold text-accent hover:underline">editorial@tekzaro.co</a>

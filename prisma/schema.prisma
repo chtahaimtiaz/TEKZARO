@@ -397,6 +397,11 @@ model Author {
   // blocked by anyway. See lib/author-actions.ts's setAuthorActiveAction.
   active Boolean @default(true)
 
+  // Public author-page eligibility. Controls whether this profile appears on the
+  // public /authors and newsroom masthead directory. Excludes non-writing founders,
+  // owners, administrators, or managers who exist for ownership/admin purposes.
+  isPublicAuthor Boolean @default(true)
+
   // Category-eligibility allowlist (lib/author-eligibility.ts). An empty
   // list means eligible for EVERY category — default-permissive, not
   // default-restrictive, since every existing Author row has zero links

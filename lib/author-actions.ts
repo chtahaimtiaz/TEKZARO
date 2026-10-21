@@ -43,6 +43,10 @@ export async function createAuthorAction(formData: FormData): Promise<void> {
     slug = `${baseSlug}-${n}`;
   }
 
+  const isPublicAuthor = formData.has("isPublicAuthor")
+    ? formData.get("isPublicAuthor") === "true" || formData.get("isPublicAuthor") === "on"
+    : true;
+
   const author = await prisma.author.create({
     data: {
       name,
@@ -50,6 +54,7 @@ export async function createAuthorAction(formData: FormData): Promise<void> {
       photoUrl: nullable(photoUrl),
       bio: nullable(bio),
       position: nullable(position),
+      isPublicAuthor,
       categories: { connect: categoryIds.map((id) => ({ id })) },
     },
   });
@@ -72,6 +77,8 @@ export async function updateAuthorAction(authorId: string, formData: FormData): 
   const beforeIds = new Set(before?.categories.map((c) => c.id) ?? []);
   const afterIds = new Set(categoryIds);
 
+  const isPublicAuthor = formData.get("isPublicAuthor") === "true" || formData.get("isPublicAuthor") === "on";
+
   await prisma.author.update({
     where: { id: authorId },
     data: {
@@ -79,6 +86,7 @@ export async function updateAuthorAction(authorId: string, formData: FormData): 
       photoUrl: nullable(photoUrl),
       bio: nullable(bio),
       position: nullable(position),
+      isPublicAuthor,
       categories: { set: categoryIds.map((id) => ({ id })) },
     },
   });

@@ -82,7 +82,7 @@ export default function ContactPage() {
           <div>
             <p className="font-semibold text-ink">Headquarters &amp; Bureaus</p>
             <p className="mt-1">TEKZARO Media</p>
-            <p>Islamabad &amp; Lahore, Pakistan</p>
+            <p>Islamabad, Pakistan</p>
             <p className="mt-1 text-xs text-ink-muted">Independent South Asian Technology Newsroom</p>
           </div>
           <div>

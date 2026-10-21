@@ -110,6 +110,7 @@ describe("robots", () => {
   it("still allows the site itself and points at the sitemap", () => {
     const r = robots();
     expect((r.rules as { allow?: string }).allow).toBe("/");
-    expect(String(r.sitemap)).toMatch(/\/sitemap\.xml$/);
+    const sitemaps = Array.isArray(r.sitemap) ? r.sitemap : [String(r.sitemap)];
+    expect(sitemaps.some((s) => s.endsWith("/sitemap.xml"))).toBe(true);
   });
 });

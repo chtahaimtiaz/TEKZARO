@@ -277,6 +277,11 @@ export async function incrementArticleViews(id: string, path: string, referrer: 
 
 export async function getAllAuthors() {
   return prisma.author.findMany({
+    where: {
+      active: true,
+      isPublicAuthor: true,
+      articles: { some: PUBLISHED },
+    },
     include: { _count: { select: { articles: { where: PUBLISHED } } } },
     orderBy: { name: "asc" },
   });

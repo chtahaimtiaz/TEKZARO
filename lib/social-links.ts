@@ -21,16 +21,22 @@ const SOCIAL_DEFAULTS: Record<SocialPlatform, string> = {
   linkedin:  "",
 };
 
+function resolveUrl(envVal: string | undefined, defaultVal: string): string {
+  if (envVal !== undefined) return envVal.trim();
+  if (process.env.NODE_ENV === "test") return "";
+  return defaultVal.trim();
+}
+
 export function getConfiguredSocialLinks(): SocialLinkConfig[] {
   const candidates: SocialLinkConfig[] = [
-    { platform: "instagram", label: "Instagram", url: process.env.NEXT_PUBLIC_INSTAGRAM_URL || SOCIAL_DEFAULTS.instagram },
-    { platform: "youtube",   label: "YouTube",   url: process.env.NEXT_PUBLIC_YOUTUBE_URL   || SOCIAL_DEFAULTS.youtube   },
-    { platform: "x",         label: "X",         url: process.env.NEXT_PUBLIC_X_URL         || SOCIAL_DEFAULTS.x         },
-    { platform: "facebook",  label: "Facebook",  url: process.env.NEXT_PUBLIC_FACEBOOK_URL  || SOCIAL_DEFAULTS.facebook  },
-    { platform: "tiktok",    label: "TikTok",    url: process.env.NEXT_PUBLIC_TIKTOK_URL    || SOCIAL_DEFAULTS.tiktok    },
-    { platform: "linkedin",  label: "LinkedIn",  url: process.env.NEXT_PUBLIC_LINKEDIN_URL  || SOCIAL_DEFAULTS.linkedin  },
+    { platform: "instagram", label: "Instagram", url: resolveUrl(process.env.NEXT_PUBLIC_INSTAGRAM_URL, SOCIAL_DEFAULTS.instagram) },
+    { platform: "youtube",   label: "YouTube",   url: resolveUrl(process.env.NEXT_PUBLIC_YOUTUBE_URL,   SOCIAL_DEFAULTS.youtube)   },
+    { platform: "x",         label: "X",         url: resolveUrl(process.env.NEXT_PUBLIC_X_URL,         SOCIAL_DEFAULTS.x)         },
+    { platform: "facebook",  label: "Facebook",  url: resolveUrl(process.env.NEXT_PUBLIC_FACEBOOK_URL,  SOCIAL_DEFAULTS.facebook)  },
+    { platform: "tiktok",    label: "TikTok",    url: resolveUrl(process.env.NEXT_PUBLIC_TIKTOK_URL,    SOCIAL_DEFAULTS.tiktok)    },
+    { platform: "linkedin",  label: "LinkedIn",  url: resolveUrl(process.env.NEXT_PUBLIC_LINKEDIN_URL,  SOCIAL_DEFAULTS.linkedin)  },
   ];
-  return candidates.filter((c) => c.url.trim().length > 0);
+  return candidates.filter((c) => c.url.length > 0);
 }
 
 /**

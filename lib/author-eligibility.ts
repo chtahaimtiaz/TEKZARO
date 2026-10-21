@@ -30,6 +30,7 @@ export async function pickEligibleAuthor(categoryId: string): Promise<{ id: stri
   return prisma.author.findFirst({
     where: {
       active: true,
+      isPublicAuthor: true,
       OR: [{ categories: { none: {} } }, { categories: { some: { id: categoryId } } }],
     },
     orderBy: { name: "asc" },

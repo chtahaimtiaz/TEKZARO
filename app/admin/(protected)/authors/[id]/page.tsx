@@ -50,6 +50,22 @@ export default async function EditAuthorPage({
           <textarea name="bio" defaultValue={author.bio ?? ""} rows={4} className="rounded-md border border-border-strong p-2" />
         </label>
 
+        <div className="rounded-lg border border-border bg-paper p-3">
+          <label className="flex items-center gap-2 cursor-pointer font-medium text-ink">
+            <input
+              type="checkbox"
+              name="isPublicAuthor"
+              value="true"
+              defaultChecked={author.isPublicAuthor}
+              className="h-4 w-4 rounded border-border-strong text-accent focus:ring-accent"
+            />
+            <span>Public Author Directory Eligibility</span>
+          </label>
+          <p className="mt-1 text-xs text-ink-muted">
+            Check for journalists and writers whose bylines and bios appear on the public /authors page and newsroom staff masthead. Leave unchecked for publication founders, owners, or administrative staff who manage the publication without being public staff journalists.
+          </p>
+        </div>
+
         <div>
           <p className="mb-1 text-xs font-medium text-ink-muted">
             Eligible categories (none checked = eligible for every category)

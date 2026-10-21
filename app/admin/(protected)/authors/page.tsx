@@ -41,6 +41,10 @@ export default async function AuthorsPage({
             Name
             <input name="name" required className="rounded-md border border-border-strong p-2" />
           </label>
+          <label className="flex items-center gap-1.5 pb-2 text-xs">
+            <input type="checkbox" name="isPublicAuthor" value="true" defaultChecked className="h-4 w-4 rounded border-border-strong text-accent focus:ring-accent" />
+            <span>Public author directory</span>
+          </label>
           <button type="submit" className="rounded-md bg-accent px-4 py-2 font-semibold text-white hover:bg-accent-dark">
             Add author
           </button>
@@ -66,6 +70,7 @@ export default async function AuthorsPage({
               <th className="p-3">Position</th>
               <th className="p-3">Eligible categories</th>
               <th className="p-3">Articles</th>
+              <th className="p-3">Directory</th>
               <th className="p-3">Status</th>
               <th className="p-3"></th>
             </tr>
@@ -83,6 +88,13 @@ export default async function AuthorsPage({
                   {a.categories.length === 0 ? "All categories" : a.categories.map((c) => c.name).join(", ")}
                 </td>
                 <td className="p-3">{a._count.articles}</td>
+                <td className="p-3 text-xs">
+                  {a.isPublicAuthor ? (
+                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">Public</span>
+                  ) : (
+                    <span className="rounded-full bg-paper px-2 py-0.5 font-medium text-ink-muted border border-border">Internal</span>
+                  )}
+                </td>
                 <td className="p-3">{a.active ? "Active" : "Disabled"}</td>
                 <td className="p-3 text-right">
                   <div className="flex justify-end gap-3">
@@ -100,7 +112,7 @@ export default async function AuthorsPage({
             ))}
             {authors.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-6 text-center text-ink-muted">
+                <td colSpan={7} className="p-6 text-center text-ink-muted">
                   No authors yet.
                 </td>
               </tr>
