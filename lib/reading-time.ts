@@ -21,6 +21,10 @@ function textOf(block: ContentBlock): string {
       return block.rows.map((r) => `${r.label} ${r.value}`).join(" ");
     case "faq":
       return block.items.map((i) => `${i.question} ${i.answer}`).join(" ");
+    case "table":
+      return block.rows.map((r) => r.cells.map((c) => stripInlineRichText(c.text)).join(" ")).join(" ");
+    case "divider":
+      return "";
     default:
       return "";
   }

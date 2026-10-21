@@ -5,12 +5,6 @@ import type { ContentBlock } from "@/lib/content-blocks";
 interface BlockEditorProps {
   blocks: ContentBlock[];
   onChange: (blocks: ContentBlock[]) => void;
-  /** Restricts the "+ Add block" button row to only these types — everything
-   * else (per-block editing UI, move/remove) is unaffected. Omitted ->
-   * byte-identical to before (used by the "Advanced: edit raw blocks"
-   * disclosure). Passed ["fact-table","faq"] -> the Structured-content
-   * section only offers those two, since paragraph/heading/quote/list/image
-   * are now created via the rich-text canvas instead. */
   allowedTypes?: ContentBlock["type"][];
 }
 
@@ -19,6 +13,8 @@ const BLOCK_TYPES: { value: ContentBlock["type"]; label: string }[] = [
   { value: "heading", label: "Heading" },
   { value: "quote", label: "Quote" },
   { value: "list", label: "List" },
+  { value: "table", label: "Table" },
+  { value: "divider", label: "Divider" },
   { value: "fact-table", label: "Fact Table" },
   { value: "faq", label: "FAQ" },
   { value: "image", label: "Image" },
@@ -34,6 +30,26 @@ function emptyBlock(type: ContentBlock["type"]): ContentBlock {
       return { type: "quote", text: "", cite: "" };
     case "list":
       return { type: "list", style: "bullet", items: [""] };
+    case "table":
+      return {
+        type: "table",
+        rows: [
+          {
+            cells: [
+              { text: "Header 1", isHeader: true },
+              { text: "Header 2", isHeader: true },
+            ],
+          },
+          {
+            cells: [
+              { text: "Cell 1" },
+              { text: "Cell 2" },
+            ],
+          },
+        ],
+      };
+    case "divider":
+      return { type: "divider" };
     case "fact-table":
       return { type: "fact-table", rows: [{ label: "", value: "" }] };
     case "faq":
@@ -102,11 +118,12 @@ export function BlockEditor({ blocks, onChange, allowedTypes }: BlockEditorProps
           {block.type === "heading" && (
             <select
               value={block.level}
-              onChange={(e) => updateBlock(index, { ...block, level: Number(e.target.value) as 2 | 3 })}
+              onChange={(e) => updateBlock(index, { ...block, level: Number(e.target.value) as 2 | 3 | 4 })}
               className="mt-2 rounded-md border border-border-strong p-1.5 text-sm bg-paper-raised text-ink"
             >
               <option value={2}>H2</option>
               <option value={3}>H3</option>
+              <option value={4}>H4</option>
             </select>
           )}
 
@@ -117,6 +134,43 @@ export function BlockEditor({ blocks, onChange, allowedTypes }: BlockEditorProps
               placeholder="Attribution (optional)"
               className="mt-2 w-full rounded-md border border-border-strong p-2 text-sm focus:border-accent"
             />
+          )}
+
+          {block.type === "divider" && (
+            <div className="py-2 text-xs italic text-ink-muted">
+              Horizontal Rule Divider (renders as &lt;hr /&gt;)
+            </div>
+          )}
+
+          {block.type === "table" && (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold text-ink-muted">Table Data ({block.rows.length} rows)</p>
+              <div className="overflow-x-auto rounded border border-border bg-paper p-2">
+                <table className="w-full text-xs">
+                  <tbody>
+                    {block.rows.map((row, rIdx) => (
+                      <tr key={rIdx} className="border-b border-border/50">
+                        {row.cells.map((cell, cIdx) => (
+                          <td key={cIdx} className="p-1">
+                            <input
+                              value={cell.text}
+                              onChange={(e) => {
+                                const newRows = [...block.rows];
+                                newRows[rIdx].cells[cIdx] = { ...cell, text: e.target.value };
+                                updateBlock(index, { ...block, rows: newRows });
+                              }}
+                              className={`w-full rounded border border-border px-1.5 py-1 text-xs ${
+                                cell.isHeader ? "font-bold bg-paper-raised" : ""
+                              }`}
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
 
           {block.type === "list" && (
@@ -138,21 +192,25 @@ export function BlockEditor({ blocks, onChange, allowedTypes }: BlockEditorProps
                       items[i] = e.target.value;
                       updateBlock(index, { ...block, items });
                     }}
-                    className="w-full rounded-md border border-border-strong p-2 text-sm focus:border-accent"
+                    placeholder={`Item ${i + 1}`}
+                    className="flex-1 rounded-md border border-border-strong p-2 text-sm focus:border-accent"
                   />
                   <button
                     type="button"
-                    onClick={() => updateBlock(index, { ...block, items: block.items.filter((_, j) => j !== i) })}
-                    className="rounded border border-border px-2 text-xs text-red-600 hover:border-red-400 dark:text-red-400 dark:hover:border-red-700"
+                    onClick={() => {
+                      const items = block.items.filter((_, idx) => idx !== i);
+                      updateBlock(index, { ...block, items: items.length > 0 ? items : [""] });
+                    }}
+                    className="rounded border border-border px-2 text-xs text-red-600 hover:border-red-400 dark:text-red-400"
                   >
-                    ✕
+                    ×
                   </button>
                 </div>
               ))}
               <button
                 type="button"
                 onClick={() => updateBlock(index, { ...block, items: [...block.items, ""] })}
-                className="w-fit text-xs font-semibold text-accent hover:underline"
+                className="w-fit rounded border border-border px-2.5 py-1 text-xs hover:border-accent"
               >
                 + Add item
               </button>
@@ -161,6 +219,7 @@ export function BlockEditor({ blocks, onChange, allowedTypes }: BlockEditorProps
 
           {block.type === "fact-table" && (
             <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold text-ink-muted">Fact rows (label / value)</p>
               {block.rows.map((row, i) => (
                 <div key={i} className="flex gap-2">
                   <input
@@ -171,7 +230,7 @@ export function BlockEditor({ blocks, onChange, allowedTypes }: BlockEditorProps
                       updateBlock(index, { ...block, rows });
                     }}
                     placeholder="Label (e.g. Price)"
-                    className="w-2/5 rounded-md border border-border-strong p-2 text-sm focus:border-accent"
+                    className="w-1/3 rounded-md border border-border-strong p-2 text-sm focus:border-accent"
                   />
                   <input
                     value={row.value}
@@ -180,22 +239,25 @@ export function BlockEditor({ blocks, onChange, allowedTypes }: BlockEditorProps
                       rows[i] = { ...rows[i], value: e.target.value };
                       updateBlock(index, { ...block, rows });
                     }}
-                    placeholder="Value"
-                    className="w-full rounded-md border border-border-strong p-2 text-sm focus:border-accent"
+                    placeholder="Value (e.g. $999)"
+                    className="flex-1 rounded-md border border-border-strong p-2 text-sm focus:border-accent"
                   />
                   <button
                     type="button"
-                    onClick={() => updateBlock(index, { ...block, rows: block.rows.filter((_, j) => j !== i) })}
-                    className="rounded border border-border px-2 text-xs text-red-600 hover:border-red-400 dark:text-red-400 dark:hover:border-red-700"
+                    onClick={() => {
+                      const rows = block.rows.filter((_, idx) => idx !== i);
+                      updateBlock(index, { ...block, rows: rows.length > 0 ? rows : [{ label: "", value: "" }] });
+                    }}
+                    className="rounded border border-border px-2 text-xs text-red-600 hover:border-red-400 dark:text-red-400"
                   >
-                    ✕
+                    ×
                   </button>
                 </div>
               ))}
               <button
                 type="button"
                 onClick={() => updateBlock(index, { ...block, rows: [...block.rows, { label: "", value: "" }] })}
-                className="w-fit text-xs font-semibold text-accent hover:underline"
+                className="w-fit rounded border border-border px-2.5 py-1 text-xs hover:border-accent"
               >
                 + Add row
               </button>
@@ -204,29 +266,34 @@ export function BlockEditor({ blocks, onChange, allowedTypes }: BlockEditorProps
 
           {block.type === "faq" && (
             <div className="flex flex-col gap-3">
-              {block.items.map((qa, i) => (
-                <div key={i} className="flex flex-col gap-1 rounded-md border border-border p-2">
-                  <div className="flex gap-2">
-                    <input
-                      value={qa.question}
-                      onChange={(e) => {
-                        const items = [...block.items];
-                        items[i] = { ...items[i], question: e.target.value };
-                        updateBlock(index, { ...block, items });
-                      }}
-                      placeholder="Question"
-                      className="w-full rounded-md border border-border-strong p-2 text-sm font-semibold focus:border-accent"
-                    />
+              <p className="text-xs font-semibold text-ink-muted">Q&amp;A items</p>
+              {block.items.map((item, i) => (
+                <div key={i} className="flex flex-col gap-1.5 rounded border border-border/70 p-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium text-ink-muted">Question {i + 1}</span>
                     <button
                       type="button"
-                      onClick={() => updateBlock(index, { ...block, items: block.items.filter((_, j) => j !== i) })}
-                      className="shrink-0 rounded border border-border px-2 text-xs text-red-600 hover:border-red-400 dark:text-red-400 dark:hover:border-red-700"
+                      onClick={() => {
+                        const items = block.items.filter((_, idx) => idx !== i);
+                        updateBlock(index, { ...block, items: items.length > 0 ? items : [{ question: "", answer: "" }] });
+                      }}
+                      className="text-xs text-red-600 hover:underline dark:text-red-400"
                     >
-                      ✕
+                      Delete Q&amp;A
                     </button>
                   </div>
+                  <input
+                    value={item.question}
+                    onChange={(e) => {
+                      const items = [...block.items];
+                      items[i] = { ...items[i], question: e.target.value };
+                      updateBlock(index, { ...block, items });
+                    }}
+                    placeholder="Question"
+                    className="rounded-md border border-border-strong p-2 text-sm focus:border-accent"
+                  />
                   <textarea
-                    value={qa.answer}
+                    value={item.answer}
                     onChange={(e) => {
                       const items = [...block.items];
                       items[i] = { ...items[i], answer: e.target.value };
@@ -234,16 +301,16 @@ export function BlockEditor({ blocks, onChange, allowedTypes }: BlockEditorProps
                     }}
                     rows={2}
                     placeholder="Answer"
-                    className="w-full rounded-md border border-border-strong p-2 text-sm focus:border-accent"
+                    className="rounded-md border border-border-strong p-2 text-sm focus:border-accent"
                   />
                 </div>
               ))}
               <button
                 type="button"
                 onClick={() => updateBlock(index, { ...block, items: [...block.items, { question: "", answer: "" }] })}
-                className="w-fit text-xs font-semibold text-accent hover:underline"
+                className="w-fit rounded border border-border px-2.5 py-1 text-xs hover:border-accent"
               >
-                + Add question
+                + Add Q&amp;A
               </button>
             </div>
           )}

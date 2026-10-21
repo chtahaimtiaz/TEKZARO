@@ -32,15 +32,32 @@ describe("blockPlainText", () => {
   it("returns alt text for an image block", () => {
     expect(blockPlainText({ type: "image", url: "https://x/y.jpg", alt: "a description" })).toBe("a description");
   });
+
+  it("flattens a table block into row pipe-separated cells and strips inline formatting", () => {
+    const block: ContentBlock = {
+      type: "table",
+      rows: [
+        { cells: [{ text: "**Model**", isHeader: true }, { text: "**Price**", isHeader: true }] },
+        { cells: [{ text: "Galaxy S26" }, { text: "$899" }] },
+      ],
+    };
+    expect(blockPlainText(block)).toBe("Model | Price. Galaxy S26 | $899");
+  });
+
+  it("returns empty string for a divider block", () => {
+    expect(blockPlainText({ type: "divider" })).toBe("");
+  });
 });
 
 describe("isCanvasBlock", () => {
-  it("classifies paragraph/heading/quote/list/image as canvas blocks", () => {
+  it("classifies paragraph/heading/quote/list/image/table/divider as canvas blocks", () => {
     expect(isCanvasBlock({ type: "paragraph", text: "x" })).toBe(true);
     expect(isCanvasBlock({ type: "heading", level: 2, text: "x" })).toBe(true);
     expect(isCanvasBlock({ type: "quote", text: "x" })).toBe(true);
     expect(isCanvasBlock({ type: "list", style: "bullet", items: ["x"] })).toBe(true);
     expect(isCanvasBlock({ type: "image", url: "https://x", alt: "x" })).toBe(true);
+    expect(isCanvasBlock({ type: "table", rows: [] })).toBe(true);
+    expect(isCanvasBlock({ type: "divider" })).toBe(true);
   });
 
   it("classifies fact-table/faq/pakistan-impact as structured, not canvas, blocks", () => {

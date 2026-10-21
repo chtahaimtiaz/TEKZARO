@@ -33,8 +33,17 @@ import type { Prisma, Role } from "@prisma/client";
 // for revalidatePath to invalidate. Deliberately not calling it.
 
 const blockSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("paragraph"), text: z.string() }),
-  z.object({ type: z.literal("heading"), level: z.union([z.literal(2), z.literal(3)]), text: z.string() }),
+  z.object({
+    type: z.literal("paragraph"),
+    text: z.string(),
+    align: z.enum(["left", "center", "right", "justify"]).optional(),
+  }),
+  z.object({
+    type: z.literal("heading"),
+    level: z.union([z.literal(2), z.literal(3), z.literal(4)]),
+    text: z.string(),
+    align: z.enum(["left", "center", "right"]).optional(),
+  }),
   z.object({ type: z.literal("quote"), text: z.string(), cite: z.string().optional() }),
   z.object({
     type: z.literal("list"),
@@ -47,6 +56,26 @@ const blockSchema = z.discriminatedUnion("type", [
     alt: z.string(),
     caption: z.string().optional(),
     credit: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal("table"),
+    rows: z.array(
+      z.object({
+        cells: z.array(
+          z.object({
+            text: z.string(),
+            isHeader: z.boolean().optional(),
+            align: z.enum(["left", "center", "right"]).optional(),
+            colspan: z.number().int().positive().optional(),
+            rowspan: z.number().int().positive().optional(),
+          }),
+        ),
+      }),
+    ),
+    caption: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal("divider"),
   }),
   z.object({ type: z.literal("pakistan-impact"), text: z.string() }),
   z.object({
@@ -119,6 +148,17 @@ function sanitizeContentBlocks(blocks: ContentBlock[]): ContentBlock[] {
       return { ...b, text: canonicalizeInlineRichText(b.text) };
     }
     if (b.type === "list") return { ...b, items: b.items.map(canonicalizeInlineRichText) };
+    if (b.type === "table") {
+      return {
+        ...b,
+        rows: b.rows.map((row) => ({
+          cells: row.cells.map((cell) => ({
+            ...cell,
+            text: canonicalizeInlineRichText(cell.text),
+          })),
+        })),
+      };
+    }
     return b;
   });
 }

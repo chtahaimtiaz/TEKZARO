@@ -14,11 +14,13 @@ export function InlineRichText({ text }: { text: string }) {
     <>
       {tokens.map((t, i) => {
         let node: ReactNode = t.text;
+        if (t.strike) node = <s>{node}</s>;
+        if (t.underline) node = <u>{node}</u>;
         if (t.italic) node = <em>{node}</em>;
         if (t.bold) node = <strong>{node}</strong>;
         if (t.href) {
           node = (
-            <a href={t.href} target="_blank" rel="noopener noreferrer">
+            <a href={t.href} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
               {node}
             </a>
           );

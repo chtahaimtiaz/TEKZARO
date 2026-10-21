@@ -58,6 +58,22 @@ describe("parseInlineRichText", () => {
     expect(parseInlineRichText("[a](/article/some-slug)")[0].href).toBe("/article/some-slug");
   });
 
+  it("parses underline and strikethrough", () => {
+    expect(parseInlineRichText("++underline++ and ~~strike~~")).toEqual([
+      { text: "underline", underline: true },
+      { text: " and " },
+      { text: "strike", strike: true },
+    ]);
+  });
+
+  it("parses html-style <u> and <s> tags", () => {
+    expect(parseInlineRichText("<u>underlined</u> and <s>struck</s>")).toEqual([
+      { text: "underlined", underline: true },
+      { text: " and " },
+      { text: "struck", strike: true },
+    ]);
+  });
+
   it("never throws on malformed or unbalanced input", () => {
     const inputs = ["**unclosed bold", "_unclosed italic", "[unclosed bracket", "[text](unclosed paren", "***", "___", "[]()", "\\", "**"];
     for (const input of inputs) {

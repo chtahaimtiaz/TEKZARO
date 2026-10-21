@@ -89,6 +89,10 @@ function blockHasText(block: ContentBlock): boolean {
       return block.rows.some((r) => r.label.trim().length > 0 || r.value.trim().length > 0);
     case "faq":
       return block.items.some((i) => i.question.trim().length > 0 || i.answer.trim().length > 0);
+    case "table":
+      return block.rows.some((r) => r.cells.some((c) => c.text.trim().length > 0));
+    case "divider":
+      return true;
     default:
       // Same runtime safety net as the other exhaustive switches this
       // session — a real new ContentBlock member fails to compile here if

@@ -7,12 +7,14 @@ import { stripInlineRichText } from "./editor/inline-rich-text";
 export interface ParagraphBlock {
   type: "paragraph";
   text: string;
+  align?: "left" | "center" | "right" | "justify";
 }
 
 export interface HeadingBlock {
   type: "heading";
-  level: 2 | 3;
+  level: 2 | 3 | 4;
   text: string;
+  align?: "left" | "center" | "right";
 }
 
 export interface QuoteBlock {
@@ -33,6 +35,28 @@ export interface ImageBlock {
   alt: string;
   caption?: string;
   credit?: string;
+}
+
+export interface TableCell {
+  text: string;
+  isHeader?: boolean;
+  align?: "left" | "center" | "right";
+  colspan?: number;
+  rowspan?: number;
+}
+
+export interface TableRow {
+  cells: TableCell[];
+}
+
+export interface TableBlock {
+  type: "table";
+  rows: TableRow[];
+  caption?: string;
+}
+
+export interface DividerBlock {
+  type: "divider";
 }
 
 // Renders as the "What This Means for Pakistan" callout (spec: Pakistan Impact
@@ -68,6 +92,8 @@ export type ContentBlock =
   | QuoteBlock
   | ListBlock
   | ImageBlock
+  | TableBlock
+  | DividerBlock
   | PakistanImpactBlock
   | FactTableBlock
   | FaqBlock;
@@ -99,6 +125,12 @@ export function blockPlainText(block: ContentBlock): string {
       return block.items.map((i) => `${i.question} ${i.answer}`).join(" ");
     case "image":
       return block.alt;
+    case "table":
+      return block.rows
+        .map((r) => r.cells.map((c) => stripInlineRichText(c.text)).join(" | "))
+        .join(". ");
+    case "divider":
+      return "";
     default:
       // Article.content is a Prisma Json field — isArticleContent only
       // checks that `blocks` is an array, never that each element's `type`
@@ -116,10 +148,18 @@ export function blockPlainText(block: ContentBlock): string {
   }
 }
 
-/** Types edited in the new rich-text canvas (RichArticleEditor) — the ones
+/** Types edited in the rich-text canvas (RichArticleEditor) — the ones
  * the user's request actually covers. fact-table/faq/pakistan-impact are
- * unaffected and keep their existing small mini-editor UI. */
-export const CANVAS_BLOCK_TYPES = new Set<ContentBlock["type"]>(["paragraph", "heading", "quote", "list", "image"]);
+ * unaffected and keep their existing structured UI. */
+export const CANVAS_BLOCK_TYPES = new Set<ContentBlock["type"]>([
+  "paragraph",
+  "heading",
+  "quote",
+  "list",
+  "image",
+  "table",
+  "divider",
+]);
 
 export function isCanvasBlock(block: ContentBlock): boolean {
   return CANVAS_BLOCK_TYPES.has(block.type);

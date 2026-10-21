@@ -9,23 +9,22 @@ const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
 async function run() {
-  // Check if author already exists to avoid duplicates
-  const existing = await prisma.author.findUnique({ where: { slug: "taha-imtiaz" } });
-  if (existing) {
-    console.log("Author 'taha-imtiaz' already exists:", existing.id);
-    return;
-  }
-
-  const author = await prisma.author.create({
-    data: {
+  const author = await prisma.author.upsert({
+    where: { slug: "taha-imtiaz" },
+    update: {
+      position: "Founder & Owner",
+      bio: "Taha Imtiaz is the founder and owner of TEKZARO, established with a focus on independent, fact-checked technology journalism for Pakistan and the global technology ecosystem. He oversees the publication's strategic growth, ownership, and editorial standards.",
+      active: true,
+    },
+    create: {
       name: "Taha Imtiaz",
       slug: "taha-imtiaz",
-      position: "Founder & Publisher",
-      bio: "Taha Imtiaz founded TEKZARO with a focus on independent, fact-checked technology journalism for Pakistan and the wider region. He oversees the publication's editorial direction and strategy.",
+      position: "Founder & Owner",
+      bio: "Taha Imtiaz is the founder and owner of TEKZARO, established with a focus on independent, fact-checked technology journalism for Pakistan and the global technology ecosystem. He oversees the publication's strategic growth, ownership, and editorial standards.",
       active: true,
     },
   });
-  console.log("Created founder author:", author.id);
+  console.log("Upserted founder & owner author:", author.id, author.position);
 }
 
 run().catch(console.error).finally(() => prisma.$disconnect());

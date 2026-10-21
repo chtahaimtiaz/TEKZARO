@@ -13,10 +13,16 @@ describe("blocksToTiptapContent / tiptapContentToBlocks round trip", () => {
     expect(roundTrip(blocks)).toEqual(blocks);
   });
 
-  it("round-trips headings at both levels", () => {
+  it("round-trips a paragraph with alignment", () => {
+    const blocks: ContentBlock[] = [{ type: "paragraph", text: "Centered text.", align: "center" }];
+    expect(roundTrip(blocks)).toEqual(blocks);
+  });
+
+  it("round-trips headings at levels 2, 3, and 4", () => {
     const blocks: ContentBlock[] = [
       { type: "heading", level: 2, text: "A section" },
       { type: "heading", level: 3, text: "A subsection" },
+      { type: "heading", level: 4, text: "A minor heading", align: "center" },
     ];
     expect(roundTrip(blocks)).toEqual(blocks);
   });
@@ -51,8 +57,47 @@ describe("blocksToTiptapContent / tiptapContentToBlocks round trip", () => {
     expect(roundTrip(blocks)).toEqual(blocks);
   });
 
-  it("round-trips inline formatting inside a paragraph", () => {
-    const blocks: ContentBlock[] = [{ type: "paragraph", text: "This is **bold** and _italic_ and a [link](https://x.com)." }];
+  it("round-trips a divider", () => {
+    const blocks: ContentBlock[] = [{ type: "divider" }];
+    expect(roundTrip(blocks)).toEqual(blocks);
+  });
+
+  it("round-trips a table with header, cells, and alignment", () => {
+    const blocks: ContentBlock[] = [
+      {
+        type: "table",
+        rows: [
+          {
+            cells: [
+              { text: "Device", isHeader: true },
+              { text: "Price", isHeader: true, align: "right" },
+            ],
+          },
+          {
+            cells: [
+              { text: "iPhone 16 Pro" },
+              { text: "$999", align: "right" },
+            ],
+          },
+          {
+            cells: [
+              { text: "Pixel 9 Pro" },
+              { text: "$899", align: "right" },
+            ],
+          },
+        ],
+      },
+    ];
+    expect(roundTrip(blocks)).toEqual(blocks);
+  });
+
+  it("round-trips inline formatting including bold, italic, underline, strike, and link", () => {
+    const blocks: ContentBlock[] = [
+      {
+        type: "paragraph",
+        text: "This is **bold**, _italic_, ++underline++, ~~strike~~, and a [link](https://x.com).",
+      },
+    ];
     expect(roundTrip(blocks)).toEqual(blocks);
   });
 
@@ -67,7 +112,7 @@ describe("blocksToTiptapContent / tiptapContentToBlocks round trip", () => {
   });
 
   it("drops an unrecognized node type instead of throwing", () => {
-    const doc = { type: "doc", content: [{ type: "horizontalRule" }, { type: "paragraph", content: [{ type: "text", text: "kept" }] }] };
+    const doc = { type: "doc", content: [{ type: "codeBlock" }, { type: "paragraph", content: [{ type: "text", text: "kept" }] }] };
     expect(tiptapContentToBlocks(doc)).toEqual([{ type: "paragraph", text: "kept" }]);
   });
 });
@@ -79,12 +124,28 @@ describe("splitCanvasBlocks excludes structured types before conversion", () => 
       { type: "fact-table", rows: [{ label: "Price", value: "$999" }] },
       { type: "heading", level: 2, text: "More" },
       { type: "faq", items: [{ question: "Q?", answer: "A." }] },
+      {
+        type: "table",
+        rows: [
+          { cells: [{ text: "Col 1", isHeader: true }, { text: "Col 2", isHeader: true }] },
+          { cells: [{ text: "A" }, { text: "B" }] },
+        ],
+      },
+      { type: "divider" },
       { type: "paragraph", text: "Outro." },
     ];
     const { canvas } = splitCanvasBlocks(blocks);
     expect(canvas).toEqual([
       { type: "paragraph", text: "Intro." },
       { type: "heading", level: 2, text: "More" },
+      {
+        type: "table",
+        rows: [
+          { cells: [{ text: "Col 1", isHeader: true }, { text: "Col 2", isHeader: true }] },
+          { cells: [{ text: "A" }, { text: "B" }] },
+        ],
+      },
+      { type: "divider" },
       { type: "paragraph", text: "Outro." },
     ]);
     const converted = tiptapContentToBlocks({ type: "doc", content: blocksToTiptapContent(canvas) });

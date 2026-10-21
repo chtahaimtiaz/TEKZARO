@@ -53,9 +53,11 @@ export function isSynthesizableBlock(value: unknown): value is SynthesizableBloc
             typeof i === "object" && i !== null && isNonEmptyString((i as Record<string, unknown>).question) && isNonEmptyString((i as Record<string, unknown>).answer),
         )
       );
-    // Never AI-producible — see the file comment above.
+    // Never AI-producible — manual/visual editor only.
     case "image":
     case "pakistan-impact":
+    case "table":
+    case "divider":
       return false;
     default:
       // Runtime safety net for genuinely unrecognized input — untrusted AI

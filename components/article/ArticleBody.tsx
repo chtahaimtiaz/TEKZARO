@@ -13,16 +13,37 @@ export function ArticleBody({ blocks }: ArticleBodyProps) {
     <div className="prose-article space-y-5 text-[1.05rem] leading-relaxed text-ink-soft">
       {blocks.map((block, i) => {
         switch (block.type) {
-          case "paragraph":
+          case "paragraph": {
+            const alignClass =
+              block.align === "center"
+                ? "text-center"
+                : block.align === "right"
+                ? "text-right"
+                : block.align === "justify"
+                ? "text-justify"
+                : "";
             return (
-              <p key={i}>
+              <p key={i} className={alignClass || undefined}>
                 <InlineRichText text={block.text} />
               </p>
             );
+          }
           case "heading": {
-            const Tag = block.level === 2 ? "h2" : "h3";
+            const Tag = block.level === 4 ? "h4" : block.level === 3 ? "h3" : "h2";
+            const alignClass =
+              block.align === "center"
+                ? "text-center"
+                : block.align === "right"
+                ? "text-right"
+                : "";
+            const sizeClass =
+              block.level === 2
+                ? "pt-4 text-2xl font-bold text-ink"
+                : block.level === 3
+                ? "pt-3 text-xl font-bold text-ink"
+                : "pt-2 text-lg font-bold text-ink";
             return (
-              <Tag key={i} className={block.level === 2 ? "pt-2 text-2xl font-bold text-ink" : "pt-1 text-xl font-bold text-ink"}>
+              <Tag key={i} className={`${sizeClass} ${alignClass}`.trim()}>
                 <InlineRichText text={block.text} />
               </Tag>
             );
@@ -58,6 +79,59 @@ export function ArticleBody({ blocks }: ArticleBodyProps) {
                   </figcaption>
                 )}
               </figure>
+            );
+          case "divider":
+            return <hr key={i} className="my-8 border-t border-border" />;
+          case "table":
+            return (
+              <div key={i} className="my-6 overflow-x-auto rounded-xl border border-border bg-paper-raised/30 shadow-xs">
+                <table className="w-full min-w-[500px] border-collapse text-left text-sm text-ink-soft">
+                  {block.caption && (
+                    <caption className="p-3 text-xs font-semibold uppercase tracking-wider text-ink-muted text-left">
+                      {block.caption}
+                    </caption>
+                  )}
+                  <tbody>
+                    {block.rows.map((row, rIndex) => {
+                      const hasHeaderCell = row.cells.some((c) => c.isHeader);
+                      return (
+                        <tr
+                          key={rIndex}
+                          className={`border-b border-border/70 last:border-0 ${
+                            hasHeaderCell
+                              ? "bg-paper-raised font-bold text-ink"
+                              : rIndex % 2 === 1
+                              ? "bg-paper-raised/20 hover:bg-paper-raised/50"
+                              : "hover:bg-paper-raised/40"
+                          } transition-colors`}
+                        >
+                          {row.cells.map((cell, cIndex) => {
+                            const CellTag = cell.isHeader ? "th" : "td";
+                            const alignClass =
+                              cell.align === "center"
+                                ? "text-center"
+                                : cell.align === "right"
+                                ? "text-right"
+                                : "text-left";
+                            return (
+                              <CellTag
+                                key={cIndex}
+                                colSpan={cell.colspan}
+                                rowSpan={cell.rowspan}
+                                className={`p-3.5 border-r border-border/50 last:border-r-0 ${alignClass} ${
+                                  cell.isHeader ? "font-bold text-ink border-b-2 border-border" : ""
+                                }`}
+                              >
+                                <InlineRichText text={cell.text} />
+                              </CellTag>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             );
           case "pakistan-impact":
             return <PakistanImpactCallout key={i} text={block.text} />;
