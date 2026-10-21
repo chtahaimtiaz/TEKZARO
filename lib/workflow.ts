@@ -7,6 +7,7 @@ export type TransitionName =
   | "reject"
   | "schedule"
   | "publish"
+  | "emergencyPublish"
   | "archive"
   | "reopen";
 
@@ -53,9 +54,14 @@ export const TRANSITIONS: Record<TransitionName, TransitionRule> = {
     allowedRoles: ["ADMIN", "EDITOR"],
   },
   publish: {
-    from: ["DRAFT", "IN_REVIEW", "CHANGES_REQUESTED", "APPROVED", "SCHEDULED"],
+    from: ["APPROVED", "SCHEDULED"],
     to: "PUBLISHED",
     allowedRoles: ["ADMIN", "EDITOR"],
+  },
+  emergencyPublish: {
+    from: ["DRAFT", "IN_REVIEW", "CHANGES_REQUESTED"],
+    to: "PUBLISHED",
+    allowedRoles: ["ADMIN"],
   },
   archive: {
     from: ["PUBLISHED"],
@@ -93,6 +99,7 @@ export const TRANSITION_LABELS: Record<TransitionName, string> = {
   reject: "Reject",
   schedule: "Schedule",
   publish: "Publish",
+  emergencyPublish: "Emergency publish (Admin override)",
   archive: "Archive",
   reopen: "Reopen",
 };

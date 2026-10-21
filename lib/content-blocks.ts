@@ -252,3 +252,59 @@ export function joinPakistanImpact(blocks: ContentBlock[], pakistanImpact: strin
   const withoutImpact = blocks.filter((b) => b.type !== "pakistan-impact");
   return trimmed ? [...withoutImpact, { type: "pakistan-impact", text: trimmed }] : withoutImpact;
 }
+
+/**
+ * Normalizes text for headline-to-paragraph comparison:
+ * Strips leading/trailing whitespace, punctuation, markdown formatting (#, *, _),
+ * and compares case-insensitively.
+ */
+export function normalizeHeadlineComparison(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/^[#\s*_-]+|[#\s*_-]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Checks whether a paragraph block is a raw feed ingestion metadata artifact
+ * e.g. "**Published:** October 21, 2026**Category:** Pakistan..."
+ */
+export function isIngestionMetadataBlock(block: ContentBlock): boolean {
+  if (block.type !== "paragraph") return false;
+  const t = block.text;
+  return (
+    (t.includes("**Published:**") || t.includes("Published:") || t.includes("Category:")) &&
+    (t.includes("**Category:**") || t.includes("**Location:**") || t.includes("Location:"))
+  );
+}
+
+/**
+ * Sanitizes article content blocks:
+ * 1. Removes leading block if it is an unintended duplicate of the headline.
+ * 2. Removes raw feed ingestion metadata blocks.
+ * Idempotent: safe to run multiple times without unintended deletions.
+ */
+export function sanitizeArticleBlocks(blocks: ContentBlock[], articleTitle?: string): ContentBlock[] {
+  if (!blocks || blocks.length === 0) return [];
+  let result = [...blocks];
+
+  // 1. Check if first block duplicates the headline
+  if (articleTitle && result.length > 1) {
+    const first = result[0];
+    if (first.type === "paragraph" || first.type === "heading") {
+      const normFirst = normalizeHeadlineComparison(first.text);
+      const normTitle = normalizeHeadlineComparison(articleTitle);
+      if (normFirst === normTitle) {
+        result = result.slice(1);
+      }
+    }
+  }
+
+  // 2. Filter out raw ingestion metadata artifacts
+  if (result.length > 1) {
+    result = result.filter((b) => !isIngestionMetadataBlock(b));
+  }
+
+  return result;
+}

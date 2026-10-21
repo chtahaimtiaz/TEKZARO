@@ -61,6 +61,21 @@ describe("assertTransition", () => {
     expect(assertTransition("reopen", { status: "REJECTED", createdById: null }, { id: "e", role: "EDITOR" })).toBe("DRAFT");
     expect(assertTransition("reopen", { status: "ARCHIVED", createdById: null }, { id: "e", role: "EDITOR" })).toBe("DRAFT");
   });
+  it("allows ADMIN to emergencyPublish from DRAFT, IN_REVIEW, or CHANGES_REQUESTED", () => {
+    expect(assertTransition("emergencyPublish", { status: "DRAFT", createdById: null }, { id: "a", role: "ADMIN" })).toBe("PUBLISHED");
+    expect(assertTransition("emergencyPublish", { status: "IN_REVIEW", createdById: null }, { id: "a", role: "ADMIN" })).toBe("PUBLISHED");
+    expect(assertTransition("emergencyPublish", { status: "CHANGES_REQUESTED", createdById: null }, { id: "a", role: "ADMIN" })).toBe("PUBLISHED");
+  });
+
+  it("rejects non-ADMIN attempting emergencyPublish", () => {
+    expect(() =>
+      assertTransition("emergencyPublish", { status: "DRAFT", createdById: null }, { id: "e", role: "EDITOR" }),
+    ).toThrow(WorkflowError);
+    expect(() =>
+      assertTransition("emergencyPublish", { status: "DRAFT", createdById: "r" }, { id: "r", role: "REPORTER" }),
+    ).toThrow(WorkflowError);
+  });
+
 });
 
 describe("legalTransitionsFor", () => {

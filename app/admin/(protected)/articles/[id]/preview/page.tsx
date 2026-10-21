@@ -63,7 +63,7 @@ export default async function ArticlePreviewPage({ params }: { params: Promise<{
       </figure>
 
       <div className="mt-8">
-        <ArticleBody blocks={content.blocks} />
+        <ArticleBody blocks={content.blocks} articleTitle={article.title} />
       </div>
 
       <div className="mt-8">

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { blockPlainText, isCanvasBlock, splitCanvasBlocks, joinCanvasBlocks } from "../lib/content-blocks";
+import { blockPlainText, isCanvasBlock, splitCanvasBlocks, joinCanvasBlocks, sanitizeArticleBlocks, normalizeHeadlineComparison, isIngestionMetadataBlock } from "../lib/content-blocks";
 import type { ContentBlock, StructuredBlockAnchor } from "../lib/content-blocks";
 
 describe("blockPlainText", () => {
@@ -111,5 +111,68 @@ describe("splitCanvasBlocks / joinCanvasBlocks — position-preserving anchors",
     const canvas = [para("a"), para("b")];
     const structured: StructuredBlockAnchor[] = [{ block: table("new"), precedingCanvasCount: canvas.length }];
     expect(joinCanvasBlocks(canvas, structured)).toEqual([para("a"), para("b"), table("new")]);
+  });
+});
+
+describe("sanitizeArticleBlocks", () => {
+  it("strips block 0 when it matches the article title exactly or with whitespace/markdown differences", () => {
+    const blocks: ContentBlock[] = [
+      { type: "paragraph", text: "Pakistan Develops AI System" },
+      { type: "paragraph", text: "The Competition Commission of Pakistan announced a new initiative today." },
+    ];
+    const cleaned = sanitizeArticleBlocks(blocks, "Pakistan Develops AI System");
+    expect(cleaned).toHaveLength(1);
+    expect(cleaned[0]).toEqual({ type: "paragraph", text: "The Competition Commission of Pakistan announced a new initiative today." });
+  });
+
+  it("handles case-insensitivity and leading hashes in duplicate headlines", () => {
+    const blocks: ContentBlock[] = [
+      { type: "heading", level: 2, text: "## Pakistan Develops AI System" },
+      { type: "paragraph", text: "The Competition Commission of Pakistan announced a new initiative today." },
+    ];
+    const cleaned = sanitizeArticleBlocks(blocks, "Pakistan develops ai system");
+    expect(cleaned).toHaveLength(1);
+    expect(cleaned[0].type).toBe("paragraph");
+  });
+
+  it("preserves legitimate introductory paragraphs that do not duplicate the headline", () => {
+    const blocks: ContentBlock[] = [
+      { type: "paragraph", text: "ISLAMABAD — In a landmark development, the government has launched a new tech program." },
+      { type: "paragraph", text: "Officials confirmed that the rollout will begin next month." },
+    ];
+    const cleaned = sanitizeArticleBlocks(blocks, "Government Launches Major Technology Initiative");
+    expect(cleaned).toHaveLength(2);
+    expect(cleaned).toEqual(blocks);
+  });
+
+  it("never deletes the only block in an article", () => {
+    const blocks: ContentBlock[] = [
+      { type: "paragraph", text: "Short announcement headline" },
+    ];
+    const cleaned = sanitizeArticleBlocks(blocks, "Short announcement headline");
+    expect(cleaned).toHaveLength(1);
+  });
+
+  it("filters out raw feed metadata blocks like **Published:** ... **Category:**", () => {
+    const blocks: ContentBlock[] = [
+      { type: "paragraph", text: "Main Accused in Murder Case Arrested" },
+      { type: "paragraph", text: "**Published:** October 21, 2026**Category:** Pakistan**Location:** Bahawalpur, Punjab, Pakistan" },
+      { type: "paragraph", text: "Police announced the arrest on Wednesday morning." },
+    ];
+    const cleaned = sanitizeArticleBlocks(blocks, "Main Accused in Murder Case Arrested");
+    expect(cleaned).toHaveLength(1);
+    expect(cleaned[0]).toEqual({ type: "paragraph", text: "Police announced the arrest on Wednesday morning." });
+  });
+
+  it("is idempotent — running repeatedly produces the exact same result", () => {
+    const blocks: ContentBlock[] = [
+      { type: "paragraph", text: "Duplicate Title" },
+      { type: "paragraph", text: "**Published:** Oct 21**Category:** Tech**Location:** Islamabad" },
+      { type: "paragraph", text: "Actual story text paragraph." },
+    ];
+    const firstPass = sanitizeArticleBlocks(blocks, "Duplicate Title");
+    const secondPass = sanitizeArticleBlocks(firstPass, "Duplicate Title");
+    expect(secondPass).toEqual(firstPass);
+    expect(secondPass).toHaveLength(1);
   });
 });

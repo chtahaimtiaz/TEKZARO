@@ -98,7 +98,7 @@ export default async function ArticlePage({ params }: Props) {
       </figure>
 
       <div className="mt-8">
-        <ArticleBody blocks={content.blocks} />
+        <ArticleBody blocks={content.blocks} articleTitle={article.title} />
       </div>
 
       <AdSlot placement="ARTICLE_END" categoryId={article.category.id} path={`/article/${slug}`} className="mt-8" />

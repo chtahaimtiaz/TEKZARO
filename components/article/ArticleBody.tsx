@@ -1,14 +1,16 @@
 import Image from "next/image";
-import type { ContentBlock } from "@/lib/content-blocks";
+import { type ContentBlock, sanitizeArticleBlocks } from "@/lib/content-blocks";
 import { PakistanImpactCallout } from "./PakistanImpactCallout";
 import { isOptimizableImageSrc } from "@/lib/image-src";
 import { InlineRichText } from "./InlineRichText";
 
 interface ArticleBodyProps {
   blocks: ContentBlock[];
+  articleTitle?: string;
 }
 
-export function ArticleBody({ blocks }: ArticleBodyProps) {
+export function ArticleBody({ blocks: rawBlocks, articleTitle }: ArticleBodyProps) {
+  const blocks = sanitizeArticleBlocks(rawBlocks, articleTitle);
   return (
     <div className="prose-article space-y-5 text-[1.05rem] leading-relaxed text-ink-soft">
       {blocks.map((block, i) => {
