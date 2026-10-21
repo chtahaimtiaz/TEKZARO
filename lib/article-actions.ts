@@ -443,7 +443,7 @@ export async function updateArticleAction(articleId: string, raw: ArticleFormInp
 export async function transitionArticleAction(
   articleId: string,
   name: TransitionName,
-  options?: { overrideVerification?: boolean; emergencyReason?: string },
+  options?: { overrideVerification?: boolean },
 ): Promise<ActionResult> {
   const sessionUser = await getSessionUser();
   if (!sessionUser) throw new ForbiddenError("You must be signed in.");
@@ -473,16 +473,7 @@ export async function transitionArticleAction(
   // applies without re-ticking the box — mirrors authorEligibilityOverridden.
   const verificationOverridden = requestedVerificationOverride || article.verificationOverridden;
 
-  if (name === "emergencyPublish") {
-    if (sessionUser.role !== "ADMIN") {
-      return { ok: false, error: "Only administrators can perform an emergency publication." };
-    }
-    if (!options?.emergencyReason || options.emergencyReason.trim().length < 10) {
-      return { ok: false, error: "Emergency publish requires an explanation of at least 10 characters for audit compliance." };
-    }
-  }
-
-  if (name === "publish" || name === "schedule" || name === "emergencyPublish") {
+  if (name === "publish" || name === "schedule") {
     const slugAvailable = await prisma.article
       .findFirst({ where: { slug: article.slug, NOT: { id: article.id } } })
       .then((row) => !row);
@@ -545,7 +536,7 @@ export async function transitionArticleAction(
     status: newStatus,
     title: article.title,
     snapshot: buildSnapshotFromArticleRow(article),
-    changeSummary: name === "emergencyPublish" ? `Emergency publish: ${options?.emergencyReason}` : `Status changed to ${newStatus}`,
+    changeSummary: `Status changed to ${newStatus}`,
   });
 
   await logAction({

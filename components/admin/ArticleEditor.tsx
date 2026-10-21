@@ -19,6 +19,7 @@ import { slugify } from "@/lib/slugify";
 import { splitPakistanImpact, splitCanvasBlocks, joinCanvasBlocks, type StructuredBlockAnchor } from "@/lib/content-blocks";
 import { isAuthorEligibleForCategory } from "@/lib/author-eligibility-shared";
 import { TRANSITION_LABELS, type TransitionName } from "@/lib/workflow";
+import type { Role } from "@prisma/client";
 import {
   createArticleAction,
   updateArticleAction,
@@ -102,12 +103,14 @@ interface ArticleEditorProps {
   canDelete: boolean;
   legalTransitions: TransitionName[];
   mediaUploadAvailable: boolean;
+  userRole?: Role;
 }
 
 export function ArticleEditor({
   mode,
   articleId,
   status,
+  userRole,
   initialBlocks,
   initial,
   initialFeaturedMedia,
@@ -245,6 +248,25 @@ export function ArticleEditor({
         setNotice("Saved.");
       }
       router.refresh();
+    });
+  }
+
+  function directPublishOnCreate() {
+    setError(null);
+    setNotice(null);
+    startTransition(async () => {
+      const createResult = await createArticleAction(fullInput);
+      if (!createResult.ok || !createResult.data?.id) {
+        setError(createResult.error ?? "Failed to create article.");
+        return;
+      }
+      const pubResult = await transitionArticleAction(createResult.data.id, "publish", { overrideVerification });
+      if (!pubResult.ok) {
+        setError(pubResult.error ?? "Created draft, but publish check failed.");
+        router.push(`/admin/articles/${createResult.data.id}`);
+        return;
+      }
+      router.push(`/admin/articles/${createResult.data.id}`);
     });
   }
 
@@ -767,6 +789,18 @@ export function ArticleEditor({
             >
               {mode === "create" ? "Create draft" : "Save changes"}
             </button>
+
+            {mode === "create" && userRole === "ADMIN" && (
+              <button
+                type="button"
+                disabled={pending || blockingChecks}
+                onClick={directPublishOnCreate}
+                title={blockingChecks ? "All publication checks must pass first" : undefined}
+                className="rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-dark disabled:opacity-50 dark:text-paper"
+              >
+                Publish
+              </button>
+            )}
 
             {otherTransitions.map((name) => (
               <button

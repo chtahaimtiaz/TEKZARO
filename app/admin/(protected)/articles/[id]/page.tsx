@@ -130,6 +130,7 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
       canDelete={CAN_DELETE_ARTICLE.includes(user.role)}
       legalTransitions={legalTransitions}
       mediaUploadAvailable={isMediaUploadAvailable()}
+      userRole={user.role}
     />
   );
 }

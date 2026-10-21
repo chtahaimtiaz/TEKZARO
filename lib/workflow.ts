@@ -7,7 +7,6 @@ export type TransitionName =
   | "reject"
   | "schedule"
   | "publish"
-  | "emergencyPublish"
   | "archive"
   | "reopen";
 
@@ -17,6 +16,8 @@ const OWN_ONLY_ROLES: Role[] = ["REPORTER", "RESEARCHER"];
 
 interface TransitionRule {
   from: ArticleStatus[];
+  /** When specified, overrides allowed source statuses for specific roles. */
+  fromByRole?: Partial<Record<Role, ArticleStatus[]>>;
   to: ArticleStatus;
   allowedRoles: Role[];
   /** REPORTER/RESEARCHER may only perform this transition on articles they created. */
@@ -27,41 +28,41 @@ export const TRANSITIONS: Record<TransitionName, TransitionRule> = {
   submit: {
     from: ["DRAFT", "CHANGES_REQUESTED"],
     to: "IN_REVIEW",
-    allowedRoles: ["ADMIN", "EDITOR", "REPORTER", "RESEARCHER"],
+    // Submit for review is for editorial staff (editors, reporters, researchers), not admins
+    allowedRoles: ["EDITOR", "REPORTER", "RESEARCHER"],
     ownOnlyForReporter: true,
   },
   requestChanges: {
     from: ["IN_REVIEW"],
     to: "CHANGES_REQUESTED",
-    allowedRoles: ["ADMIN", "EDITOR"],
+    allowedRoles: ["EDITOR"],
   },
   approve: {
     from: ["IN_REVIEW"],
     to: "APPROVED",
-    allowedRoles: ["ADMIN", "EDITOR"],
+    allowedRoles: ["EDITOR"],
   },
   reject: {
-    // Distinct from archive: a rejection never had a live publish. Reachable
-    // from CHANGES_REQUESTED too — an editor can decide the piece isn't
-    // salvageable without first bouncing it back to IN_REVIEW.
     from: ["IN_REVIEW", "CHANGES_REQUESTED"],
     to: "REJECTED",
     allowedRoles: ["ADMIN", "EDITOR"],
   },
   schedule: {
     from: ["APPROVED"],
+    fromByRole: {
+      ADMIN: ["DRAFT", "IN_REVIEW", "CHANGES_REQUESTED", "APPROVED"],
+    },
     to: "SCHEDULED",
     allowedRoles: ["ADMIN", "EDITOR"],
   },
   publish: {
     from: ["APPROVED", "SCHEDULED"],
+    fromByRole: {
+      // Direct publish for ADMIN: can publish directly from any un-published state
+      ADMIN: ["DRAFT", "IN_REVIEW", "CHANGES_REQUESTED", "APPROVED", "SCHEDULED"],
+    },
     to: "PUBLISHED",
     allowedRoles: ["ADMIN", "EDITOR"],
-  },
-  emergencyPublish: {
-    from: ["DRAFT", "IN_REVIEW", "CHANGES_REQUESTED"],
-    to: "PUBLISHED",
-    allowedRoles: ["ADMIN"],
   },
   archive: {
     from: ["PUBLISHED"],
@@ -85,8 +86,9 @@ export function legalTransitionsFor(
 ): TransitionName[] {
   return (Object.keys(TRANSITIONS) as TransitionName[]).filter((name) => {
     const rule = TRANSITIONS[name];
-    if (!rule.from.includes(status)) return false;
     if (!rule.allowedRoles.includes(role)) return false;
+    const allowedFrom = rule.fromByRole?.[role] ?? rule.from;
+    if (!allowedFrom.includes(status)) return false;
     if (rule.ownOnlyForReporter && OWN_ONLY_ROLES.includes(role) && !isOwner) return false;
     return true;
   });
@@ -99,7 +101,6 @@ export const TRANSITION_LABELS: Record<TransitionName, string> = {
   reject: "Reject",
   schedule: "Schedule",
   publish: "Publish",
-  emergencyPublish: "Emergency publish (Admin override)",
   archive: "Archive",
   reopen: "Reopen",
 };
@@ -121,15 +122,21 @@ interface TransitionSubject {
  */
 export function assertTransition(name: TransitionName, article: TransitionSubject, actor: TransitionActor): ArticleStatus {
   const rule = TRANSITIONS[name];
-
-  if (!rule.from.includes(article.status)) {
-    throw new WorkflowError(
-      `Cannot ${name}: article is ${article.status}, expected one of ${rule.from.join(", ")}.`,
-    );
+  if (!rule) {
+    throw new WorkflowError(`Unknown transition "${name}".`);
   }
+
   if (!rule.allowedRoles.includes(actor.role)) {
     throw new WorkflowError(`Your role (${actor.role}) cannot perform "${name}".`);
   }
+
+  const allowedFrom = rule.fromByRole?.[actor.role] ?? rule.from;
+  if (!allowedFrom.includes(article.status)) {
+    throw new WorkflowError(
+      `Cannot ${name}: article is ${article.status}, expected one of ${allowedFrom.join(", ")}.`,
+    );
+  }
+
   if (rule.ownOnlyForReporter && OWN_ONLY_ROLES.includes(actor.role) && article.createdById !== actor.id) {
     throw new WorkflowError("You can only submit your own drafts.");
   }

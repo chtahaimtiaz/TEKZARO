@@ -66,6 +66,7 @@ export default async function NewArticlePage({
       authors={authors}
       legalTransitions={[]}
       mediaUploadAvailable={isMediaUploadAvailable()}
+      userRole={user.role}
     />
   );
 }
