@@ -17,7 +17,7 @@ const { metadata } = await import("../app/layout");
 describe("AdSense site verification", () => {
   it("declares the publisher account in root metadata", () => {
     const other = metadata.other as Record<string, string> | undefined;
-    expect(other?.["google-adsense-account"]).toBe("ca-pub-1824611512521520");
+    expect(other?.["google-adsense-account"]).toBe("ca-pub-5157278574737904");
   });
 
   it("keeps the existing metadata intact alongside it", () => {
