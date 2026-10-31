@@ -15,8 +15,8 @@ export function FetchAllButton() {
     startTransition(async () => {
       const summary = await fetchAllSourcesAction();
       setMessage(
-        `Fetch All complete — ${summary.sourcesChecked} source(s) attempted, ${summary.sourcesChecked - summary.sourcesFailed} succeeded, ` +
-          `${summary.sourcesFailed} failed. ${summary.itemsCreated} new discoveries, ${summary.itemsSkippedExisting} already known.`,
+        `Fetch All complete — ${summary.sourcesChecked} source(s) checked (${summary.sourcesChecked - summary.sourcesFailed} succeeded). ` +
+          `${summary.itemsCreated} new item(s) added to Discovery (${summary.itemsSkippedExisting} unchanged/previously seen).`,
       );
       router.refresh();
     });

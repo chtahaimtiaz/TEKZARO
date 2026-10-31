@@ -26,12 +26,16 @@ export async function buildGoogleNewsQuery(categoryId: string): Promise<string |
   return keywords.map((k) => `"${k.term.replace(/"/g, "")}"`).join(" OR ");
 }
 
-/** Pure URL construction — defaults match TEKZARO's Pakistan-first editorial
- * focus (en-PK/PK), same as every other Pakistan-relevance default in this
- * codebase (see lib/discovery/pakistan-relevance.ts). */
-export function buildGoogleNewsSearchUrl(query: string, opts?: { lang?: string; country?: string }): string {
-  const lang = opts?.lang ?? "en-PK";
-  const country = opts?.country ?? "PK";
+/**
+ * Constructs the Google News search URL.
+ * Supports country and language options. If not explicitly specified on the source,
+ * it defaults to global international news (en-US / US) unless the source is specifically
+ * localized to Pakistan (e.g. Pakistan Tech category).
+ */
+export function buildGoogleNewsSearchUrl(query: string, opts?: { lang?: string | null; country?: string | null }): string {
+  const isPk = opts?.country === "PK" || opts?.country === "Pakistan" || opts?.lang === "en-PK";
+  const lang = opts?.lang || (isPk ? "en-PK" : "en-US");
+  const country = opts?.country || (isPk ? "PK" : "US");
   const languageCode = lang.split("-")[0];
   const params = new URLSearchParams({ q: query, hl: lang, gl: country, ceid: `${country}:${languageCode}` });
   return `${GOOGLE_NEWS_BASE_URL}?${params.toString()}`;
@@ -132,7 +136,12 @@ export async function ingestGoogleNewsSource(sourceId: string, requestedById: st
       return emptyResult("No query-scoped keywords configured.");
     }
 
-    const url = buildGoogleNewsSearchUrl(query);
+    const category = source.categoryId ? await prisma.category.findUnique({ where: { id: source.categoryId }, select: { slug: true } }) : null;
+    const isPakistanCategory = category?.slug === "pakistan-tech";
+    const url = buildGoogleNewsSearchUrl(query, {
+      lang: source.language || (isPakistanCategory ? "en-PK" : "en-US"),
+      country: source.country || (isPakistanCategory ? "PK" : "US"),
+    });
     const response = await safeFetch(url);
     if (response.status !== 200) {
       await recordError(`Feed returned HTTP ${response.status}.`);
