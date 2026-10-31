@@ -355,6 +355,12 @@ export function ArticleEditor({
             placeholder="Subheadline / dek"
             className="w-full rounded-md border border-border-strong p-2.5 text-sm focus:border-accent"
           />
+          {(mode === "create" || status === "DRAFT" || status === "IN_REVIEW") &&
+            (!form.subheadline || form.subheadline.length < 10) && (
+              <p className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-2 text-sm">
+                Adding a subheadline improves SEO and reader engagement. AdSense reviewers also use it as a quality signal.
+              </p>
+            )}
           <textarea
             value={form.excerpt}
             onChange={(e) => patch({ excerpt: e.target.value })}

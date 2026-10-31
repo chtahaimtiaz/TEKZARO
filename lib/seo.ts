@@ -11,10 +11,10 @@ export function buildArticleMetadata(article: ArticleWithRelations): Metadata {
   const title = article.seoTitle || article.title;
   const description = article.metaDescription || article.excerpt || SITE_DESCRIPTION;
   const url = absoluteUrl(`/article/${article.slug}`);
-  // Falls back to the logo (rather than no image at all) for the rare
+  // Falls back to the default OG image (rather than no image at all) for the rare
   // article with neither an explicit ogImage nor a featured image — a
   // branded card beats a blank one on social platforms.
-  const image = article.ogImage || article.featuredImageUrl || absoluteUrl("/logo.png");
+  const image = article.ogImage || article.featuredImageUrl || absoluteUrl("/opengraph-image");
 
   return {
     // Just the headline — the root layout's title.template ("%s | TEKZARO",
@@ -24,6 +24,7 @@ export function buildArticleMetadata(article: ArticleWithRelations): Metadata {
     title,
     description,
     alternates: { canonical: article.canonicalUrl || url },
+    authors: [{ name: article.author.name, url: absoluteUrl(`/author/${article.author.slug}`) }],
     openGraph: {
       type: "article",
       title,

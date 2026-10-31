@@ -63,6 +63,19 @@ export default function CorrectionsPolicyPage() {
         <p>
           Our editorial team reviews all correction requests within 24 to 48 business hours. If a substantive error is verified, the article is updated immediately and the correction logged.
         </p>
+
+        <h2 className="pt-2 text-2xl font-bold text-ink">Types of Corrections</h2>
+        <p>We distinguish between three categories of corrections:</p>
+        <ul className="list-disc space-y-1.5 pl-5">
+          <li><strong>Factual Corrections:</strong> A stated fact, figure, date, name, or claim was wrong and has been corrected. A correction notice is added to the article.</li>
+          <li><strong>Typographical / Grammatical Edits:</strong> Minor spelling, punctuation, or grammatical errors that do not alter factual meaning are fixed silently. No correction notice is required unless the error was visible in a headline.</li>
+          <li><strong>Attribution Corrections:</strong> When a quote, statistic, or piece of information was incorrectly attributed to the wrong source or person, the attribution is corrected and noted explicitly.</li>
+        </ul>
+
+        <h2 className="pt-2 text-2xl font-bold text-ink">Correction Log</h2>
+        <p>
+          Every substantive correction is internally logged with a timestamp, a description of what changed, and the reason for the change. This internal record is maintained for editorial accountability and transparency, and is available to senior editors on request.
+        </p>
       </div>
     </div>
   );

@@ -13,12 +13,14 @@ import { ShareButtons } from "@/components/content/ShareButtons";
 import { RelatedArticles } from "@/components/content/RelatedArticles";
 import { PrevNextArticle } from "@/components/content/PrevNextArticle";
 import { ArticleJsonLd } from "@/components/article/ArticleJsonLd";
+import { ReadingProgressBar } from "@/components/article/ReadingProgressBar";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { AuthorBioCard } from "@/components/article/AuthorBioCard";
 import { EditorialStandardsCallout } from "@/components/article/EditorialStandardsCallout";
+import { NewsletterForm } from "@/components/ui/NewsletterForm";
 import { getArticleBySlug, getRelatedArticles, getAdjacentArticles, incrementArticleViews } from "@/lib/articles";
 import { asArticleContent } from "@/lib/content-blocks";
-import { buildArticleMetadata, absoluteUrl } from "@/lib/seo";
+import { buildArticleMetadata, absoluteUrl, breadcrumbJsonLd } from "@/lib/seo";
 import { categoryHref } from "@/lib/constants";
 import { isOptimizableImageSrc } from "@/lib/image-src";
 
@@ -52,9 +54,20 @@ export default async function ArticlePage({ params }: Props) {
   const content = asArticleContent(article.content);
   const isPakistan = article.category.slug === "pakistan-tech" || article.pakistanRelevance >= 70;
 
+  const breadcrumbJsonLdData = breadcrumbJsonLd([
+    { name: "Home", url: "/" },
+    { name: article.category.name, url: categoryHref(article.category.slug) },
+    { name: article.title, url: `/article/${article.slug}` },
+  ]);
+
   return (
     <article className="mx-auto max-w-3xl px-4 py-10">
+      <ReadingProgressBar />
       <ArticleJsonLd article={article} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLdData) }}
+      />
 
       <nav aria-label="Breadcrumb" className="mb-3 text-xs text-ink-muted">
         <Link href="/" className="hover:text-accent">
@@ -131,6 +144,17 @@ export default async function ArticlePage({ params }: Props) {
 
       <PrevNextArticle previous={previous} next={next} />
       <RelatedArticles articles={related} />
+
+      <section className="mt-12 rounded-xl bg-ink px-6 py-8 text-center text-white dark:text-paper">
+        <p className="eyebrow">Stay Informed</p>
+        <h2 className="mt-1 font-serif text-2xl font-bold">Get TEKZARO in your inbox</h2>
+        <p className="mx-auto mt-2 max-w-sm text-sm text-white/70 dark:text-paper/70">
+          Pakistan technology news first, global technology in context.
+        </p>
+        <div className="mt-5 flex justify-center">
+          <NewsletterForm redirectTo={`/article/${article.slug}`} />
+        </div>
+      </section>
     </article>
   );
 }

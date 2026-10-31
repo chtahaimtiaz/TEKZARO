@@ -39,6 +39,17 @@ export default async function PakistanTechPage({
         telecom, policy, cybersecurity, IT exports and the people building the country&apos;s digital economy.
       </p>
 
+      {page === 1 && (
+        <div className="mb-8 mt-6 rounded-xl border border-border bg-paper-raised p-5">
+          <p className="font-semibold text-ink">Why Pakistan Tech?</p>
+          <p className="mt-1 text-sm text-ink-soft">
+            Pakistan&apos;s technology ecosystem — startups, software exports, telecom policy, digital banking,
+            and the people building the country&apos;s digital future — deserves frontline, dedicated journalism.
+            TEKZARO covers it independently from Islamabad.
+          </p>
+        </div>
+      )}
+
       {page === 1 && pakistanCategory && (
         <AdSlot placement="CATEGORY_TOP" categoryId={pakistanCategory.id} path="/pakistan-tech" className="mt-6" />
       )}

@@ -52,6 +52,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
       <p className="eyebrow">Category</p>
       <h1 className="mt-1 font-serif text-4xl font-bold">{def.name}</h1>
       <p className="mt-2 max-w-2xl text-ink-soft">{category.description || def.description}</p>
+      <p className="mt-1 text-sm text-ink-muted">{total} articles</p>
 
       {page === 1 && <AdSlot placement="CATEGORY_TOP" categoryId={category.id} path={`/category/${slug}`} className="mt-6" />}
 
