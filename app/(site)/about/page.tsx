@@ -143,7 +143,7 @@ export default async function AboutPage() {
 
         <h2 className="pt-4 text-2xl font-bold text-ink">Newsroom Contact &amp; Location</h2>
         <p>
-          TEKZARO Media operations are based in Pakistan with correspondent desks across major technology hubs.
+          TEKZARO is independently operated by founder and owner Taha Imtiaz, based in Islamabad, Pakistan.
         </p>
         <div className="rounded-xl border border-border bg-paper-raised p-5">
           <p className="font-bold text-ink">TEKZARO Newsroom</p>

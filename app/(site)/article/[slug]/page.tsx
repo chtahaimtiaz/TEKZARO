@@ -14,6 +14,8 @@ import { RelatedArticles } from "@/components/content/RelatedArticles";
 import { PrevNextArticle } from "@/components/content/PrevNextArticle";
 import { ArticleJsonLd } from "@/components/article/ArticleJsonLd";
 import { AdSlot } from "@/components/ads/AdSlot";
+import { AuthorBioCard } from "@/components/article/AuthorBioCard";
+import { EditorialStandardsCallout } from "@/components/article/EditorialStandardsCallout";
 import { getArticleBySlug, getRelatedArticles, getAdjacentArticles, incrementArticleViews } from "@/lib/articles";
 import { asArticleContent } from "@/lib/content-blocks";
 import { buildArticleMetadata, absoluteUrl } from "@/lib/seo";
@@ -101,6 +103,8 @@ export default async function ArticlePage({ params }: Props) {
         <ArticleBody blocks={content.blocks} articleTitle={article.title} />
       </div>
 
+      <EditorialStandardsCallout />
+
       <AdSlot placement="ARTICLE_END" categoryId={article.category.id} path={`/article/${slug}`} className="mt-8" />
 
       {article.sources.length > 0 && (
@@ -122,6 +126,8 @@ export default async function ArticlePage({ params }: Props) {
         <TagList tags={article.tags.map((t) => t.tag)} />
         <ShareButtons url={absoluteUrl(`/article/${article.slug}`)} title={article.title} />
       </div>
+
+      <AuthorBioCard author={article.author} />
 
       <PrevNextArticle previous={previous} next={next} />
       <RelatedArticles articles={related} />
