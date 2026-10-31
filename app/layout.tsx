@@ -43,7 +43,7 @@ export const metadata: Metadata = {
   // AdSense approval and then the ad unit script, and it is independent of
   // the platform's own AdCampaign system.
   other: {
-    "google-adsense-account": "ca-pub-1824611512521520",
+    "google-adsense-account": "ca-pub-5157278574737904",
   },
 };
 
@@ -68,7 +68,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         */}
         <script
           async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1824611512521520"
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5157278574737904"
           crossOrigin="anonymous"
         />
       </head>
