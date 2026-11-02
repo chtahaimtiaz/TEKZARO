@@ -26,11 +26,8 @@ import { parseZonedDateTimeLocal } from "./timezone";
 import { EDITORIAL_TIMEZONE } from "./constants";
 import type { Prisma, Role } from "@prisma/client";
 
-// Every route under /admin reads the session cookie (via requireUser/
-// getSessionUser), which already forces Next to render those routes
-// dynamically on every request — and the public (site) routes are marked
-// `force-dynamic` in app/(site)/layout.tsx — so there is no page cache here
-// for revalidatePath to invalidate. Deliberately not calling it.
+// revalidatePath is called in transitionArticleAction when status changes
+// to PUBLISHED or ARCHIVED to bust ISR caches on the public site.
 
 const blockSchema = z.discriminatedUnion("type", [
   z.object({
@@ -519,6 +516,17 @@ export async function transitionArticleAction(
       verificationOverridden,
     },
   });
+
+  // Bust ISR caches on public pages when an article goes live or is removed.
+  // The site layout no longer uses force-dynamic, so revalidatePath is now
+  // load-bearing: without it the homepage and article pages stay stale until
+  // their revalidate period expires naturally.
+  if (newStatus === "PUBLISHED" || newStatus === "ARCHIVED") {
+    revalidatePath("/", "page");
+    revalidatePath("/latest", "page");
+    revalidatePath(`/article/${article.slug}`, "page");
+    revalidatePath("/pakistan-tech", "page");
+  }
 
   if (requestedVerificationOverride && !article.verificationOverridden) {
     await logAction({

@@ -5,7 +5,7 @@ import { Pagination } from "@/components/content/Pagination";
 import { getPakistanTechArticles, getTrendingInPakistan, getCategoryBySlug } from "@/lib/articles";
 import { AdSlot } from "@/components/ads/AdSlot";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300; // 5 min ISR
 
 export const metadata: Metadata = {
   title: "Pakistan Tech",

@@ -178,7 +178,7 @@ export async function getTrendingArticles(limit = 8): Promise<ArticleWithRelatio
   const pool = await prisma.article.findMany({
     where: PUBLISHED,
     orderBy: { publishedAt: "desc" },
-    take: 40,
+    take: 20,
     include: ARTICLE_INCLUDE,
   });
   return sortTrending(pool).slice(0, limit);
@@ -195,7 +195,7 @@ export async function getTrendingInPakistan(limit = 5): Promise<ArticleWithRelat
   const pool = await prisma.article.findMany({
     where: { ...PUBLISHED, pakistanRelevance: { gt: 0 } },
     orderBy: { publishedAt: "desc" },
-    take: 30,
+    take: 15,
     include: ARTICLE_INCLUDE,
   });
   return sortPakistanTrending(pool).slice(0, limit);

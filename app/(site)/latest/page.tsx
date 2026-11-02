@@ -3,7 +3,7 @@ import { ArticleCard } from "@/components/content/ArticleCard";
 import { Pagination } from "@/components/content/Pagination";
 import { getLatestArchive } from "@/lib/articles";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60; // Revalidate the latest feed every 60 seconds
 
 export const metadata: Metadata = {
   title: "Latest Technology News",

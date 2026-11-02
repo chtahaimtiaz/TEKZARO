@@ -24,7 +24,7 @@ import { buildArticleMetadata, absoluteUrl, breadcrumbJsonLd } from "@/lib/seo";
 import { categoryHref } from "@/lib/constants";
 import { isOptimizableImageSrc } from "@/lib/image-src";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600; // Revalidate article pages every hour
 
 interface Props {
   params: Promise<{ slug: string }>;

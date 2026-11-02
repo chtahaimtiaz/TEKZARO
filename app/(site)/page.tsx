@@ -9,7 +9,7 @@ import { TrendingPakistanModule } from "@/components/pakistan/TrendingPakistanMo
 import { NewsletterForm } from "@/components/ui/NewsletterForm";
 import { Logo } from "@/components/ui/Logo";
 import { AdSlot } from "@/components/ads/AdSlot";
-import { VideoSection } from "@/components/home/VideoSection";
+import { VideoSection, getHomepageVideos } from "@/components/home/VideoSection";
 import { selectHero } from "@/lib/ranking";
 import {
   getHeroPool,
@@ -20,7 +20,9 @@ import {
   getCategoryArticles,
 } from "@/lib/articles";
 
-export const dynamic = "force-dynamic";
+// ISR: revalidate the homepage every 60 seconds. Pages remain on CDN
+// between rebuilds; revalidatePath("/") is called when articles are published.
+export const revalidate = 60;
 
 // Self-referencing canonical. The newsletter form redirects back here with
 // a status param (/?newsletter=pending|invalid|ratelimited), so the site
@@ -51,13 +53,15 @@ export default async function HomePage({
 }) {
   const { newsletter } = await searchParams;
 
-  const [heroPool, pakistanTech, latest, trending, trendingPk, categorySections] = await Promise.all([
+  // All data fetched in a single parallel wave — no waterfalls.
+  const [heroPool, pakistanTech, latest, trending, trendingPk, categorySections, videos] = await Promise.all([
     getHeroPool(),
     getPakistanTechArticles(1, 3),
     getLatestPreview(8),
     getTrendingArticles(6),
     getTrendingInPakistan(5),
     Promise.all(HOMEPAGE_CATEGORIES.map(([, slug]) => getCategoryArticles(slug, 1, 3))),
+    getHomepageVideos(),
   ]);
 
   const { main, secondary } = selectHero(heroPool);
@@ -68,7 +72,7 @@ export default async function HomePage({
 
       <PakistanTechSection articles={pakistanTech.articles} />
 
-      <VideoSection />
+      <VideoSection videos={videos} />
 
       {latest.length > 0 && (
         <section>

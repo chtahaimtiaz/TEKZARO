@@ -17,7 +17,7 @@ export function FetchNowButton({ sourceId }: { sourceId: string }) {
         setMessage(`Failed: ${result.error}`);
       } else {
         setMessage(
-          `Fetched ${result.itemsSeen} item(s) — ${result.itemsCreated} new added, ${result.itemsSkippedExisting} unchanged/previously seen.`,
+          `Fetched: ${result.itemsCreated} new added (${result.itemsSkippedExisting} already in database).`,
         );
       }
       router.refresh();

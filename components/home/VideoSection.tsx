@@ -5,17 +5,34 @@ import { SectionHeader } from "@/components/content/SectionHeader";
 import { getAutoThumbnailUrl } from "@/lib/videos";
 import { isOptimizableImageSrc } from "@/lib/image-src";
 
-async function getHomepageVideos() {
+// Narrower select — only the fields rendered in the VideoSection card.
+export async function getHomepageVideos() {
   return prisma.video.findMany({
     where: { status: "PUBLISHED" },
     orderBy: [{ featured: "desc" }, { publishedAt: "desc" }],
     take: 4,
-    include: { category: true, author: true },
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+      videoUrl: true,
+      thumbnailUrl: true,
+      duration: true,
+      publishedAt: true,
+      category: { select: { name: true } },
+    },
   });
 }
 
-export async function VideoSection() {
-  const videos = await getHomepageVideos();
+type HomepageVideo = Awaited<ReturnType<typeof getHomepageVideos>>[number];
+
+interface VideoSectionProps {
+  videos: HomepageVideo[];
+}
+
+// Component receives videos as a prop (fetched in the page's Promise.all)
+// so it contributes zero extra DB round-trips.
+export function VideoSection({ videos }: VideoSectionProps) {
   if (videos.length === 0) return null;
 
   return (

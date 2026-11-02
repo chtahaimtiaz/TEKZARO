@@ -1,8 +1,18 @@
 import Link from "next/link";
+import { unstable_cache } from "next/cache";
 import { getBreakingArticles } from "@/lib/articles";
 
+// Cache breaking articles for 60 s so the site layout does not need to be
+// force-dynamic. The ticker is still fresh enough — a breaking story published
+// in the last minute will appear within the next revalidation window.
+const getCachedBreakingArticles = unstable_cache(
+  () => getBreakingArticles(8),
+  ["breaking-articles"],
+  { revalidate: 60, tags: ["breaking"] },
+);
+
 export async function BreakingTicker() {
-  const articles = await getBreakingArticles(8);
+  const articles = await getCachedBreakingArticles();
   if (articles.length === 0) return null;
 
   const loop = [...articles, ...articles];

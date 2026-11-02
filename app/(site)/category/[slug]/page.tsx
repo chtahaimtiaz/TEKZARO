@@ -7,7 +7,7 @@ import { getCategoryArticles, getCategoryBySlug, getCategoryTrending } from "@/l
 import { CATEGORY_MAP } from "@/lib/constants";
 import { AdSlot } from "@/components/ads/AdSlot";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300; // 5 min ISR
 
 interface Props {
   params: Promise<{ slug: string }>;
